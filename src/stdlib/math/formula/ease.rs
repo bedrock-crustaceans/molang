@@ -508,6 +508,7 @@ mod tests {
             ("in_back", "+-+-+-"), ("out_back", "+-+-+-"), ("in_out_back", "+-+-+-"),
             ("in_elastic", "-+-+-+"), ("out_elastic", "-++--+"), ("in_out_elastic", "-++--+"),
         ];
+        // Exactly ten easings; the other 20 keep the Linux choice.
         #[rustfmt::skip]
         let windows: [(&str, &str); 10] = [
             ("in_out_quad", "-+-+-+"), ("in_out_cubic", "-+-+-+"), ("in_out_quart", "-+-+-+"),

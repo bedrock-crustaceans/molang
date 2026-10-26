@@ -1,7 +1,7 @@
 //! Run rows compile for the server under `Deviations::NONE` and run on every platform.
 //! [`RunGroup`] rows run in order on one state, so variables and temps persist from row to row;
-//! [`LoopCapGroup`] and [`SmokeGroup`] rows each run on a fresh one. A [`RunGroup`]'s rows listed
-//! for a platform ([`RunGroup::differs_on`]) differ there and the rest hold.
+//! [`LoopCapGroup`] and [`SmokeGroup`] rows each run on a fresh one. A row whose recorded value no
+//! platform gives ([`RunRow::on_every_platform`]) gives its stated value instead.
 
 use molang::compile::{CompileOptions, Deviations, compile};
 use molang::rng::FixedRng;
@@ -29,6 +29,7 @@ pub struct RunRow {
     seq: u32,
     expr: String,
     expected: f32,
+    instead: Option<f32>,
     version: i16,
     lines: Vec<String>,
     clears_variables: bool,
@@ -59,6 +60,22 @@ impl RunRow {
         self.compiled = false;
         self
     }
+
+    /// No platform gives the recorded value: every one gives `value`.
+    pub fn on_every_platform(&mut self, value: f32) -> &mut Self {
+        assert!(
+            !nan_or_same_bits(value, self.expected),
+            "#{}: {value:e} is the recorded value",
+            self.seq
+        );
+        self.instead = Some(value);
+        self
+    }
+
+    /// The value every platform gives.
+    fn value(&self) -> f32 {
+        self.instead.unwrap_or(self.expected)
+    }
 }
 
 #[derive(Debug)]
@@ -66,7 +83,6 @@ pub struct RunGroup {
     group: String,
     guard: CheckGuard,
     rows: Vec<RunRow>,
-    differs: Vec<(Platform, Vec<u32>)>,
 }
 
 impl RunGroup {
@@ -75,25 +91,7 @@ impl RunGroup {
             group: group.to_owned(),
             guard: CheckGuard::new(group),
             rows: Vec::new(),
-            differs: Vec::new(),
         }
-    }
-
-    /// The rows whose value or lines differ on `platform`. One call per platform.
-    pub fn differs_on(&mut self, platform: Platform, seqs: &[u32]) -> &mut Self {
-        assert!(
-            self.differs.iter().all(|(listed, _)| *listed != platform),
-            "{}: the rows that differ on {platform:?} are given twice",
-            self.group
-        );
-        self.differs.push((platform, seqs.to_vec()));
-        self
-    }
-
-    fn listed(&self, platform: Platform, seq: u32) -> bool {
-        self.differs
-            .iter()
-            .any(|(listed, seqs)| *listed == platform && seqs.contains(&seq))
     }
 
     /// `expr` gives `expected` to the bit. A row that is one bare `math.<fn>(…)` call must also
@@ -108,6 +106,7 @@ impl RunGroup {
             seq,
             expr: expr.to_owned(),
             expected,
+            instead: None,
             version: 13,
             lines: Vec::new(),
             clears_variables: false,
@@ -141,27 +140,17 @@ impl RunGroup {
                     // A call of the wrong arity (`math.max(3)`) is not the math library's to
                     // evaluate.
                     if let Some(actual) = evaluate_call(platform, &call, &mut zero)
-                        && !nan_or_same_bits(actual, row.expected)
-                        && !self.listed(platform, row.seq)
+                        && !nan_or_same_bits(actual, row.value())
                     {
                         failures.push(format!(
                             "{name} {:?} on {platform:?}: math = {actual:e} ({:#010x}), expected {:e} ({:#010x})",
                             row.expr,
                             actual.to_bits(),
-                            row.expected,
-                            row.expected.to_bits()
+                            row.value(),
+                            row.value().to_bits()
                         ));
                     }
                 }
-            }
-        }
-        for (platform, seqs) in &self.differs {
-            for seq in seqs {
-                assert!(
-                    self.rows.iter().any(|row| row.seq == *seq),
-                    "{}: differs_on({platform:?}) names #{seq}, which is not a row",
-                    self.group
-                );
             }
         }
         #[cfg(feature = "vm")]
@@ -198,23 +187,17 @@ impl RunGroup {
                 .iter()
                 .map(|line| (LogLevel::Error, line.trim_end().to_owned()))
                 .collect();
-            let agrees = matches!(value, Value::Float(x) if nan_or_same_bits(x, row.expected))
+            let agrees = matches!(value, Value::Float(x) if nan_or_same_bits(x, row.value()))
                 && ours == theirs;
-            let listed = self.listed(platform, row.seq);
-            if listed && agrees {
-                failures.push(format!(
-                    "{} #{} {:?}: listed in differs_on({platform:?}), but agrees",
-                    self.group, row.seq, row.expr
-                ));
-            } else if !listed && !agrees {
+            if !agrees {
                 failures.push(format!(
                     "{} #{} v{} {:?} on {platform:?}: {value:?} (expected {:?} = {:#010x})\n    ours:   {ours:?}\n    theirs: {theirs:?}",
                     self.group,
                     row.seq,
                     row.version,
                     row.expr,
-                    row.expected,
-                    row.expected.to_bits()
+                    row.value(),
+                    row.value().to_bits()
                 ));
             }
         }

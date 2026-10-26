@@ -1,8 +1,10 @@
 //! Single operations from `numeric_bits.json`, compared to the bit on every platform.
 //!
-//! The `X86_64` set is what BDS Linux 1.26.36 computes. The `Arm64` set is what an arm64 build that
-//! fuses its multiply-adds computes, which no platform here reproduces; only its transcendental
-//! samples are checked.
+//! The `X86_64` set holds the results of the servers' arithmetic with glibc's functions: BDS Linux
+//! 1.26.36 gives every row, 1.26.52 every row but `ln` of a negative number. The `Arm64` set holds
+//! results with fused multiply-adds, which no platform gives; only its transcendental samples are
+//! checked. For BDS Windows and Android this file checks only which functions differ from the
+//! `X86_64` set; their bits are pinned in `tests/numerics.rs` (`platforms`).
 //!
 //! ```text
 //! {schema, counts{<set>: {rows, transcendental_rows, families{}}}, profiles{X86_64[], Arm64[]}}
@@ -14,8 +16,8 @@
 //! `args` are its arguments in order (`div_guard_*`: `result_bits` null when the guard fired).
 //! `samples` are the random draws in order. `transcendental: true` marks a row that evaluates a
 //! transcendental function; `transcendental_samples` lists the `[function, [argument bits…], result
-//! bits]` the row relies on, each also checked alone against the function evaluated in `f64` and
-//! rounded to `f32`. `counts` states the file's own size per set.
+//! bits]` the row relies on, each also checked alone against the platform's function. `counts`
+//! states the file's own size per set.
 
 #![cfg(all(feature = "compiler", feature = "stdlib"))]
 
@@ -122,10 +124,10 @@ fn evaluate_row(
         "negate" => numeric::negate(platform, a[0], post),
         "div_guard_signed" => return numeric::div_guard(true, a[0]),
         "div_guard_abs" => return numeric::div_guard(false, a[0]),
-        "lt" => post.select(numeric::lt(a[0], a[1])),
-        "le" => post.select(numeric::le(a[0], a[1])),
-        "ge" => post.select(numeric::ge(a[0], a[1])),
-        "gt" => post.select(numeric::gt(a[0], a[1])),
+        "lt" => post.select(platform, numeric::lt(a[0], a[1])),
+        "le" => post.select(platform, numeric::le(a[0], a[1])),
+        "ge" => post.select(platform, numeric::ge(a[0], a[1])),
+        "gt" => post.select(platform, numeric::gt(a[0], a[1])),
         "abs" => math::abs(platform, a[0], post),
         "acos" => math::acos(platform, a[0], post),
         "asin" => math::asin(platform, a[0], post),
@@ -152,7 +154,7 @@ fn evaluate_row(
         "inverse_lerp" => math::inverse_lerp(platform, a[0], a[1], a[2], post),
         "mod_const" => math::mod_const(platform, a[0], a[1], post),
         "mod_runtime" => math::mod_runtime(platform, a[0], a[1], post),
-        "sign" => math::sign(a[0], post),
+        "sign" => math::sign(platform, a[0], post),
         "random" => math::random(platform, a[0], a[1], samples[0], post),
         "random_const" => math::random_folded(
             platform,
@@ -281,7 +283,8 @@ fn bds_linux_matches_the_x86_64_rows_bit_for_bit() {
 }
 
 /// The functions of the `X86_64` set each other platform computes differently: the invalid
-/// operations' NaN, the NaN an operation of two NaNs keeps, and the number of rolls.
+/// operations' NaN, the NaN an operation of two NaNs keeps, and the number of rolls. The bits
+/// themselves are pinned in `tests/numerics.rs` (`platforms`).
 #[test]
 fn each_other_platform_differs_from_the_x86_64_set_in_its_functions() {
     let file = common::data_json("numeric_bits.json");

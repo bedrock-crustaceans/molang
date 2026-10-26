@@ -12,7 +12,7 @@ use crate::catalog::{
 #[cfg(feature = "compiler")]
 use crate::compile::CompileOptions;
 #[cfg(feature = "compiler")]
-use crate::numeric::{Platform, PostOp};
+use crate::numeric::PostOp;
 #[cfg(feature = "compiler")]
 use crate::stdlib::math::max;
 use crate::stdlib::queries;
@@ -62,18 +62,18 @@ pub fn options(raw_version: i16) -> CompileOptions {
 #[cfg(feature = "compiler")]
 pub fn math() -> &'static MathCatalog {
     static MATH: LazyLock<MathCatalog> = LazyLock::new(|| {
-        let weighted = |a: &[f32]| {
+        let weighted = |_, a: &[f32]| {
             a.iter()
                 .zip(1u8..)
                 .map(|(x, weight)| x * f32::from(weight))
                 .sum()
         };
         let decls = [
-            MathDecl::pure("math.helper_mix", Arity::exactly(2), |a| {
-                max(Platform::default(), a[0], a[1], PostOp::IDENTITY) * 0.5 - a[1] * 0.25
+            MathDecl::pure("math.helper_mix", Arity::exactly(2), |platform, a| {
+                max(platform, a[0], a[1], PostOp::IDENTITY) * 0.5 - a[1] * 0.25
             }),
             MathDecl::pure("math.helper_sum", Arity::between(1, 8), weighted),
-            MathDecl::volatile("math.helper_noise", Arity::exactly(1), |rng, a| {
+            MathDecl::volatile("math.helper_noise", Arity::exactly(1), |_, rng, a| {
                 a[0] + crate::rng::sample(rng)
             }),
         ]

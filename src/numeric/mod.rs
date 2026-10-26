@@ -39,11 +39,8 @@
 //! the transcendental `math.*` functions ([`Platform`] lists the differences).
 //!
 //! The arithmetic and the standard functions choose the sign and payload of every NaN they return,
-//! so those are the same on every host too, except where an instruction of the host makes the NaN:
-//! `math.floor`, `math.ceil`, `math.round` and `math.trunc` of a NaN, a NaN bound of
-//! `math.die_roll` / `math.die_roll_integer` (floored), and the result of a comparison or logical
-//! node whose folded post-op holds a NaN. On 32-bit x86 a value returned through the x87 register
-//! may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
+//! so those are the same on every host too. On 32-bit x86 a value returned through the x87
+//! register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
 //!
 //! Every instruction function takes the node's [`PostOp`] as its last argument and returns the
 //! final value; pass [`PostOp::IDENTITY`] for the plain form.
@@ -81,11 +78,12 @@ pub(crate) mod test_support {
     /// Every platform, for a test that runs once with each.
     pub(crate) const PLATFORMS: [Platform; 4] = [LINUX, LINUX_1_26_36, WINDOWS, ANDROID];
 
-    /// `x86_64` on a server platform, `arm64` on [`Platform::AndroidArm64`].
-    pub(crate) fn x86_or_arm<T>(p: Platform, x86_64: T, arm64: T) -> T {
+    /// `servers` on [`Platform::BdsLinux`] and [`Platform::BdsWindows`], `android` on
+    /// [`Platform::AndroidArm64`].
+    pub(crate) fn servers_or_android<T>(p: Platform, servers: T, android: T) -> T {
         match p.fpu() {
-            platform::Fpu::X86_64 => x86_64,
-            platform::Fpu::Arm64 => arm64,
+            platform::Fpu::X86_64 => servers,
+            platform::Fpu::Arm64 => android,
         }
     }
 

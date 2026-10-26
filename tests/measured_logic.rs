@@ -748,11 +748,18 @@ fn version_2_accepts_non_numeric_operands_that_version_3_rejects() {
 fn nan_comparisons_and_missing_reads_on_one_state() {
     let mut group = RunGroup::new("nan_comparisons_and_missing_reads");
     // A comparison with NaN is true for `<`, `<=` and `!=`, false for the others.
-    group.row(0, "v.x = math.sqrt(-1); v.o = 1; return v.x < v.o;", 1.0);
-    group.row(1, "v.x = math.sqrt(-1); v.o = 1; return v.x <= v.o;", 1.0);
+    // No platform gives the recorded values of rows 0, 1 and 4.
+    group
+        .row(0, "v.x = math.sqrt(-1); v.o = 1; return v.x < v.o;", 1.0)
+        .on_every_platform(0.0);
+    group
+        .row(1, "v.x = math.sqrt(-1); v.o = 1; return v.x <= v.o;", 1.0)
+        .on_every_platform(0.0);
     group.row(2, "v.x = math.sqrt(-1); v.o = 1; return v.x > v.o;", 0.0);
     group.row(3, "v.x = math.sqrt(-1); v.o = 1; return v.x >= v.o;", 0.0);
-    group.row(4, "v.x = math.sqrt(-1); v.o = 1; return v.o < v.x;", 1.0);
+    group
+        .row(4, "v.x = math.sqrt(-1); v.o = 1; return v.o < v.x;", 1.0)
+        .on_every_platform(0.0);
     group.row(5, "v.x = math.sqrt(-1); v.o = 1; return v.o >= v.x;", 0.0);
     group.row(6, "v.x = math.sqrt(-1); return v.x > 1;", 0.0);
     group.row(7, "v.x = math.sqrt(-1); return v.x == 1;", 0.0);
@@ -799,9 +806,5 @@ fn nan_comparisons_and_missing_reads_on_one_state() {
     group.row(26, "1+1;", 0.0);
     group.row(27, "return 1+1;", 2.0);
     group.row(28, "v.x = 0; return v.x ?? 5;", 0.0);
-    // No platform gives these rows' recorded values.
-    for platform in common::PLATFORMS {
-        group.differs_on(platform, &[0, 1, 4]);
-    }
     group.check(27);
 }

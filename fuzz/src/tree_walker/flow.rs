@@ -36,12 +36,12 @@ impl<H: Host> Walker<H> {
             let truthy = self.node(operand, cx)?.truthy();
             self.step(cx)?;
             if truthy == deciding {
-                return Ok(Value::Float(post.select(truthy)));
+                return Ok(Value::Float(post.select(self.platform, truthy)));
             }
         }
         let truthy = self.node(last, cx)?.truthy();
         self.step(cx)?;
-        Ok(Value::Float(post.select(truthy)))
+        Ok(Value::Float(post.select(self.platform, truthy)))
     }
 
     /// `x ?? y`: a handler around the left side; a missing read in it continues at the
@@ -153,8 +153,8 @@ impl<H: Host> Walker<H> {
 
     /// `loop(count, body)` under the loop guard: `ceil(count)` iterations for a
     /// finite positive count, the first one unconditional, each further one only while the loop
-    /// has run fewer than the per-loop budget. The count and the counter are compared with the
-    /// architecture's `<=`: a NaN count makes no pass on `Arm64` and never runs out on `X86_64`.
+    /// has run fewer than the per-loop budget. The count and the counter are compared with `<=`,
+    /// false with a NaN, so a NaN count never runs out.
     #[inline(never)]
     pub(super) fn counted_loop(&mut self, n: &Node, cx: &mut EvalCx<'_, '_, H>) -> Eval<H> {
         let count = self.node(child(n, 0), cx)?.as_f32();

@@ -10,8 +10,8 @@ pub fn truthy(x: f32) -> bool {
 
 /// `!x`: the node's "false" constant when `x` is truthy (NaN included), else its "true" constant.
 #[inline]
-pub fn not(x: f32, post: PostOp) -> f32 {
-    post.select(!truthy(x))
+pub fn not(platform: Platform, x: f32, post: PostOp) -> f32 {
+    post.select(platform, !truthy(x))
 }
 
 /// `a < b`: false with a NaN.
@@ -145,11 +145,11 @@ mod tests {
         assert!(!truthy(-0.0));
         assert!(truthy(-0.5));
         assert!(truthy(0.000_000_1));
-        assert_eq!(not(NAN, ID), 0.0);
-        assert_eq!(not(-0.0, ID), 1.0);
-        assert_eq!(not(3.0, ID), 0.0);
-        assert_eq!(not(0.0, PostOp::new(2.0, 1.0)), 3.0);
-        assert_eq!(not(5.0, PostOp::new(2.0, 1.0)), 1.0);
+        assert_eq!(not(P, NAN, ID), 0.0);
+        assert_eq!(not(P, -0.0, ID), 1.0);
+        assert_eq!(not(P, 3.0, ID), 0.0);
+        assert_eq!(not(P, 0.0, PostOp::new(2.0, 1.0)), 3.0);
+        assert_eq!(not(P, 5.0, PostOp::new(2.0, 1.0)), 1.0);
     }
 
     #[test]
@@ -181,21 +181,21 @@ mod tests {
         #[test]
         fn not_selects_the_opposite_constant(x in proptest::num::f32::ANY, scale in -8.0_f32..8.0, offset in -8.0_f32..8.0) {
             let post = PostOp::new(scale, offset);
-            let expected = if truthy(x) { post.falsy_value() } else { post.truthy_value() };
-            prop_assert_eq!(not(x, post).to_bits(), expected.to_bits());
+            let expected = if truthy(x) { post.falsy_value() } else { post.truthy_value(P) };
+            prop_assert_eq!(not(P, x, post).to_bits(), expected.to_bits());
         }
     }
 
     #[test]
     fn not_returns_the_post_op_constants() {
         let post = PostOp::new(-2.0, 0.5);
-        assert_eq!(not(0.0, post), -1.5);
-        assert_eq!(not(-0.0, post), -1.5);
-        assert_eq!(not(7.0, post), 0.5);
-        assert_eq!(not(NAN, post), 0.5);
-        assert_eq!(not(INF, post), 0.5);
-        assert_eq!(not(-INF, ID), 0.0);
-        assert_eq!(not(1.0e-45, ID), 0.0);
+        assert_eq!(not(P, 0.0, post), -1.5);
+        assert_eq!(not(P, -0.0, post), -1.5);
+        assert_eq!(not(P, 7.0, post), 0.5);
+        assert_eq!(not(P, NAN, post), 0.5);
+        assert_eq!(not(P, INF, post), 0.5);
+        assert_eq!(not(P, -INF, ID), 0.0);
+        assert_eq!(not(P, 1.0e-45, ID), 0.0);
     }
 
     #[test]

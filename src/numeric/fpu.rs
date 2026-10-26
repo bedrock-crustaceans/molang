@@ -26,6 +26,7 @@ fn is_signalling(x: f32) -> bool {
 }
 
 /// The NaN of an invalid operation on numbers.
+#[cfg(feature = "stdlib")]
 #[inline]
 pub(crate) const fn default_nan(p: Platform) -> f32 {
     p.fpu().default_nan()
@@ -98,6 +99,41 @@ pub(crate) fn max(a: f32, b: f32) -> f32 {
 #[inline]
 pub(crate) fn min(a: f32, b: f32) -> f32 {
     if a < b { a } else { b }
+}
+
+/// `x` rounded by `f`; a NaN comes back quietened, as every platform's rounding gives it.
+#[cfg(feature = "stdlib")]
+#[inline]
+fn rounded(x: f32, f: fn(f32) -> f32) -> f32 {
+    if x.is_nan() { quiet(x) } else { f(x) }
+}
+
+/// Rounds toward −∞.
+#[cfg(feature = "stdlib")]
+#[inline]
+pub(crate) fn floor(x: f32) -> f32 {
+    rounded(x, f32::floor)
+}
+
+/// Rounds toward +∞.
+#[cfg(feature = "stdlib")]
+#[inline]
+pub(crate) fn ceil(x: f32) -> f32 {
+    rounded(x, f32::ceil)
+}
+
+/// Rounds half away from zero.
+#[cfg(feature = "stdlib")]
+#[inline]
+pub(crate) fn round(x: f32) -> f32 {
+    rounded(x, f32::round)
+}
+
+/// Rounds toward zero.
+#[cfg(feature = "stdlib")]
+#[inline]
+pub(crate) fn trunc(x: f32) -> f32 {
+    rounded(x, f32::trunc)
 }
 
 /// Truncating float-to-int. Out of range or NaN: `i32::MIN` on x86-64; saturated, NaN to 0, on

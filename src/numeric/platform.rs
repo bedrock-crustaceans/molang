@@ -123,6 +123,7 @@ impl Platform {
 
     /// Whether some easings and the rounding post-ops take their operands in the other order:
     /// the same values, another NaN of two.
+    #[cfg(feature = "stdlib")]
     #[inline]
     pub(crate) const fn reorders_operands(self) -> bool {
         matches!(self, Self::BdsWindows)

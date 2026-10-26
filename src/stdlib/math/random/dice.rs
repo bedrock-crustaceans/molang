@@ -1,7 +1,7 @@
 //! `math.die_roll` and `math.die_roll_integer`, one call or one roll at a time.
 
 use super::clamp_sample;
-use crate::numeric::{Platform, PostOp, arith};
+use crate::numeric::{Platform, PostOp, arith, fpu};
 use crate::rng::{rand_core::Rng, sample};
 use crate::stdlib::math::formula::{self, Sort, integer_reach, sorted_bounds};
 
@@ -47,7 +47,7 @@ impl DieRoll {
     /// Starts `math.die_roll(n, a, b)`: [`die_roll_count`] rolls over the floored, sorted bounds.
     #[inline]
     pub fn new(platform: Platform, n: f32, a: f32, b: f32) -> Self {
-        let (lo, hi) = sorted_bounds(Sort::RunTime, a.floor(), b.floor());
+        let (lo, hi) = sorted_bounds(Sort::RunTime, fpu::floor(a), fpu::floor(b));
         Self {
             platform,
             lo,
@@ -82,7 +82,7 @@ impl DieRoll {
             return;
         }
         self.remaining -= 1;
-        let r = clamp_sample(sample);
+        let r = clamp_sample(self.platform, sample);
         let (p, lo, hi) = (self.platform, self.lo, self.hi);
         self.sum = match self.reach {
             Some(reach) => formula::integer_roll(p, self.sum, lo, hi, reach, r),
@@ -231,7 +231,7 @@ mod tests {
             for n in [2_147_483_648.0_f32, 1.0e10, f32::MAX, INF] {
                 assert_eq!(
                     die_roll_count(p, n),
-                    x86_or_arm(p, 0, i32::MAX as u32),
+                    servers_or_android(p, 0, i32::MAX as u32),
                     "{p:?} {n}"
                 );
             }
@@ -448,11 +448,11 @@ mod tests {
         for p in PLATFORMS {
             assert_eq!(
                 die_roll(p, 1.0e10, 1.0, 6.0, 1_000_000, &mut rng, ID),
-                x86_or_arm(p, Some(0.0), None)
+                servers_or_android(p, Some(0.0), None)
             );
             assert_eq!(
                 die_roll_integer(p, INF, 1.0, 6.0, 1_000_000, &mut rng, ID),
-                x86_or_arm(p, Some(0.0), None)
+                servers_or_android(p, Some(0.0), None)
             );
         }
         assert_eq!(rng.draws, 0);
@@ -541,7 +541,7 @@ mod tests {
             let (mut given, mut clamped) = (start, start);
             while given.remaining() > 0 {
                 given.roll(raw);
-                clamped.roll(clamp_sample(raw));
+                clamped.roll(clamp_sample(P, raw));
             }
             prop_assert_eq!(given.finish(ID).to_bits(), clamped.finish(ID).to_bits());
         }

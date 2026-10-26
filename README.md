@@ -120,8 +120,8 @@ use molang::vm::NoHostEnv;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let math = MathCatalog::new([
-        MathDecl::pure("math.hypot", Arity::exactly(2), |a| a[0].hypot(a[1]))?,
-        MathDecl::volatile("math.jitter", Arity::exactly(1), |rng, a| a[0] * sample(rng))?,
+        MathDecl::pure("math.hypot", Arity::exactly(2), |_, a| a[0].hypot(a[1]))?,
+        MathDecl::volatile("math.jitter", Arity::exactly(1), |_, rng, a| a[0] * sample(rng))?,
     ])?;
     let options = CompileOptions {
         math: Some(math),
@@ -208,7 +208,7 @@ assert_eq!(expr.as_constant(), Some(-1.0));
 
 Every platform rounds each multiply, add and divide on its own in formula order, makes every comparison with a NaN false and returns the second operand from `math.min` / `math.max` when either is NaN. The servers return the left NaN operand of an arithmetic operation quietened and `0xffc00000` for an invalid one; Android returns the first signalling NaN operand quietened, else the first quiet one, `0x7fc00000` for an invalid one, and saturates a float → int conversion (`loop` and die counts, array indices) with NaN as 0 where the servers give `i32::MIN`. The NaN of an invalid standard function differs too: `math.ln` of a negative number changed sign between Linux releases. The transcendental functions are ports of glibc's single-precision ones on Linux and, as the closest match, on Android; on Windows they are evaluated in `f64` and rounded once. `numeric::Platform` lists every difference.
 
-The arithmetic and the standard functions choose the sign and payload of the NaNs they return, so those are the same on every host too, except where an instruction of the host makes the NaN: `math.floor`, `math.ceil`, `math.round` and `math.trunc` of a NaN, a NaN bound of `math.die_roll` / `math.die_roll_integer` (floored), and the result of a comparison or logical node whose folded post-op holds a NaN. On 32-bit x86 a value returned through the x87 register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
+The arithmetic and the standard functions choose the sign and payload of the NaNs they return, so those are the same on every host too. On 32-bit x86 a value returned through the x87 register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
 
 ## Evaluation
 

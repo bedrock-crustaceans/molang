@@ -46,11 +46,11 @@ impl<H: Host> Walker<H> {
             Op::GreaterThan => self.comparison(numeric::gt, n, cx),
             Op::LogicalEqual => {
                 let equal = self.equality(n, cx)?;
-                Ok(Value::Float(n.post().select(equal)))
+                Ok(Value::Float(n.post().select(self.platform, equal)))
             }
             Op::LogicalNotEqual => {
                 let equal = self.equality(n, cx)?;
-                Ok(Value::Float(n.post().select(!equal)))
+                Ok(Value::Float(n.post().select(self.platform, !equal)))
             }
             Op::Random => self.random(Draw::Float, n, cx),
             Op::RandomInt => self.random(Draw::Integer, n, cx),
@@ -140,8 +140,8 @@ impl<H: Host> Walker<H> {
             return Ok(Value::ZERO);
         };
         let value = match math_decl(catalog, *function).implementation() {
-            MathImpl::Pure(call) => call(&args[..count]),
-            MathImpl::Volatile(call) => call(&mut *cx.rng, &args[..count]),
+            MathImpl::Pure(call) => call(self.platform, &args[..count]),
+            MathImpl::Volatile(call) => call(self.platform, &mut *cx.rng, &args[..count]),
         };
         Ok(Value::Float(n.post().apply(self.platform, value)))
     }
@@ -175,7 +175,7 @@ impl<H: Host> Walker<H> {
         cx: &mut EvalCx<'_, '_, H>,
     ) -> Eval<H> {
         let (a, b) = self.operands(n, cx)?;
-        Ok(Value::Float(n.post().select(holds(a, b))))
+        Ok(Value::Float(n.post().select(self.platform, holds(a, b))))
     }
 
     /// Whether the operands of `==` / `!=` are equal: on values, not floats.
@@ -290,7 +290,7 @@ impl<H: Host> Walker<H> {
 fn unary(op: Op) -> Option<Unary> {
     Some(match op {
         Op::Negate => numeric::negate,
-        Op::LogicalNot => |_, x, post| numeric::not(x, post),
+        Op::LogicalNot => numeric::not,
         Op::Abs => math::abs,
         Op::Acos => math::acos,
         Op::Asin => math::asin,
@@ -304,7 +304,7 @@ fn unary(op: Op) -> Option<Unary> {
         Op::MinAngle => math::min_angle,
         Op::Round => math::round,
         Op::Sin => math::sin,
-        Op::Sign => |_, x, post| math::sign(x, post),
+        Op::Sign => math::sign,
         Op::Sqrt => math::sqrt,
         Op::Trunc => math::trunc,
         _ => return None,
@@ -634,7 +634,7 @@ mod tests {
 
     #[test]
     fn the_unary_table_names_the_matching_math_function() {
-        let sign: Unary = |_, x, post| math::sign(x, post);
+        let sign: Unary = math::sign;
         let table: [(Op, Unary); 16] = [
             (Op::Abs, math::abs),
             (Op::Acos, math::acos),

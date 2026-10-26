@@ -2956,12 +2956,15 @@ mod math_library {
 
     #[test]
     fn random_samples_are_clamped() {
-        assert_eq!(math::clamp_sample(0.25), 0.25);
-        assert_eq!(math::clamp_sample(2.0), 1.0);
-        assert_eq!(math::clamp_sample(-1.0), 0.0);
-        assert_eq!(math::clamp_sample(-0.0).to_bits(), 0.0_f32.to_bits());
-        assert_eq!(math::clamp_sample(NAN), 0.0);
-        assert_eq!(math::clamp_sample(1.0), 1.0);
+        assert_eq!(math::clamp_sample(Platform::default(), 0.25), 0.25);
+        assert_eq!(math::clamp_sample(Platform::default(), 2.0), 1.0);
+        assert_eq!(math::clamp_sample(Platform::default(), -1.0), 0.0);
+        assert_eq!(
+            math::clamp_sample(Platform::default(), -0.0).to_bits(),
+            0.0_f32.to_bits()
+        );
+        assert_eq!(math::clamp_sample(Platform::default(), NAN), 0.0);
+        assert_eq!(math::clamp_sample(Platform::default(), 1.0), 1.0);
         assert_eq!(math::random(P, 2.0, 7.0, 9.0, ID), 7.0);
         assert_eq!(math::random(P, 2.0, 7.0, -9.0, ID), 2.0);
     }
@@ -3253,12 +3256,12 @@ mod primitives {
     #[test]
     fn comparison_results_are_precomputed_constants() {
         // F = O, T = S + O; no multiplication happens at run time.
-        assert_eq!(ID.select(true), 1.0);
-        assert_eq!(ID.select(false), 0.0);
+        assert_eq!(ID.select(P, true), 1.0);
+        assert_eq!(ID.select(P, false), 0.0);
         let post = PostOp::new(2.0, 1.1);
-        assert_eq!(post.select(true), 2.0 + 1.1);
-        assert_eq!(post.select(false), 1.1);
-        assert_eq!(post.truthy_value(), 3.1);
+        assert_eq!(post.select(P, true), 2.0 + 1.1);
+        assert_eq!(post.select(P, false), 1.1);
+        assert_eq!(post.truthy_value(P), 3.1);
         assert_eq!(post.falsy_value(), 1.1);
     }
 
@@ -3275,10 +3278,10 @@ mod primitives {
     #[test]
     fn sign_post_op_quirk() {
         // v.x = -1; math.sign(v.x) + 1 → −2 (not 0); math.sign(v.x) * -2 + 1 → 1 (not 3).
-        assert_eq!(math::sign(-1.0, PostOp::new(1.0, 1.0)), -2.0);
-        assert_eq!(math::sign(-1.0, PostOp::new(-2.0, 1.0)), 1.0);
-        assert_eq!(math::sign(1.0, PostOp::new(1.0, 1.0)), 2.0);
-        assert_eq!(math::sign(1.0, PostOp::new(-2.0, 1.0)), -1.0);
+        assert_eq!(math::sign(P, -1.0, PostOp::new(1.0, 1.0)), -2.0);
+        assert_eq!(math::sign(P, -1.0, PostOp::new(-2.0, 1.0)), 1.0);
+        assert_eq!(math::sign(P, 1.0, PostOp::new(1.0, 1.0)), 2.0);
+        assert_eq!(math::sign(P, 1.0, PostOp::new(-2.0, 1.0)), -1.0);
     }
 
     #[test]

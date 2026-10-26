@@ -389,7 +389,7 @@ mod tests {
     fn the_math_catalogue_is_part_of_the_key_by_identity() {
         use crate::catalog::{Arity, MathCatalog, MathDecl};
         let catalog = || {
-            MathCatalog::new([MathDecl::pure("math.f", Arity::exactly(1), |a| a[0]).unwrap()])
+            MathCatalog::new([MathDecl::pure("math.f", Arity::exactly(1), |_, a| a[0]).unwrap()])
                 .unwrap()
         };
         let (one, other) = (catalog(), catalog());

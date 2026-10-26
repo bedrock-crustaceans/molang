@@ -16,21 +16,21 @@ use molang::version::MolangVersion;
 fn catalog() -> MathCatalog {
     let one = Arity::exactly(1);
     MathCatalog::new([
-        MathDecl::pure("math.twice", one, |a| a[0] * 2.0).unwrap(),
-        MathDecl::pure("math.tag", one, |a| a[0] + 0.25).unwrap(),
-        MathDecl::pure("math.neg_zero", one, |_| -0.0).unwrap(),
-        MathDecl::pure("math.pair", Arity::exactly(2), |a| a[0] - a[1]).unwrap(),
-        MathDecl::pure("math.span", Arity::between(2, 3), |a| a.iter().sum()).unwrap(),
-        MathDecl::pure("math.sinh", one, |a| a[0] + 0.5).unwrap(),
-        MathDecl::pure("math.weigh3", Arity::exactly(3), |a| {
+        MathDecl::pure("math.twice", one, |_, a| a[0] * 2.0).unwrap(),
+        MathDecl::pure("math.tag", one, |_, a| a[0] + 0.25).unwrap(),
+        MathDecl::pure("math.neg_zero", one, |_, _| -0.0).unwrap(),
+        MathDecl::pure("math.pair", Arity::exactly(2), |_, a| a[0] - a[1]).unwrap(),
+        MathDecl::pure("math.span", Arity::between(2, 3), |_, a| a.iter().sum()).unwrap(),
+        MathDecl::pure("math.sinh", one, |_, a| a[0] + 0.5).unwrap(),
+        MathDecl::pure("math.weigh3", Arity::exactly(3), |_, a| {
             a[0] - 2.0 * a[1] + 4.0 * a[2]
         })
         .unwrap(),
-        MathDecl::pure("math.weigh8", Arity::exactly(8), |a| {
+        MathDecl::pure("math.weigh8", Arity::exactly(8), |_, a| {
             a.iter().rev().fold(0.0, |sum, x| sum * 2.0 + x)
         })
         .unwrap(),
-        MathDecl::volatile("math.draw", one, |rng, a| a[0] + sample(rng)).unwrap(),
+        MathDecl::volatile("math.draw", one, |_, rng, a| a[0] + sample(rng)).unwrap(),
     ])
     .unwrap()
 }
@@ -190,9 +190,9 @@ fn a_declared_name_with_a_built_in_prefix_is_the_host_function_and_the_built_in_
 /// (`1000` plus a draw) in place of the standard functions.
 fn overrides() -> MathCatalog {
     MathCatalog::new([
-        MathDecl::pure("math.sin", Arity::exactly(1), |a| a[0] + 100.0).unwrap(),
-        MathDecl::pure("math.random", Arity::exactly(2), |a| a[0] + a[1]).unwrap(),
-        MathDecl::volatile("math.random_integer", Arity::exactly(2), |rng, a| {
+        MathDecl::pure("math.sin", Arity::exactly(1), |_, a| a[0] + 100.0).unwrap(),
+        MathDecl::pure("math.random", Arity::exactly(2), |_, a| a[0] + a[1]).unwrap(),
+        MathDecl::volatile("math.random_integer", Arity::exactly(2), |_, rng, a| {
             1000.0 + a[0] + sample(rng)
         })
         .unwrap(),
@@ -203,7 +203,7 @@ fn overrides() -> MathCatalog {
 #[test]
 fn math_pi_is_a_constant_and_cannot_be_declared() {
     assert_eq!(
-        MathDecl::pure("math.pi", Arity::exactly(1), |a| a[0]).err(),
+        MathDecl::pure("math.pi", Arity::exactly(1), |_, a| a[0]).err(),
         Some(MathError::Constant("math.pi".into()))
     );
     assert_eq!(
@@ -575,7 +575,7 @@ mod evaluation {
     /// A pure function counting its calls.
     fn counted(name: &str, calls: &Arc<AtomicUsize>) -> MathDecl {
         let calls = Arc::clone(calls);
-        MathDecl::pure(name, Arity::exactly(1), move |a| {
+        MathDecl::pure(name, Arity::exactly(1), move |_, a| {
             calls.fetch_add(1, Ordering::Relaxed);
             a[0] * 2.0
         })
@@ -591,7 +591,7 @@ mod evaluation {
         );
         let h = {
             let calls = Arc::clone(&h_calls);
-            MathDecl::volatile("math.h", Arity::exactly(1), move |_, a| {
+            MathDecl::volatile("math.h", Arity::exactly(1), move |_, _, a| {
                 calls.fetch_add(1, Ordering::Relaxed);
                 a[0] * 2.0
             })

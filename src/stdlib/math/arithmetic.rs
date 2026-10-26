@@ -79,8 +79,8 @@ pub fn pow(platform: Platform, a: f32, b: f32, post: PostOp) -> f32 {
 ///
 /// The post-op is not `raw·S + O`: `v.x = -1; math.sign(v.x) + 1` is −2.
 #[inline]
-pub fn sign(x: f32, post: PostOp) -> f32 {
-    let k = post.truthy_value();
+pub fn sign(platform: Platform, x: f32, post: PostOp) -> f32 {
+    let k = post.truthy_value(platform);
     if lt(x, 0.0) { -k } else { k }
 }
 
@@ -405,40 +405,40 @@ mod tests {
 
     #[test]
     fn sign_on_ordinary_values_and_zeros() {
-        assert_bits(sign(3.0, ID), 1.0);
-        assert_bits(sign(-3.0, ID), -1.0);
-        assert_bits(sign(1.0e-45, ID), 1.0);
-        assert_bits(sign(-1.0e-45, ID), -1.0);
-        assert_bits(sign(INF, ID), 1.0);
-        assert_bits(sign(-INF, ID), -1.0);
-        assert_bits(sign(0.0, ID), 1.0);
-        assert_bits(sign(-0.0, ID), 1.0);
+        assert_bits(sign(P, 3.0, ID), 1.0);
+        assert_bits(sign(P, -3.0, ID), -1.0);
+        assert_bits(sign(P, 1.0e-45, ID), 1.0);
+        assert_bits(sign(P, -1.0e-45, ID), -1.0);
+        assert_bits(sign(P, INF, ID), 1.0);
+        assert_bits(sign(P, -INF, ID), -1.0);
+        assert_bits(sign(P, 0.0, ID), 1.0);
+        assert_bits(sign(P, -0.0, ID), 1.0);
     }
 
     #[test]
     fn sign_of_nan_is_positive() {
-        assert_bits(sign(NAN, ID), 1.0);
-        assert_bits(sign(-NAN, ID), 1.0);
-        assert_bits(sign(NAN, PostOp::new(2.0, 3.0)), 5.0);
+        assert_bits(sign(P, NAN, ID), 1.0);
+        assert_bits(sign(P, -NAN, ID), 1.0);
+        assert_bits(sign(P, NAN, PostOp::new(2.0, 3.0)), 5.0);
     }
 
     #[test]
     fn sign_returns_the_precomputed_constant_not_raw_times_scale_plus_offset() {
-        assert_eq!(sign(4.0, PostOp::new(2.0, 3.0)), 5.0);
-        assert_eq!(sign(-4.0, PostOp::new(2.0, 3.0)), -5.0);
-        assert_eq!(sign(0.0, PostOp::new(2.0, 3.0)), 5.0);
-        assert_bits(sign(4.0, PostOp::new(0.0, 0.0)), 0.0);
-        assert_bits(sign(-4.0, PostOp::new(0.0, 0.0)), -0.0);
-        assert_bits(sign(1.0, PostOp::new(0.1, 0.2)), 0.1_f32 + 0.2);
-        assert_bits(sign(-1.0, PostOp::new(0.1, 0.2)), -(0.1_f32 + 0.2));
+        assert_eq!(sign(P, 4.0, PostOp::new(2.0, 3.0)), 5.0);
+        assert_eq!(sign(P, -4.0, PostOp::new(2.0, 3.0)), -5.0);
+        assert_eq!(sign(P, 0.0, PostOp::new(2.0, 3.0)), 5.0);
+        assert_bits(sign(P, 4.0, PostOp::new(0.0, 0.0)), 0.0);
+        assert_bits(sign(P, -4.0, PostOp::new(0.0, 0.0)), -0.0);
+        assert_bits(sign(P, 1.0, PostOp::new(0.1, 0.2)), 0.1_f32 + 0.2);
+        assert_bits(sign(P, -1.0, PostOp::new(0.1, 0.2)), -(0.1_f32 + 0.2));
     }
 
     #[test]
     fn sign_post_op_quirk() {
-        assert_eq!(sign(-1.0, PostOp::new(1.0, 1.0)), -2.0);
-        assert_eq!(sign(-1.0, PostOp::new(-2.0, 1.0)), 1.0);
-        assert_eq!(sign(1.0, PostOp::new(1.0, 1.0)), 2.0);
-        assert_eq!(sign(1.0, PostOp::new(-2.0, 1.0)), -1.0);
+        assert_eq!(sign(P, -1.0, PostOp::new(1.0, 1.0)), -2.0);
+        assert_eq!(sign(P, -1.0, PostOp::new(-2.0, 1.0)), 1.0);
+        assert_eq!(sign(P, 1.0, PostOp::new(1.0, 1.0)), 2.0);
+        assert_eq!(sign(P, 1.0, PostOp::new(-2.0, 1.0)), -1.0);
     }
 
     #[test]
@@ -493,11 +493,11 @@ mod tests {
 
     #[test]
     fn sign_of_nan_and_of_zero() {
-        assert_eq!(sign(NAN, ID), 1.0);
-        assert_eq!(sign(0.0, ID), 1.0);
-        assert_eq!(sign(-0.0, ID), 1.0);
-        assert_eq!(sign(-3.0, ID), -1.0);
-        assert_eq!(sign(3.0, ID), 1.0);
+        assert_eq!(sign(P, NAN, ID), 1.0);
+        assert_eq!(sign(P, 0.0, ID), 1.0);
+        assert_eq!(sign(P, -0.0, ID), 1.0);
+        assert_eq!(sign(P, -3.0, ID), -1.0);
+        assert_eq!(sign(P, 3.0, ID), 1.0);
     }
 
     #[test]

@@ -17,16 +17,16 @@ use molang::vm::{NoHostEnv, Value, VariableName};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let catalog = MathCatalog::new([
         // Pure: a call of constants is folded at compile time.
-        MathDecl::pure("math.smooth_max", Arity::exactly(2), |a| {
+        MathDecl::pure("math.smooth_max", Arity::exactly(2), |_, a| {
             math::max(Platform::default(), a[0], a[1], PostOp::IDENTITY) * 0.9
         })?,
         // Volatile: `a + b · r` for one draw `r`.
-        MathDecl::volatile("math.gauss", Arity::exactly(2), |rng, a| {
+        MathDecl::volatile("math.gauss", Arity::exactly(2), |_, rng, a| {
             a[0] + a[1] * (sample(rng) - 0.5)
         })?,
         // An override: `math.clamp` that also accepts its bounds in either order. `f32::clamp`
         // would panic on NaN bounds.
-        MathDecl::pure("math.clamp", Arity::exactly(3), |a| {
+        MathDecl::pure("math.clamp", Arity::exactly(3), |_, a| {
             a[0].max(a[1].min(a[2])).min(a[1].max(a[2]))
         })?,
     ])?;

@@ -7,19 +7,21 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use super::{Arity, ByName, MAX_DECLS, is_canonical_name};
+use crate::numeric::Platform;
 use crate::ops::ExpressionOp;
 use crate::rng::rand_core::Rng;
 
 /// The most arguments a host math function takes.
 pub const MAX_MATH_ARGS: u8 = 8;
 
-/// The signature of a pure host math function: the arguments (see [`MathDecl`]).
-pub type PureMathFn = dyn Fn(&[f32]) -> f32 + Send + Sync;
+/// The signature of a pure host math function: the expression's platform, then the arguments (see
+/// [`MathDecl`]).
+pub type PureMathFn = dyn Fn(Platform, &[f32]) -> f32 + Send + Sync;
 
-/// The signature of a volatile host math function: the evaluation's random source, then the
-/// arguments (see [`MathDecl`]). [`rng::sample`](crate::rng::sample) draws a sample as the
+/// The signature of a volatile host math function: the expression's platform, the evaluation's
+/// random source, then the arguments (see [`MathDecl`]). [`rng::sample`](crate::rng::sample) draws a sample as the
 /// standard functions do.
-pub type VolatileMathFn = dyn Fn(&mut dyn Rng, &[f32]) -> f32 + Send + Sync;
+pub type VolatileMathFn = dyn Fn(Platform, &mut dyn Rng, &[f32]) -> f32 + Send + Sync;
 
 /// How a host math function is evaluated.
 #[derive(Clone)]
@@ -60,13 +62,13 @@ impl fmt::Debug for MathImpl {
 /// ```
 /// use molang::catalog::{Arity, MathDecl};
 ///
-/// let twice = MathDecl::pure("math.twice", Arity::exactly(1), |a| a[0] * 2.0)?;
+/// let twice = MathDecl::pure("math.twice", Arity::exactly(1), |_, a| a[0] * 2.0)?;
 /// assert_eq!(
 ///     (twice.name(), twice.args(), twice.is_volatile()),
 ///     ("math.twice", Arity::exactly(1), false)
 /// );
-/// assert!(MathDecl::pure("math.sin", Arity::exactly(1), |a| a[0] * 2.0).is_ok(), "an override");
-/// assert!(MathDecl::pure("math.pi", Arity::exactly(1), |a| a[0]).is_err(), "a constant");
+/// assert!(MathDecl::pure("math.sin", Arity::exactly(1), |_, a| a[0] * 2.0).is_ok(), "an override");
+/// assert!(MathDecl::pure("math.pi", Arity::exactly(1), |_, a| a[0]).is_err(), "a constant");
 /// # Ok::<(), molang::catalog::MathError>(())
 /// ```
 #[derive(Clone, Debug)]
@@ -81,7 +83,7 @@ impl MathDecl {
     pub fn pure(
         name: &str,
         args: Arity,
-        f: impl Fn(&[f32]) -> f32 + Send + Sync + 'static,
+        f: impl Fn(Platform, &[f32]) -> f32 + Send + Sync + 'static,
     ) -> Result<Self, MathError> {
         Self::new(name, args, MathImpl::Pure(Arc::new(f)))
     }
@@ -90,7 +92,7 @@ impl MathDecl {
     pub fn volatile(
         name: &str,
         args: Arity,
-        f: impl Fn(&mut dyn Rng, &[f32]) -> f32 + Send + Sync + 'static,
+        f: impl Fn(Platform, &mut dyn Rng, &[f32]) -> f32 + Send + Sync + 'static,
     ) -> Result<Self, MathError> {
         Self::new(name, args, MathImpl::Volatile(Arc::new(f)))
     }
@@ -167,14 +169,14 @@ struct Inner {
 /// use molang::rng::sample;
 ///
 /// let math = MathCatalog::new([
-///     MathDecl::pure("math.twice", Arity::exactly(1), |a| a[0] * 2.0)?,
-///     MathDecl::volatile("math.jitter", Arity::exactly(1), |rng, a| a[0] + sample(rng))?,
+///     MathDecl::pure("math.twice", Arity::exactly(1), |_, a| a[0] * 2.0)?,
+///     MathDecl::volatile("math.jitter", Arity::exactly(1), |_, rng, a| a[0] + sample(rng))?,
 /// ])?;
 /// assert_eq!(math.len(), 2);
 /// assert!(math.get("math.jitter").is_some_and(|f| f.is_volatile()));
 /// assert_ne!(
 ///     math,
-///     MathCatalog::new([MathDecl::pure("math.twice", Arity::exactly(1), |a| a[0] * 2.0)?])?
+///     MathCatalog::new([MathDecl::pure("math.twice", Arity::exactly(1), |_, a| a[0] * 2.0)?])?
 /// );
 /// # Ok::<(), molang::catalog::MathError>(())
 /// ```
@@ -317,12 +319,12 @@ mod tests {
     use crate::stdlib::MathFn;
 
     fn pure(name: &str) -> MathDecl {
-        MathDecl::pure(name, Arity::exactly(1), |a| a[0]).unwrap()
+        MathDecl::pure(name, Arity::exactly(1), |_, a| a[0]).unwrap()
     }
 
     #[test]
     fn a_declaration_keeps_its_name_counts_and_kind() {
-        let f = MathDecl::pure("math.f", Arity::between(1, 3), |a| a.iter().sum()).unwrap();
+        let f = MathDecl::pure("math.f", Arity::between(1, 3), |_, a| a.iter().sum()).unwrap();
         assert_eq!(
             (f.name(), f.args(), f.is_volatile()),
             ("math.f", Arity::between(1, 3), false)
@@ -330,8 +332,8 @@ mod tests {
         let MathImpl::Pure(call) = f.implementation() else {
             panic!("pure")
         };
-        assert_eq!(call(&[1.0, 2.0, 3.0]), 6.0);
-        let g = MathDecl::volatile("math.g", Arity::exactly(MAX_MATH_ARGS), |rng, a| {
+        assert_eq!(call(Platform::default(), &[1.0, 2.0, 3.0]), 6.0);
+        let g = MathDecl::volatile("math.g", Arity::exactly(MAX_MATH_ARGS), |_, rng, a| {
             a[7] + sample(rng)
         })
         .unwrap();
@@ -341,7 +343,11 @@ mod tests {
         };
         let mut half = FixedRng::HALF;
         assert_eq!(
-            call(&mut half, &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]),
+            call(
+                Platform::default(),
+                &mut half,
+                &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+            ),
             1.5
         );
         assert_eq!(format!("{:?}", g.implementation()), "Volatile");
@@ -355,14 +361,14 @@ mod tests {
             "math. f", "m.f",
         ] {
             assert_eq!(
-                MathDecl::pure(bad, Arity::exactly(1), |a| a[0]).err(),
+                MathDecl::pure(bad, Arity::exactly(1), |_, a| a[0]).err(),
                 Some(MathError::Name(bad.into())),
                 "{bad:?}"
             );
         }
         for good in ["math._", "math.f1", "math.my_function", "math.sinh"] {
             assert!(
-                MathDecl::pure(good, Arity::exactly(1), |a| a[0]).is_ok(),
+                MathDecl::pure(good, Arity::exactly(1), |_, a| a[0]).is_ok(),
                 "{good:?}"
             );
         }
@@ -376,7 +382,7 @@ mod tests {
     fn every_standard_function_name_can_be_declared_but_the_constant() {
         for &standard in MathFn::all() {
             let name = standard.token();
-            let declared = MathDecl::volatile(name, Arity::exactly(1), |_, a| a[0]);
+            let declared = MathDecl::volatile(name, Arity::exactly(1), |_, _, a| a[0]);
             if standard == MathFn::Pi {
                 assert_eq!(declared.err(), Some(MathError::Constant(name.into())));
             } else {
@@ -401,7 +407,7 @@ mod tests {
         ];
         for args in bad {
             assert_eq!(
-                MathDecl::pure("math.f", args, |a| a[0]).err(),
+                MathDecl::pure("math.f", args, |_, a| a[0]).err(),
                 Some(MathError::Arity {
                     name: "math.f".into(),
                     args
@@ -414,7 +420,10 @@ mod tests {
             Arity::exactly(MAX_MATH_ARGS),
             Arity::between(1, MAX_MATH_ARGS),
         ] {
-            assert!(MathDecl::pure("math.f", args, |a| a[0]).is_ok(), "{args:?}");
+            assert!(
+                MathDecl::pure("math.f", args, |_, a| a[0]).is_ok(),
+                "{args:?}"
+            );
         }
         assert_eq!(MAX_MATH_ARGS, 8);
         assert_eq!(

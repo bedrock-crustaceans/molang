@@ -8,7 +8,7 @@
 //! the VM; a tree cannot express that, so [`models`] excludes such expressions.
 //!
 //! These rules are the VM's by construction, so the differential tests cannot judge them:
-//! - which operand of `*` is scaled first under `Arm64`;
+//! - which operand of `*` is the left one, whose NaN wins on the servers;
 //! - `==` between kinds without payload bits is false;
 //! - a constant operand counts as the second operand whichever side it was written on;
 //! - a `Float` that carries a post-op is worth its bare value wherever it stays a node.

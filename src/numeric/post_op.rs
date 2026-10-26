@@ -52,8 +52,8 @@ impl PostOp {
 
     /// The "true" result of a comparison or logical node: `S + O`.
     #[inline]
-    pub fn truthy_value(self) -> f32 {
-        self.scale + self.offset
+    pub fn truthy_value(self, platform: Platform) -> f32 {
+        fpu::add(platform, self.scale, self.offset)
     }
 
     /// The "false" result of a comparison or logical node: `O`.
@@ -65,9 +65,9 @@ impl PostOp {
     /// The result of a comparison or logical node: one of two precomputed constants, never a
     /// multiply.
     #[inline]
-    pub fn select(self, condition: bool) -> f32 {
+    pub fn select(self, platform: Platform, condition: bool) -> f32 {
         if condition {
-            self.truthy_value()
+            self.truthy_value(platform)
         } else {
             self.falsy_value()
         }
@@ -247,27 +247,46 @@ mod tests {
 
     #[test]
     fn truthy_and_falsy_values_are_scale_plus_offset_and_offset() {
-        assert_eq!(ID.truthy_value(), 1.0);
+        assert_eq!(ID.truthy_value(P), 1.0);
         assert_eq!(ID.falsy_value(), 0.0);
         let post = PostOp::new(2.0, 1.1);
-        assert_eq!(post.truthy_value(), 2.0 + 1.1);
+        assert_eq!(post.truthy_value(P), 2.0 + 1.1);
         assert_eq!(post.falsy_value(), 1.1);
         let post = PostOp::new(-2.0, 0.5);
-        assert_eq!(post.truthy_value(), -1.5);
+        assert_eq!(post.truthy_value(P), -1.5);
         assert_eq!(post.falsy_value(), 0.5);
         assert_bits(PostOp::new(0.0, -0.0).falsy_value(), -0.0);
-        assert!(PostOp::new(NAN, 1.0).truthy_value().is_nan());
+        assert!(PostOp::new(NAN, 1.0).truthy_value(P).is_nan());
         assert_eq!(PostOp::new(NAN, 1.0).falsy_value(), 1.0);
     }
 
     #[test]
+    fn the_truthy_value_of_a_nan_post_op_is_the_platforms() {
+        let signalling = f32::from_bits(0x7f80_0001);
+        let quiet = f32::from_bits(0xffc0_0002);
+        for (p, expected) in [(LINUX, 0xffc0_0002), (ANDROID, 0x7fc0_0001)] {
+            assert_eq!(
+                PostOp::new(quiet, signalling).truthy_value(p).to_bits(),
+                expected
+            );
+            assert_eq!(
+                PostOp::new(quiet, signalling).select(p, true).to_bits(),
+                expected
+            );
+        }
+        for (p, expected) in [(LINUX, 0xffc0_0000), (ANDROID, 0x7fc0_0000)] {
+            assert_eq!(PostOp::new(INF, -INF).truthy_value(p).to_bits(), expected);
+        }
+    }
+
+    #[test]
     fn comparison_results_are_precomputed_constants() {
-        assert_eq!(ID.select(true), 1.0);
-        assert_eq!(ID.select(false), 0.0);
+        assert_eq!(ID.select(P, true), 1.0);
+        assert_eq!(ID.select(P, false), 0.0);
         let post = PostOp::new(2.0, 1.1);
-        assert_eq!(post.select(true), 2.0 + 1.1);
-        assert_eq!(post.select(false), 1.1);
-        assert_eq!(post.truthy_value(), 3.1);
+        assert_eq!(post.select(P, true), 2.0 + 1.1);
+        assert_eq!(post.select(P, false), 1.1);
+        assert_eq!(post.truthy_value(P), 3.1);
         assert_eq!(post.falsy_value(), 1.1);
     }
 
@@ -279,11 +298,13 @@ mod tests {
             PostOp::new(0.0, -0.0),
             PostOp::new(1.0, -0.0),
         ] {
-            assert_bits(post.select(true), post.truthy_value());
-            assert_bits(post.select(false), post.falsy_value());
+            for p in PLATFORMS {
+                assert_bits(post.select(p, true), post.truthy_value(p));
+                assert_bits(post.select(p, false), post.falsy_value());
+            }
         }
         // (1, −0) is the identity for `apply`, but `select` still returns O = −0.
-        assert_bits(PostOp::new(1.0, -0.0).select(false), -0.0);
+        assert_bits(PostOp::new(1.0, -0.0).select(P, false), -0.0);
     }
 
     #[test]

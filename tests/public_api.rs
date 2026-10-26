@@ -309,7 +309,7 @@ mod compiler {
         }
         let math =
             MathCatalog::new([
-                MathDecl::pure("math.twice", Arity::exactly(1), |a| a[0] * 2.0)
+                MathDecl::pure("math.twice", Arity::exactly(1), |_, a| a[0] * 2.0)
                     .expect("a declaration"),
             ])
             .expect("a catalogue");
@@ -441,17 +441,21 @@ mod compiler {
             Arity, MAX_MATH_ARGS, MathCatalog, MathDecl, MathError, MathImpl, PureMathFn,
             VolatileMathFn,
         };
+        use molang::numeric::Platform;
         use molang::rng::{rand_core::Rng, sample};
-        type Pure = fn(&[f32]) -> f32;
-        type Volatile = fn(&mut dyn Rng, &[f32]) -> f32;
+        type Pure = fn(Platform, &[f32]) -> f32;
+        type Volatile = fn(Platform, &mut dyn Rng, &[f32]) -> f32;
         type Declared = Result<MathDecl, MathError>;
         let pure: fn(&str, Arity, Pure) -> Declared = |name, args, f| MathDecl::pure(name, args, f);
         let volatile: fn(&str, Arity, Volatile) -> Declared =
             |name, args, f| MathDecl::volatile(name, args, f);
-        let twice = pure("math.twice", Arity::exactly(1), |a| a[0] * 2.0).expect("a declaration");
-        let draw = volatile("math.draw", Arity::between(1, MAX_MATH_ARGS), |rng, a| {
-            a[0] + sample(rng)
-        })
+        let twice =
+            pure("math.twice", Arity::exactly(1), |_, a| a[0] * 2.0).expect("a declaration");
+        let draw = volatile(
+            "math.draw",
+            Arity::between(1, MAX_MATH_ARGS),
+            |_, rng, a| a[0] + sample(rng),
+        )
         .expect("a declaration");
         let (_, _): (Option<&PureMathFn>, Option<&VolatileMathFn>) = (None, None);
         assert!(matches!(twice.implementation(), MathImpl::Pure(_)) && draw.is_volatile());
@@ -2972,6 +2976,9 @@ mod api_compiler {
             Platform::BdsLinux(LinuxRelease::LATEST)
         );
         assert_eq!(LinuxRelease::LATEST, LinuxRelease::V1_26_52);
+        const fn assert_value<T: Copy + Eq + std::hash::Hash + Send + Sync + 'static>() {}
+        assert_value::<Platform>();
+        assert_value::<LinuxRelease>();
         assert!(platforms.iter().all(|&p| arith::to_int(p, 2.9) == 2));
         let p = platforms[1];
         let binary: [fn(Platform, f32, f32) -> f32; 4] =
@@ -2999,6 +3006,14 @@ mod api_compiler {
             (3.0, Some(2.0), Some(1))
         );
         assert_eq!(PostOp::new(2.0, 1.0).apply(p, 3.0), 7.0);
+        let not: fn(Platform, f32, PostOp) -> f32 = numeric::not;
+        let select: fn(PostOp, Platform, bool) -> f32 = PostOp::select;
+        let truthy: fn(PostOp, Platform) -> f32 = PostOp::truthy_value;
+        let post = PostOp::new(2.0, 1.0);
+        assert_eq!(
+            (not(p, 0.0, post), select(post, p, false), truthy(post, p)),
+            (3.0, 1.0, 3.0)
+        );
     }
 
     #[test]

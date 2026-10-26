@@ -1623,7 +1623,10 @@ fn nan_and_zero_through_division_and_math_functions_and_missing_arguments() {
     group.row(5, "v.x = math.sqrt(-1); return v.x / 0;", f32::NAN);
     group.row(6, "v.x = 1; v.z = 0; return v.x / v.z;", 0.0);
     group.row(7, "v.x = math.sqrt(-1); v.z = 0; return v.x / v.z;", 0.0);
-    group.row(8, "v.x = 1; v.z = math.sqrt(-1); return v.x / v.z;", 0.0);
+    // No platform gives the recorded values of rows 8, 14, 15, 20–22, 25, 27, 35 and 40.
+    group
+        .row(8, "v.x = 1; v.z = math.sqrt(-1); return v.x / v.z;", 0.0)
+        .on_every_platform(f32::NAN);
     group.row(9, "v.x = 5; return v.x / -1;", -5.0);
     group.row(10, "v.x = 5; return v.x / -1;", -5.0).at(6);
     group
@@ -1635,24 +1638,38 @@ fn nan_and_zero_through_division_and_math_functions_and_missing_arguments() {
     group
         .row(13, "v.x = 5; v.z = -1; return v.x / v.z;", 5.0)
         .at(-1);
-    group.row(14, "v.x = 1/3; return v.x*3-1;", 2.9802322e-8);
-    group.row(
-        15,
-        "v.x = 1; v.y = 3; v.q = v.x / v.y; return v.q*3-1;",
-        2.9802322e-8,
-    );
+    group
+        .row(14, "v.x = 1/3; return v.x*3-1;", 2.9802322e-8)
+        .on_every_platform(0.0);
+    group
+        .row(
+            15,
+            "v.x = 1; v.y = 3; v.q = v.x / v.y; return v.q*3-1;",
+            2.9802322e-8,
+        )
+        .on_every_platform(0.0);
     group.row(16, "v.x = -1; return math.sign(v.x) + 1;", -2.0);
     group.row(17, "v.x = -1; return math.sign(v.x) * -2 + 1;", 1.0);
     group.row(18, "v.x = 0; return math.sign(v.x);", 1.0);
     group.row(19, "v.x = -0.0; return math.sign(-v.x);", 1.0);
-    group.row(20, "v.x = math.sqrt(-1); return math.sign(v.x);", -1.0);
-    group.row(21, "v.x = math.sqrt(-1); return math.acos(v.x);", 180.0);
-    group.row(22, "v.x = math.sqrt(-1); return math.asin(v.x);", -90.0);
+    group
+        .row(20, "v.x = math.sqrt(-1); return math.sign(v.x);", -1.0)
+        .on_every_platform(1.0);
+    group
+        .row(21, "v.x = math.sqrt(-1); return math.acos(v.x);", 180.0)
+        .on_every_platform(f32::NAN);
+    group
+        .row(22, "v.x = math.sqrt(-1); return math.asin(v.x);", -90.0)
+        .on_every_platform(f32::NAN);
     group.row(23, "v.x = 1.0005; return math.acos(v.x);", 0.0);
     group.row(24, "v.x = 1.0006; return math.acos(v.x);", f32::NAN);
-    group.row(25, "v.x = math.sqrt(-1); return v.x <= 1;", 1.0);
+    group
+        .row(25, "v.x = math.sqrt(-1); return v.x <= 1;", 1.0)
+        .on_every_platform(0.0);
     group.row(26, "v.x = math.sqrt(-1); return v.x >= 1;", 0.0);
-    group.row(27, "v.x = math.sqrt(-1); return v.x < 1;", 1.0);
+    group
+        .row(27, "v.x = math.sqrt(-1); return v.x < 1;", 1.0)
+        .on_every_platform(0.0);
     group.row(28, "v.x = math.sqrt(-1); return v.x == v.x;", 0.0);
     group.row(29, "v.x = math.sqrt(-1); return v.x != v.x;", 1.0);
     group.row(30, "v.x = math.sqrt(-1); return v.x ? 1 : 2;", 1.0);
@@ -1660,11 +1677,13 @@ fn nan_and_zero_through_division_and_math_functions_and_missing_arguments() {
     group.row(32, "v.x = math.sqrt(-1); return math.max(v.x, 4);", 4.0);
     group.row(33, "v.x = math.sqrt(-1); return math.max(4, v.x);", 4.0);
     group.row(34, "v.x = math.sqrt(-1); return math.min(v.x, 4);", 4.0);
-    group.row(
-        35,
-        "v.x = math.sqrt(-1); return math.clamp(4, v.x, 5);",
-        4.0,
-    );
+    group
+        .row(
+            35,
+            "v.x = math.sqrt(-1); return math.clamp(4, v.x, 5);",
+            4.0,
+        )
+        .on_every_platform(f32::NAN);
     group.row(
         36,
         "v.x = math.sqrt(-1); return math.clamp(v.x, 1, 5);",
@@ -1677,7 +1696,9 @@ fn nan_and_zero_through_division_and_math_functions_and_missing_arguments() {
     );
     group.row(38, "math.clamp(3, 2, 1)", 1.0);
     group.row(39, "math.clamp(-1, -2, -3)", -3.0);
-    group.row(40, "v.x = math.sqrt(-1); return math.random(v.x, 5);", 5.0);
+    group
+        .row(40, "v.x = math.sqrt(-1); return math.random(v.x, 5);", 5.0)
+        .on_every_platform(f32::NAN);
     group.row(41, "math.max(3)", 0.0).not_compiled().logs(&[
         "Unexpected number of parameters to Max 'math.max' function - expected 2, found 1.",
     ]);
@@ -1696,10 +1717,6 @@ fn nan_and_zero_through_division_and_math_functions_and_missing_arguments() {
         .logs(&[
             "Unexpected number of parameters to Max 'math.max' function - expected 2, found 1.",
         ]);
-    // No platform gives these rows' recorded values.
-    for platform in common::PLATFORMS {
-        group.differs_on(platform, &[8, 14, 15, 20, 21, 22, 25, 27, 35, 40]);
-    }
     group.check(46);
 }
 
@@ -1810,11 +1827,11 @@ fn truthiness_is_a_float_compare_with_zero() {
     assert!(!numeric::truthy(-0.0));
     assert!(numeric::truthy(-0.5));
     assert!(numeric::truthy(0.000_000_1));
-    assert_eq!(numeric::not(NAN, ID), 0.0);
-    assert_eq!(numeric::not(-0.0, ID), 1.0);
-    assert_eq!(numeric::not(3.0, ID), 0.0);
-    assert_eq!(numeric::not(0.0, PostOp::new(2.0, 1.0)), 3.0);
-    assert_eq!(numeric::not(5.0, PostOp::new(2.0, 1.0)), 1.0);
+    assert_eq!(numeric::not(P, NAN, ID), 0.0);
+    assert_eq!(numeric::not(P, -0.0, ID), 1.0);
+    assert_eq!(numeric::not(P, 3.0, ID), 0.0);
+    assert_eq!(numeric::not(P, 0.0, PostOp::new(2.0, 1.0)), 3.0);
+    assert_eq!(numeric::not(P, 5.0, PostOp::new(2.0, 1.0)), 1.0);
 }
 
 #[test]
@@ -1849,11 +1866,11 @@ fn clamp_with_nan() {
 fn sign_of_nan_and_of_zero() {
     measured("r18_sign0_is1");
     measured("s08_signnan_1");
-    assert_eq!(math::sign(NAN, ID), 1.0);
-    assert_eq!(math::sign(0.0, ID), 1.0);
-    assert_eq!(math::sign(-0.0, ID), 1.0);
-    assert_eq!(math::sign(-3.0, ID), -1.0);
-    assert_eq!(math::sign(3.0, ID), 1.0);
+    assert_eq!(math::sign(P, NAN, ID), 1.0);
+    assert_eq!(math::sign(P, 0.0, ID), 1.0);
+    assert_eq!(math::sign(P, -0.0, ID), 1.0);
+    assert_eq!(math::sign(P, -3.0, ID), -1.0);
+    assert_eq!(math::sign(P, 3.0, ID), 1.0);
 }
 
 #[test]

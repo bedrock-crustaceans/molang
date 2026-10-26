@@ -775,7 +775,7 @@ mod tests {
     fn an_expression_keeps_the_math_catalogue_it_was_compiled_with() {
         use crate::catalog::{Arity, MathCatalog, MathDecl};
         let math =
-            MathCatalog::new([MathDecl::pure("math.f", Arity::exactly(1), |a| a[0]).unwrap()])
+            MathCatalog::new([MathDecl::pure("math.f", Arity::exactly(1), |_, a| a[0]).unwrap()])
                 .unwrap();
         let options = CompileOptions {
             math: Some(math.clone()),

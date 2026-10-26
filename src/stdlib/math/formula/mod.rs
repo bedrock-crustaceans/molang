@@ -7,7 +7,7 @@ mod ease;
 pub(crate) use ease::*;
 
 use super::{INVERSE_TRIG_TOLERANCE, RAD_TO_DEG, cmath};
-use crate::numeric::fpu::{add, div, max, mul, sub, to_int};
+use crate::numeric::fpu::{self, add, div, max, mul, sub, to_int};
 use crate::numeric::{Platform, PostOp};
 
 /// 65536/2π.
@@ -103,7 +103,7 @@ pub(crate) fn clamp_draw(v: f32, lo: f32, hi: f32) -> f32 {
 /// `floor((1 − r)·lo + r·reach)`, clamped to `[lo, hi]` upper bound first.
 #[inline]
 pub(crate) fn integer_draw(p: Platform, lo: f32, hi: f32, reach: f32, r: f32) -> f32 {
-    let v = add(p, mul(p, sub(p, 1.0, r), lo), mul(p, reach, r)).floor();
+    let v = fpu::floor(add(p, mul(p, sub(p, 1.0, r), lo), mul(p, reach, r)));
     clamp_draw(v, lo, hi)
 }
 
@@ -325,7 +325,7 @@ mod tests {
             assert_eq!(inverse_lerp(p, q1, q2, 1.0).to_bits(), 0x7fc0_0001);
             assert_eq!(lerp(p, q1, q2, 0.5).to_bits(), 0xffc0_0002);
             // Invalid operations on numbers.
-            let invalid = x86_or_arm(p, 0xffc0_0000, 0x7fc0_0000);
+            let invalid = servers_or_android(p, 0xffc0_0000, 0x7fc0_0000);
             assert_eq!(interpolate(p, 1.0, INF, 0.0).to_bits(), invalid);
             assert_eq!(integer_reach(p, -INF).to_bits(), invalid);
             assert_eq!(integer_draw(p, -INF, 6.0, INF, 0.5), -INF);

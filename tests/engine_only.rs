@@ -193,7 +193,7 @@ mod evaluation {
     fn a_host_function_may_be_named_like_a_standard_one() {
         let math =
             MathCatalog::new([
-                MathDecl::pure("math.sin", Arity::exactly(1), |a| a[0] * 2.0)
+                MathDecl::pure("math.sin", Arity::exactly(1), |_, a| a[0] * 2.0)
                     .expect("a declaration"),
             ])
             .expect("a catalogue");
@@ -208,8 +208,10 @@ mod evaluation {
     fn a_volatile_host_function_draws_from_the_random_source() {
         let math =
             MathCatalog::new([
-                MathDecl::volatile("math.draw", Arity::exactly(1), |rng, a| a[0] + sample(rng))
-                    .expect("a declaration"),
+                MathDecl::volatile("math.draw", Arity::exactly(1), |_, rng, a| {
+                    a[0] + sample(rng)
+                })
+                .expect("a declaration"),
             ])
             .expect("a catalogue");
         assert_eq!(

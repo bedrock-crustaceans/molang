@@ -165,7 +165,7 @@ pub fn evaluate_call(platform: Platform, call: &Call, rng: &mut dyn Rng) -> Opti
             }
         }
         ("round", &[x]) => math::round(platform, x, post),
-        ("sign", &[x]) => math::sign(x, post),
+        ("sign", &[x]) => math::sign(platform, x, post),
         ("sin", &[x]) => math::sin(platform, x, post),
         ("sqrt", &[x]) => math::sqrt(platform, x, post),
         ("trunc", &[x]) => math::trunc(platform, x, post),

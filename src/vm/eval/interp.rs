@@ -11,7 +11,7 @@ use super::{Base, Deopt, Slot, Stop, Vm};
 use crate::catalog::{MAX_MATH_ARGS, MathImpl, MathRef};
 use crate::compile::program::{Divisor, Instr, PostIdx, Program, TempIdx};
 use crate::hash::HashedStr;
-use crate::numeric::{self, Platform, arith};
+use crate::numeric::{self, arith};
 use crate::vm::{
     cx::{EvalCx, Temps},
     host::Host,
@@ -119,7 +119,7 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                     self.acc = R::float(numeric::negate(platform, self.acc.f32(), program.post(p)));
                 }
                 Instr::Not { p } => {
-                    self.acc = R::float(numeric::not(self.acc.f32(), program.post(p)));
+                    self.acc = R::float(numeric::not(platform, self.acc.f32(), program.post(p)));
                 }
                 Instr::AddAcc => {
                     let acc = self.acc.f32();
@@ -257,24 +257,28 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                 }
                 Instr::Cmp { op, p } => {
                     let a = self.pop().f32();
-                    self.acc = R::float(program.post(p).select(op.holds(a, self.acc.f32())));
+                    self.acc = R::float(
+                        program
+                            .post(p)
+                            .select(platform, op.holds(a, self.acc.f32())),
+                    );
                 }
                 Instr::CmpConst { op, c, p } => {
                     let holds = op.holds(self.acc.f32(), program.konst(c));
-                    self.acc = R::float(program.post(p).select(holds));
+                    self.acc = R::float(program.post(p).select(platform, holds));
                 }
                 Instr::Eq { op, p } => {
                     let a = self.pop();
                     let equal = R::equals(&a, &self.acc, cx);
-                    self.acc = R::float(program.post(p).select(op.holds(equal)));
+                    self.acc = R::float(program.post(p).select(platform, op.holds(equal)));
                 }
                 Instr::EqConst { op, c, p } => {
                     let equal = R::equals(&self.acc, &R::float(program.konst(c)), cx);
-                    self.acc = R::float(program.post(p).select(op.holds(equal)));
+                    self.acc = R::float(program.post(p).select(platform, op.holds(equal)));
                 }
                 Instr::EqHash { op, h, p } => {
                     let equal = self.acc.is_hash(program.hash(h));
-                    self.acc = R::float(program.post(p).select(op.holds(equal)));
+                    self.acc = R::float(program.post(p).select(platform, op.holds(equal)));
                 }
                 Instr::AndStep { to, p } => {
                     if !numeric::truthy(self.acc.f32()) {
@@ -284,12 +288,16 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                 }
                 Instr::OrStep { to, p } => {
                     if numeric::truthy(self.acc.f32()) {
-                        self.acc = R::float(program.post(p).truthy_value());
+                        self.acc = R::float(program.post(p).truthy_value(platform));
                         pc = to as usize;
                     }
                 }
                 Instr::AndLast { p } | Instr::OrLast { p } => {
-                    self.acc = R::float(program.post(p).select(numeric::truthy(self.acc.f32())));
+                    self.acc = R::float(
+                        program
+                            .post(p)
+                            .select(platform, numeric::truthy(self.acc.f32())),
+                    );
                 }
                 Instr::Jump { to } => pc = to as usize,
                 Instr::JumpIfFalsy { to } => {
@@ -357,10 +365,10 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
     #[inline]
     fn die_roll(
         &mut self,
-        platform: Platform,
+        platform: numeric::Platform,
         cx: &mut EvalCx<'_, '_, H>,
         step_budget: u64,
-        dice: fn(Platform, f32, f32, f32) -> math::DieRoll,
+        dice: fn(numeric::Platform, f32, f32, f32) -> math::DieRoll,
     ) -> Result<math::DieRoll, Aborted> {
         let b = self.acc.f32();
         let a = self.pop().f32();
@@ -395,8 +403,8 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
             return 0.0;
         };
         let value = match math.decl(f).implementation() {
-            MathImpl::Pure(call) => call(&values[..count]),
-            MathImpl::Volatile(call) => call(&mut *cx.rng, &values[..count]),
+            MathImpl::Pure(call) => call(program.platform, &values[..count]),
+            MathImpl::Volatile(call) => call(program.platform, &mut *cx.rng, &values[..count]),
         };
         program.post(p).apply(program.platform, value)
     }

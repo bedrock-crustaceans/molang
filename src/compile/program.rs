@@ -187,7 +187,7 @@ impl Fn1 {
             Self::MinAngle => math::min_angle(platform, x, post),
             Self::Round => math::round(platform, x, post),
             Self::Sin => math::sin(platform, x, post),
-            Self::Sign => math::sign(x, post),
+            Self::Sign => math::sign(platform, x, post),
             Self::Sqrt => math::sqrt(platform, x, post),
             Self::Trunc => math::trunc(platform, x, post),
         }
@@ -1058,7 +1058,7 @@ mod tests {
             (Fn1::MinAngle, math::min_angle),
             (Fn1::Round, math::round),
             (Fn1::Sin, math::sin),
-            (Fn1::Sign, |_, x, post| math::sign(x, post)),
+            (Fn1::Sign, math::sign),
             (Fn1::Sqrt, math::sqrt),
             (Fn1::Trunc, math::trunc),
         ];

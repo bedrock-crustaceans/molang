@@ -226,7 +226,7 @@ fn fold_equality(p: Platform, node: &mut Node, test: EqOp) {
 fn fold_not(cx: &mut Cx<'_>, node: &mut Node) -> Pass {
     numerical_children(cx, node)?;
     if let Some([x]) = constants(node) {
-        node.set_float(numeric::not(x, PostOp::IDENTITY));
+        node.set_float(numeric::not(cx.opts.platform, x, PostOp::IDENTITY));
     }
     Ok(())
 }
@@ -355,7 +355,7 @@ fn fold_host_math(cx: &mut Cx<'_>, node: &mut Node) -> Pass {
         for (arg, child) in args.iter_mut().zip(&node.children) {
             *arg = child.float();
         }
-        let result = call(&args[..node.children.len()]);
+        let result = call(cx.opts.platform, &args[..node.children.len()]);
         node.set_float(result);
     }
     Ok(())
@@ -854,10 +854,10 @@ mod tests {
                 Op::MinAngle => math::min_angle(P, x, id),
                 Op::Round => math::round(P, x, id),
                 Op::Sin => math::sin(P, x, id),
-                Op::Sign => math::sign(x, id),
+                Op::Sign => math::sign(P, x, id),
                 Op::Sqrt => math::sqrt(P, x, id),
                 Op::Trunc => math::trunc(P, x, id),
-                _ => numeric::not(x, id),
+                _ => numeric::not(P, x, id),
             };
             let root = folded(parent(op, vec![float(x)]));
             assert_float_bits(&root, want);
@@ -894,7 +894,7 @@ mod tests {
                 (Op::MinAngle, math::min_angle(p, x, id)),
                 (Op::Round, math::round(p, x, id)),
                 (Op::Sin, math::sin(p, x, id)),
-                (Op::Sign, math::sign(x, id)),
+                (Op::Sign, math::sign(p, x, id)),
                 (Op::Sqrt, math::sqrt(p, x, id)),
                 (Op::Trunc, math::trunc(p, x, id)),
             ] {

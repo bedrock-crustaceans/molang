@@ -249,10 +249,12 @@ fn float_only_evaluation_does_not_allocate() {
 fn a_host_math_call_does_not_allocate() {
     use molang::catalog::{Arity, MathCatalog, MathDecl};
     let math = MathCatalog::new([
-        MathDecl::pure("math.span", Arity::between(1, 8), |a| a.iter().sum())
+        MathDecl::pure("math.span", Arity::between(1, 8), |_, a| a.iter().sum())
             .expect("a declaration"),
-        MathDecl::volatile("math.draw", Arity::exactly(1), |rng, a| a[0] + sample(rng))
-            .expect("a declaration"),
+        MathDecl::volatile("math.draw", Arity::exactly(1), |_, rng, a| {
+            a[0] + sample(rng)
+        })
+        .expect("a declaration"),
     ])
     .expect("a catalogue");
     let options = CompileOptions {

@@ -10,9 +10,9 @@ mod dice;
 
 pub use dice::{DieRoll, die_roll, die_roll_count, die_roll_integer};
 
-/// Clamps a raw sample to `[0, 1]`; NaN and `−0` become `+0`.
+/// Clamps a raw sample to `[0, 1]`; NaN and `−0` become `+0`, on every platform.
 #[inline]
-pub fn clamp_sample(raw: f32) -> f32 {
+pub fn clamp_sample(_platform: Platform, raw: f32) -> f32 {
     if raw > 1.0 {
         1.0
     } else if raw > 0.0 {
@@ -26,7 +26,7 @@ pub fn clamp_sample(raw: f32) -> f32 {
 /// `hi·r + (1 − r)·lo`, NaN for a NaN bound.
 #[inline]
 pub fn random(platform: Platform, a: f32, b: f32, sample: f32, post: PostOp) -> f32 {
-    let r = clamp_sample(sample);
+    let r = clamp_sample(platform, sample);
     let (lo, hi) = sorted_bounds(Sort::RunTime, a, b);
     post.apply(platform, interpolate(platform, lo, hi, r))
 }
@@ -47,7 +47,12 @@ pub fn random_const_bounds(platform: Platform, a: f32, b: f32, post: PostOp) -> 
 /// Unlike [`PostOp::apply`] this always multiplies and adds, even for `(1, 0)`.
 #[inline]
 pub fn random_folded(platform: Platform, sample: f32, folded: PostOp) -> f32 {
-    arith::mul_add(platform, clamp_sample(sample), folded.scale, folded.offset)
+    arith::mul_add(
+        platform,
+        clamp_sample(platform, sample),
+        folded.scale,
+        folded.offset,
+    )
 }
 
 /// `math.random_integer(a, b)` with run-time bounds: `floor((1 − r)·lo + r·top)` with
@@ -55,7 +60,7 @@ pub fn random_folded(platform: Platform, sample: f32, folded: PostOp) -> f32 {
 /// `random_integer(0.1, 1000001)` at `r = 0` is 0.1.
 #[inline]
 pub fn random_integer(platform: Platform, a: f32, b: f32, sample: f32, post: PostOp) -> f32 {
-    let r = clamp_sample(sample);
+    let r = clamp_sample(platform, sample);
     let (lo, hi) = sorted_bounds(Sort::RunTime, a, b);
     let reach = integer_reach(platform, hi);
     post.apply(platform, integer_draw(platform, lo, hi, reach, r))
@@ -71,7 +76,7 @@ pub fn random_integer_const_bounds(
     sample: f32,
     post: PostOp,
 ) -> f32 {
-    let r = clamp_sample(sample);
+    let r = clamp_sample(platform, sample);
     let (lo, hi) = sorted_bounds(Sort::Literal, a, b);
     let reach = integer_reach(platform, hi);
     post.apply(platform, integer_draw(platform, lo, hi, reach, r))
@@ -97,29 +102,29 @@ mod tests {
             1.0e-45,
             f32::MIN_POSITIVE,
         ] {
-            assert_bits(clamp_sample(raw), raw);
+            assert_bits(clamp_sample(P, raw), raw);
         }
-        assert_bits(clamp_sample(0.0), 0.0);
-        assert_bits(clamp_sample(1.0), 1.0);
+        assert_bits(clamp_sample(P, 0.0), 0.0);
+        assert_bits(clamp_sample(P, 1.0), 1.0);
     }
 
     #[test]
     fn clamp_sample_clamps_everything_else() {
         for raw in [1.000_000_1, 2.0, 1.0e30, f32::MAX, INF] {
-            assert_bits(clamp_sample(raw), 1.0);
+            assert_bits(clamp_sample(P, raw), 1.0);
         }
         for raw in [-1.0e-45, -0.5, -1.0, -1.0e30, f32::MIN, -INF] {
-            assert_bits(clamp_sample(raw), 0.0);
+            assert_bits(clamp_sample(P, raw), 0.0);
         }
-        assert_bits(clamp_sample(-0.0), 0.0);
-        assert_bits(clamp_sample(NAN), 0.0);
-        assert_bits(clamp_sample(-NAN), 0.0);
+        assert_bits(clamp_sample(P, -0.0), 0.0);
+        assert_bits(clamp_sample(P, NAN), 0.0);
+        assert_bits(clamp_sample(P, -NAN), 0.0);
     }
 
     proptest! {
         #[test]
         fn clamp_sample_is_always_inside_the_closed_unit_interval(raw in proptest::num::f32::ANY) {
-            let clamped = clamp_sample(raw);
+            let clamped = clamp_sample(P, raw);
             prop_assert!((0.0..=1.0).contains(&clamped));
             prop_assert!(clamped.is_sign_positive());
             if (0.0..=1.0).contains(&raw) && raw != 0.0 {
@@ -622,12 +627,12 @@ mod tests {
 
     #[test]
     fn random_samples_are_clamped() {
-        assert_eq!(clamp_sample(0.25), 0.25);
-        assert_eq!(clamp_sample(2.0), 1.0);
-        assert_eq!(clamp_sample(-1.0), 0.0);
-        assert_eq!(clamp_sample(-0.0).to_bits(), 0.0_f32.to_bits());
-        assert_eq!(clamp_sample(NAN), 0.0);
-        assert_eq!(clamp_sample(1.0), 1.0);
+        assert_eq!(clamp_sample(P, 0.25), 0.25);
+        assert_eq!(clamp_sample(P, 2.0), 1.0);
+        assert_eq!(clamp_sample(P, -1.0), 0.0);
+        assert_eq!(clamp_sample(P, -0.0).to_bits(), 0.0_f32.to_bits());
+        assert_eq!(clamp_sample(P, NAN), 0.0);
+        assert_eq!(clamp_sample(P, 1.0), 1.0);
         assert_eq!(random(P, 2.0, 7.0, 9.0, ID), 7.0);
         assert_eq!(random(P, 2.0, 7.0, -9.0, ID), 2.0);
     }

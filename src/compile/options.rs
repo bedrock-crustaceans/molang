@@ -424,7 +424,7 @@ mod tests {
         assert_eq!(opts().math, None);
         assert_eq!(CompileOptions::client(MolangVersion::LATEST).math, None);
         let math =
-            MathCatalog::new([MathDecl::pure("math.f", Arity::exactly(1), |a| a[0]).unwrap()])
+            MathCatalog::new([MathDecl::pure("math.f", Arity::exactly(1), |_, a| a[0]).unwrap()])
                 .unwrap();
         let o = CompileOptions {
             math: Some(math.clone()),
@@ -433,7 +433,7 @@ mod tests {
         assert_eq!(o.math.as_ref(), Some(&math));
         assert_ne!(o, opts());
         let copy =
-            MathCatalog::new([MathDecl::pure("math.f", Arity::exactly(1), |a| a[0]).unwrap()])
+            MathCatalog::new([MathDecl::pure("math.f", Arity::exactly(1), |_, a| a[0]).unwrap()])
                 .unwrap();
         assert_ne!(
             o,

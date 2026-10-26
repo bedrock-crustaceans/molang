@@ -1,30 +1,30 @@
 //! `ceil`, `floor`, `round` and `trunc`.
 
 use super::offset_first;
-use crate::numeric::{Platform, PostOp};
+use crate::numeric::{Platform, PostOp, fpu};
 
 /// `math.ceil(x)`: round toward +∞ (`ceil(-0.5)` = −0).
 #[inline]
 pub fn ceil(platform: Platform, x: f32, post: PostOp) -> f32 {
-    offset_first(platform, x.ceil(), post)
+    offset_first(platform, fpu::ceil(x), post)
 }
 
 /// `math.floor(x)`: round toward −∞.
 #[inline]
 pub fn floor(platform: Platform, x: f32, post: PostOp) -> f32 {
-    offset_first(platform, x.floor(), post)
+    offset_first(platform, fpu::floor(x), post)
 }
 
 /// `math.round(x)`: round half away from zero (`round(-2.5)` = −3).
 #[inline]
 pub fn round(platform: Platform, x: f32, post: PostOp) -> f32 {
-    offset_first(platform, x.round(), post)
+    offset_first(platform, fpu::round(x), post)
 }
 
 /// `math.trunc(x)`: round toward zero.
 #[inline]
 pub fn trunc(platform: Platform, x: f32, post: PostOp) -> f32 {
-    offset_first(platform, x.trunc(), post)
+    offset_first(platform, fpu::trunc(x), post)
 }
 
 #[cfg(test)]
@@ -71,6 +71,16 @@ mod tests {
             assert_eq!(f(P, INF, ID), INF);
             assert_eq!(f(P, -INF, ID), -INF);
             assert!(f(P, NAN, ID).is_nan());
+        }
+    }
+
+    #[test]
+    fn rounding_quietens_a_nan_on_every_platform() {
+        for f in [ceil, floor, round, trunc] {
+            for p in PLATFORMS {
+                assert_eq!(f(p, f32::from_bits(0xff80_0001), ID).to_bits(), 0xffc0_0001);
+                assert_eq!(f(p, f32::from_bits(0x7fc0_0002), ID).to_bits(), 0x7fc0_0002);
+            }
         }
     }
 
