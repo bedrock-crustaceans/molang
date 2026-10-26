@@ -183,6 +183,13 @@ impl Libm {
         }
     }
 
+    pub(crate) fn pow(self, a: f32, b: f32, invalid: f32) -> f32 {
+        match self {
+            Self::RoundedF64 => pow(a, b, invalid),
+            Self::Glibc(_) => glibc::powf(a, b),
+        }
+    }
+
     /// Entry `index` of the easings' sine table, `sin(index / SIN_INDEX_SCALE)` with the quotient
     /// in `f32`. glibc's table is filled on first use.
     pub(crate) fn sin_table_entry(self, index: u16) -> f32 {

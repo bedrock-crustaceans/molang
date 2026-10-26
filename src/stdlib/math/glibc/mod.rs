@@ -13,12 +13,14 @@
 
 mod exp;
 mod log;
+mod pow;
 mod sincos;
 
 pub use exp::{exp2f, expf};
 #[allow(unused_imports, reason = "only the oracle test takes `log2`")]
 pub use log::log2f;
 pub use log::{logf, logf_compat};
+pub use pow::powf;
 pub use sincos::{cosf, sinf};
 
 const QUIET_BIT: u32 = 0x0040_0000;
