@@ -161,6 +161,20 @@ impl Libm {
         }
     }
 
+    pub(crate) fn exp(self, x: f32) -> f32 {
+        match self {
+            Self::RoundedF64 => exp(x),
+            Self::Glibc(_) => glibc::expf(x),
+        }
+    }
+
+    pub(crate) fn exp2(self, x: f32) -> f32 {
+        match self {
+            Self::RoundedF64 => exp2(x),
+            Self::Glibc(_) => glibc::exp2f(x),
+        }
+    }
+
     /// Entry `index` of the easings' sine table, `sin(index / SIN_INDEX_SCALE)` with the quotient
     /// in `f32`. glibc's table is filled on first use.
     pub(crate) fn sin_table_entry(self, index: u16) -> f32 {
