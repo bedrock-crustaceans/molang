@@ -9,6 +9,7 @@ use crate::catalog::DefaultReturn;
 use crate::hash::HashedStr;
 
 mod members;
+mod reading;
 mod walks;
 
 #[cfg(feature = "fuzz")]
@@ -170,12 +171,6 @@ impl<H: Host> Value<H> {
             Self::Hash(h) => f32::from_bits(h.as_u64() as u32),
             _ => 0.0,
         }
-    }
-
-    /// `as_f32() != 0.0`: NaN is true and `-0.0` false.
-    #[inline]
-    pub fn truthy(&self) -> bool {
-        self.as_f32() != 0.0
     }
 
     /// The number of a float value; `None` for every other kind (see [`as_f32`](Self::as_f32)).
@@ -530,13 +525,13 @@ mod tests {
 
     #[test]
     fn truthiness() {
-        assert!(V::Float(1.0).truthy());
-        assert!(V::Float(0.000_000_1).truthy());
-        assert!(V::Float(f32::NAN).truthy());
-        assert!(!V::Float(0.0).truthy());
-        assert!(!V::Float(-0.0).truthy());
-        assert!(!V::string("").truthy());
-        assert!(!V::Actor(1).truthy());
+        assert!(V::Float(1.0).is_nonzero());
+        assert!(V::Float(0.000_000_1).is_nonzero());
+        assert!(V::Float(f32::NAN).is_nonzero());
+        assert!(!V::Float(0.0).is_nonzero());
+        assert!(!V::Float(-0.0).is_nonzero());
+        assert!(!V::string("").is_nonzero());
+        assert!(!V::Actor(1).is_nonzero());
         assert_eq!(V::bool(true), V::Float(1.0));
         assert_eq!(V::from(false), V::Float(0.0));
     }
@@ -544,15 +539,15 @@ mod tests {
     #[test]
     fn truthiness_of_a_hash_follows_its_low_32_bits() {
         // The low 32 bits are -0.0, the high bits are ignored.
-        assert!(!V::Hash(HashedStr::from_u64(0x8000_0000)).truthy());
-        assert!(!V::Hash(HashedStr::from_u64(0x1_0000_0000)).truthy());
+        assert!(!V::Hash(HashedStr::from_u64(0x8000_0000)).is_nonzero());
+        assert!(!V::Hash(HashedStr::from_u64(0x1_0000_0000)).is_nonzero());
         // The smallest denormal is not zero.
-        assert!(V::Hash(HashedStr::from_u64(1)).truthy());
+        assert!(V::Hash(HashedStr::from_u64(1)).is_nonzero());
         // A NaN pattern in the low bits is true.
-        assert!(V::Hash(HashedStr::from_u64(0x7fc0_0000)).truthy());
+        assert!(V::Hash(HashedStr::from_u64(0x7fc0_0000)).is_nonzero());
         // A real string reads the low bits of its own hash.
         let low = f32::from_bits(h("moo").as_u64() as u32);
-        assert_eq!(V::string("moo").truthy(), low != 0.0);
+        assert_eq!(V::string("moo").is_nonzero(), low != 0.0);
     }
 
     #[test]
@@ -566,7 +561,7 @@ mod tests {
             V::Resource(ResourceRef::new("texture.default")),
         ];
         for value in others {
-            assert!(!value.truthy(), "{value:?}");
+            assert!(!value.is_nonzero(), "{value:?}");
         }
     }
 

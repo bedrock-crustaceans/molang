@@ -835,7 +835,7 @@ impl ServerRun {
             let next = choices.iter().find_map(|(target, condition)| {
                 let expr = compile(condition, &options).expr().cloned()?;
                 let mut sink = LevelSink::default();
-                env.with_cx(rng, &mut sink, |cx| expr.eval(cx).truthy())
+                env.with_cx(rng, &mut sink, |cx| expr.eval(cx).is_nonzero())
                     .then(|| target.clone())
             });
             let Some(next) = next else {

@@ -21,6 +21,15 @@
 //! # }
 //! ```
 //!
+//! # Reading a result
+//!
+//! [`Expr::eval`](crate::compile::Expr::eval) returns a [`Value`] and the caller decides how a
+//! field reads it: [`Value::as_f32`] for a plain float field, [`Value::is_nonzero`],
+//! [`Value::is_positive`], [`Value::exceeds_epsilon`], [`Value::rounds_to_nonzero`],
+//! [`Value::round_to_int`], [`Value::to_int`] and [`Value::to_property_int`] for the others. The
+//! ones that truncate take the [`Platform`](crate::numeric::Platform) the expression was compiled
+//! for.
+//!
 //! # Stack
 //!
 //! An evaluation needs the stack [`Expr::eval`](crate::compile::Expr::eval) documents;

@@ -33,13 +33,13 @@ impl<H: Host> Walker<H> {
             return Ok(Value::ZERO);
         };
         for operand in rest {
-            let truthy = self.node(operand, cx)?.truthy();
+            let truthy = self.node(operand, cx)?.is_nonzero();
             self.step(cx)?;
             if truthy == deciding {
                 return Ok(Value::Float(post.select(self.platform, truthy)));
             }
         }
-        let truthy = self.node(last, cx)?.truthy();
+        let truthy = self.node(last, cx)?.is_nonzero();
         self.step(cx)?;
         Ok(Value::Float(post.select(self.platform, truthy)))
     }
@@ -74,7 +74,7 @@ impl<H: Host> Walker<H> {
     /// either branch.
     #[inline(never)]
     pub(super) fn conditional(&mut self, n: &Node, cx: &mut EvalCx<'_, '_, H>) -> Eval<H> {
-        let condition = self.node(child(n, 0), cx)?.truthy();
+        let condition = self.node(child(n, 0), cx)?.is_nonzero();
         self.step(cx)?;
         let value = if condition {
             let value = self.node(child(n, 1), cx)?;

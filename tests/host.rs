@@ -1654,14 +1654,14 @@ mod value_type {
     /// Truthy is `x != 0.0`: NaN is true, −0.0 false.
     #[test]
     fn truthiness() {
-        assert!(V::Float(1.0).truthy());
-        assert!(V::Float(0.000_000_1).truthy());
-        assert!(V::Float(f32::NAN).truthy());
-        assert!(!V::Float(0.0).truthy());
-        assert!(!V::Float(-0.0).truthy());
+        assert!(V::Float(1.0).is_nonzero());
+        assert!(V::Float(0.000_000_1).is_nonzero());
+        assert!(V::Float(f32::NAN).is_nonzero());
+        assert!(!V::Float(0.0).is_nonzero());
+        assert!(!V::Float(-0.0).is_nonzero());
         // The empty string hashes to 0: its float view is 0.0.
-        assert!(!V::string("").truthy());
-        assert!(!V::Actor(1).truthy());
+        assert!(!V::string("").is_nonzero());
+        assert!(!V::Actor(1).is_nonzero());
         assert_eq!(V::bool(true), V::Float(1.0));
         assert_eq!(V::from(false), V::Float(0.0));
     }
