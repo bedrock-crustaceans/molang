@@ -1,6 +1,6 @@
 # molang
 
-[![Crates.io](https://img.shields.io/crates/v/molang.svg)](https://crates.io/crates/molang) [![docs.rs](https://img.shields.io/docsrs/molang)](https://docs.rs/molang) [![CI](https://github.com/bedrock-crustaceans/molangx/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bedrock-crustaceans/molangx/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/bedrock-crustaceans/molangx/blob/main/LICENSE)
+[![Crates.io](https://img.shields.io/crates/v/molang.svg)](https://crates.io/crates/molang) [![docs.rs](https://img.shields.io/docsrs/molang)](https://docs.rs/molang) [![CI](https://github.com/bedrock-crustaceans/molang/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bedrock-crustaceans/molang/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/bedrock-crustaceans/molang/blob/main/LICENSE)
 
 A pure-Rust compiler and bytecode VM for [Molang](https://learn.microsoft.com/en-us/minecraft/creator/reference/content/molangreference/examples/molangconcepts/molangintroduction), the expression language of Minecraft: Bedrock Edition, at every Molang version. Part of the [bedrock-crustaceans](https://github.com/bedrock-crustaceans) ecosystem.
 
@@ -19,7 +19,7 @@ molang = { version = "1", features = ["vm"] }
 
 ## Quick start
 
-`compile` never fails: a rejected expression compiles to the constant 0 with its diagnostics attached (`Compiled::expr_or_zero`), and `Compiled::into_result` gives a `Result` instead. `NoHostEnv` evaluates without a world (numbers, strings, `variable.` / `temp.` / `context.`, `math.*`); an embedding with a world uses `HostEnv` (see the [`host`](https://github.com/bedrock-crustaceans/molangx/blob/main/examples/host.rs) example).
+`compile` never fails: a rejected expression compiles to the constant 0 with its diagnostics attached (`Compiled::expr_or_zero`), and `Compiled::into_result` gives a `Result` instead. `NoHostEnv` evaluates without a world (numbers, strings, `variable.` / `temp.` / `context.`, `math.*`); an embedding with a world uses `HostEnv` (see the [`host`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/host.rs) example).
 
 ```rust
 use molang::compile::{CompileOptions, compile};
@@ -86,7 +86,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Contexts of your own
 
-`context.*` is read-only and filled by the caller for one evaluation. Nothing is declared at compile time: any name compiles, and a read the provider does not answer is a missing variable, which ends the expression with 0 and logs a message unless `??` catches it. `NoHostEnv` and the default `HostEnv` hold a `ContextMap`, filled before each evaluation; `HostEnv::with_context` swaps in any `ContextProvider` of your own, one that reads straight from the host's state for instance (see the [`host`](https://github.com/bedrock-crustaceans/molangx/blob/main/examples/host.rs) example), and `NoContext` answers nothing.
+`context.*` is read-only and filled by the caller for one evaluation. Nothing is declared at compile time: any name compiles, and a read the provider does not answer is a missing variable, which ends the expression with 0 and logs a message unless `??` catches it. `NoHostEnv` and the default `HostEnv` hold a `ContextMap`, filled before each evaluation; `HostEnv::with_context` swaps in any `ContextProvider` of your own, one that reads straight from the host's state for instance (see the [`host`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/host.rs) example), and `NoContext` answers nothing.
 
 ```rust
 use molang::compile::{CompileOptions, compile};
@@ -236,20 +236,20 @@ Every example prints what it demonstrates. Start with `hello_world`: `cargo run 
 
 | Example | What it covers | Features |
 | --- | --- | --- |
-| [`hello_world`](https://github.com/bedrock-crustaceans/molangx/blob/main/examples/hello_world.rs) | Compile and evaluate with no host; variables, a loop and a missing read. | `vm` |
-| [`versions`](https://github.com/bedrock-crustaceans/molangx/blob/main/examples/versions.rs) | `MolangVersion::from` an `EngineVersion`, and one text grouped differently at versions 4, 5 and 6. | `compiler` |
-| [`json_forms`](https://github.com/bedrock-crustaceans/molangx/blob/main/examples/json_forms.rs) | `MolangValueRepr` round trip of the number, string, `{expression, version}` and bool forms. | none |
-| [`diagnostics`](https://github.com/bedrock-crustaceans/molangx/blob/main/examples/diagnostics.rs) | Error texts, reject versus keep, byte spans, and the crate's own lints. | `compiler` |
-| [`restricted`](https://github.com/bedrock-crustaceans/molangx/blob/main/examples/restricted.rs) | Query sets, allow-lists and the side-effect-free contexts (`without_assignments`, `without_assignments_or_random`). | `compiler` |
-| [`host`](https://github.com/bedrock-crustaceans/molangx/blob/main/examples/host.rs) | Implementing `Host`, `VariableStore`, `ContextProvider` and queries over a toy world, evaluated through `HostEnv`. | `vm` |
-| [`variables`](https://github.com/bedrock-crustaceans/molangx/blob/main/examples/variables.rs) | `v.` / `t.` / `c.` scope, `??`, the missing-variable abort, `->` and public variables. | `vm` |
-| [`math`](https://github.com/bedrock-crustaceans/molangx/blob/main/examples/math.rs) | Host math functions in a `MathCatalog`: a pure one folded, a volatile one drawing, the argument-count error. | `vm` |
-| [`cache`](https://github.com/bedrock-crustaceans/molangx/blob/main/examples/cache.rs) | `CompileCache` compiling one text at several versions. | `cache` |
+| [`hello_world`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/hello_world.rs) | Compile and evaluate with no host; variables, a loop and a missing read. | `vm` |
+| [`versions`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/versions.rs) | `MolangVersion::from` an `EngineVersion`, and one text grouped differently at versions 4, 5 and 6. | `compiler` |
+| [`json_forms`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/json_forms.rs) | `MolangValueRepr` round trip of the number, string, `{expression, version}` and bool forms. | none |
+| [`diagnostics`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/diagnostics.rs) | Error texts, reject versus keep, byte spans, and the crate's own lints. | `compiler` |
+| [`restricted`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/restricted.rs) | Query sets, allow-lists and the side-effect-free contexts (`without_assignments`, `without_assignments_or_random`). | `compiler` |
+| [`host`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/host.rs) | Implementing `Host`, `VariableStore`, `ContextProvider` and queries over a toy world, evaluated through `HostEnv`. | `vm` |
+| [`variables`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/variables.rs) | `v.` / `t.` / `c.` scope, `??`, the missing-variable abort, `->` and public variables. | `vm` |
+| [`math`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/math.rs) | Host math functions in a `MathCatalog`: a pure one folded, a volatile one drawing, the argument-count error. | `vm` |
+| [`cache`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/cache.rs) | `CompileCache` compiling one text at several versions. | `cache` |
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/bedrock-crustaceans/molangx/blob/main/CONTRIBUTING.md).
+See [CONTRIBUTING.md](https://github.com/bedrock-crustaceans/molang/blob/main/CONTRIBUTING.md).
 
 ## License
 
-Licensed under the **Apache License 2.0**; see [LICENSE](https://github.com/bedrock-crustaceans/molangx/blob/main/LICENSE).
+Licensed under the **Apache License 2.0**; see [LICENSE](https://github.com/bedrock-crustaceans/molang/blob/main/LICENSE).

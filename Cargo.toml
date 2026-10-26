@@ -5,7 +5,7 @@ version = "1.0.0"
 edition = "2024"
 # The minimum of the `facet` crates.
 rust-version = "1.92"
-repository = "https://github.com/bedrock-crustaceans/molangx"
+repository = "https://github.com/bedrock-crustaceans/molang"
 documentation = "https://docs.rs/molang"
 license = "Apache-2.0"
 readme = "README.md"
