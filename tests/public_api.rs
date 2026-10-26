@@ -600,6 +600,27 @@ mod vm {
         assert_eq!(eval("v.s = 'a'; return v.s == 1;"), 0.0);
     }
 
+    /// The named readings of a result, each at its path on `Value`; the truncating ones take the
+    /// platform.
+    #[test]
+    fn the_readings_of_a_result() {
+        use molang::numeric::Platform;
+        let v = |x: f32| Value::<NoHost>::Float(x);
+        assert!(v(f32::NAN).is_nonzero());
+        assert!(!v(f32::NAN).is_positive());
+        assert!(v(1.0e-6).exceeds_epsilon());
+        assert!(!v(0.4).rounds_to_nonzero(Platform::default()));
+        assert!(v(0.5).rounds_to_nonzero(Platform::AndroidArm64));
+        assert_eq!(v(-2.5).round_to_int(Platform::default()), -3);
+        assert_eq!(v(2.9).to_int(Platform::BdsWindows), 2);
+        assert_eq!(v(1.0e10).to_property_int(0..=10, Platform::default()), 0);
+        assert_eq!(
+            v(1.0e10).to_property_int(0..=10, Platform::AndroidArm64),
+            10
+        );
+        assert!(Value::<NoHost>::string("a").is_nonzero());
+    }
+
     /// A host whose world counts the calls the evaluator makes.
     #[derive(Debug)]
     struct Farm;
