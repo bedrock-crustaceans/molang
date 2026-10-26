@@ -1,28 +1,8 @@
-//! The random source of the `math.random*` / `math.die_roll*` operators: any [`rand_core::Rng`].
-//!
-//! The generator is a value the embedding owns, so evaluation is reproducible and
-//! thread-independent. Each sample is one `next_u32`, mapped by [`sample`]; `rand_core` is
-//! re-exported here, so a host needs no dependency of its own.
+//! [`Xorshift128`], the generator of every random operator outside world generation.
 
 use rand_core::{Infallible, SeedableRng, TryRng, utils};
 
-/// The `rand_core` 0.10 crate, whose `Rng` is the random source; a new major version of it is a
-/// breaking change here.
-pub use rand_core;
-
-/// Draws one `next_u32` `u` and returns `(u & 0x7fff_ffff) · 2^-31`, rounded to nearest, which can
-/// be exactly 1.0.
-///
-/// ```
-/// use molang::rng::{FixedRng, Xorshift128, sample};
-///
-/// assert_eq!(sample(&mut FixedRng::HALF), 0.5);
-/// assert_eq!(sample(&mut Xorshift128::new()), sample(&mut Xorshift128::new()));
-/// ```
-#[inline]
-pub fn sample<R: rand_core::Rng + ?Sized>(rng: &mut R) -> f32 {
-    (rng.next_u32() & 0x7fff_ffff) as f32 * (1.0 / 2_147_483_648.0)
-}
+use super::{RandomSource, bits31};
 
 /// Marsaglia's xorshift128.
 ///
@@ -33,15 +13,16 @@ pub fn sample<R: rand_core::Rng + ?Sized>(rng: &mut R) -> f32 {
 /// `static`.
 ///
 /// `next_u32` is one step; `next_u64` is two steps, the first in the low half; `fill_bytes` takes
-/// one step per 4 bytes, little-endian, discarding the unused bytes of the last.
+/// one step per 4 bytes, little-endian, discarding the unused bytes of the last. A
+/// [`RandomSource::sample`] is one step under the 31-bit mapping.
 ///
 /// ```
-/// use molang::rng::{Xorshift128, rand_core::SeedableRng, sample};
+/// use molang::rng::{RandomSource, Xorshift128, rand_core::SeedableRng};
 ///
-/// assert_eq!(sample(&mut Xorshift128::new()), sample(&mut Xorshift128::new()));
+/// assert_eq!(Xorshift128::new().sample(), Xorshift128::new().sample());
 /// assert_ne!(
-///     sample(&mut Xorshift128::seed_from_u64(1)),
-///     sample(&mut Xorshift128::seed_from_u64(2))
+///     Xorshift128::seed_from_u64(1).sample(),
+///     Xorshift128::seed_from_u64(2).sample()
 /// );
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -96,6 +77,13 @@ impl Default for Xorshift128 {
     #[inline]
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl RandomSource for Xorshift128 {
+    #[inline]
+    fn sample(&mut self) -> f32 {
+        bits31(self.step())
     }
 }
 
@@ -160,65 +148,6 @@ const fn split_mix_64(state: u64) -> (u64, u64) {
     (z ^ (z >> 31), state)
 }
 
-/// A generator whose every `next_u32` is the same word, so every [`sample`] is the same.
-///
-/// `next_u64` is the word in both halves; `fill_bytes` repeats its little-endian bytes.
-///
-/// ```
-/// use molang::rng::{FixedRng, sample};
-///
-/// assert_eq!(sample(&mut FixedRng::from_sample(0.25).unwrap()), 0.25);
-/// assert_eq!(FixedRng::from_sample(1e-10), None, "not k · 2^-31");
-/// ```
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct FixedRng(pub u32);
-
-impl FixedRng {
-    /// Always the sample 0: every random operator returns its lower bound.
-    pub const ZERO: Self = Self(0);
-    /// Always the sample 0.5.
-    pub const HALF: Self = Self(1 << 30);
-    /// Always the sample 1: every random operator returns its upper bound.
-    pub const ONE: Self = Self(0x7fff_ffff);
-
-    /// The generator whose [`sample`] is `sample`; `None` when no word maps to it: NaN, -0,
-    /// outside `[0, 1]`, or not a multiple of 2^-31.
-    pub const fn from_sample(sample: f32) -> Option<Self> {
-        if sample.is_nan() || sample.is_sign_negative() || sample > 1.0 {
-            return None;
-        }
-        if sample == 1.0 {
-            return Some(Self::ONE);
-        }
-        let scaled = sample * 2_147_483_648.0;
-        let word = scaled as u32;
-        if word as f32 == scaled {
-            Some(Self(word))
-        } else {
-            None
-        }
-    }
-}
-
-impl TryRng for FixedRng {
-    type Error = Infallible;
-
-    #[inline]
-    fn try_next_u32(&mut self) -> Result<u32, Infallible> {
-        Ok(self.0)
-    }
-
-    #[inline]
-    fn try_next_u64(&mut self) -> Result<u64, Infallible> {
-        utils::next_u64_via_u32(self)
-    }
-
-    #[inline]
-    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {
-        utils::fill_bytes_via_next_word(dst, || self.try_next_u32())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use rand_core::Rng;
@@ -229,33 +158,6 @@ mod tests {
     /// `w' = w ^ (w >> 19)`, which `w = target ^ (target >> 19)` inverts.
     fn producing(target: u32) -> Xorshift128 {
         Xorshift128::with_state([0, 1, 2, target ^ (target >> 19)])
-    }
-
-    /// Plays back its words in order and counts the calls of each method.
-    #[derive(Default)]
-    struct Counted {
-        words: Vec<u32>,
-        u32_calls: usize,
-        other_calls: usize,
-    }
-
-    impl TryRng for Counted {
-        type Error = Infallible;
-
-        fn try_next_u32(&mut self) -> Result<u32, Infallible> {
-            self.u32_calls += 1;
-            Ok(self.words[self.u32_calls - 1])
-        }
-
-        fn try_next_u64(&mut self) -> Result<u64, Infallible> {
-            self.other_calls += 1;
-            Ok(0)
-        }
-
-        fn try_fill_bytes(&mut self, _: &mut [u8]) -> Result<(), Infallible> {
-            self.other_calls += 1;
-            Ok(())
-        }
     }
 
     #[test]
@@ -285,7 +187,7 @@ mod tests {
         );
 
         let mut rng = Xorshift128::new();
-        let samples: Vec<u32> = (0..6).map(|_| sample(&mut rng).to_bits()).collect();
+        let samples: Vec<u32> = (0..6).map(|_| rng.sample().to_bits()).collect();
         assert_eq!(
             samples,
             [
@@ -366,78 +268,38 @@ mod tests {
         for _ in 0..64 {
             let w = words.next_u32();
             let expected = (w & 0x7fff_ffff) as f32 * 2.0_f32.powi(-31);
-            assert_eq!(sample(&mut samples).to_bits(), expected.to_bits());
+            assert_eq!(samples.sample().to_bits(), expected.to_bits());
         }
         assert_eq!(words, samples);
     }
 
     #[test]
-    fn a_sample_is_one_next_u32_and_nothing_else() {
-        let mut source = Counted {
-            words: vec![0, 1 << 30, 0x7fff_ffff, 0x8000_0000, u32::MAX, 0x1234_5678],
-            ..Counted::default()
-        };
-        let samples: Vec<f32> = (0..6).map(|_| sample(&mut source)).collect();
-        assert_eq!(
-            samples,
-            [
-                0.0,
-                0.5,
-                1.0,
-                0.0,
-                1.0,
-                0x1234_5678 as f32 / 2_147_483_648.0
-            ]
-        );
-        assert_eq!((source.u32_calls, source.other_calls), (6, 0));
-    }
-
-    #[test]
-    fn a_dynamic_or_borrowed_source_is_a_source() {
-        let mut rng = Xorshift128::new();
-        let first = sample(&mut &mut rng);
-        let dynamic: &mut dyn Rng = &mut rng;
-        let second = sample(dynamic);
-        let mut reference = Xorshift128::new();
-        assert_eq!(
-            (first, second),
-            (sample(&mut reference), sample(&mut reference))
-        );
-    }
-
-    #[test]
     fn the_top_bit_of_the_output_is_ignored() {
+        assert_eq!(producing(0x8000_0000).sample().to_bits(), 0.0_f32.to_bits());
+        assert_eq!(producing(0x8000_0001).sample(), producing(1).sample());
         assert_eq!(
-            sample(&mut producing(0x8000_0000)).to_bits(),
-            0.0_f32.to_bits()
-        );
-        assert_eq!(
-            sample(&mut producing(0x8000_0001)),
-            sample(&mut producing(1))
-        );
-        assert_eq!(
-            sample(&mut producing(0xffff_ffff)),
-            sample(&mut producing(0x7fff_ffff))
+            producing(0xffff_ffff).sample(),
+            producing(0x7fff_ffff).sample()
         );
     }
 
     #[test]
     fn extreme_outputs_map_to_the_ends_of_the_unit_interval() {
         assert_eq!(producing(0).next_u32(), 0);
-        assert_eq!(sample(&mut producing(0)).to_bits(), 0.0_f32.to_bits());
-        assert_eq!(sample(&mut producing(1)).to_bits(), 0x3000_0000);
+        assert_eq!(producing(0).sample().to_bits(), 0.0_f32.to_bits());
+        assert_eq!(producing(1).sample().to_bits(), 0x3000_0000);
         // Spacing below 2^31 is 128: 2^31 − 65 rounds down to 1 − 2^-24, the tie at 2^31 − 64
         // rounds to even, which is 2^31.
-        assert_eq!(sample(&mut producing(0x7fff_ffbf)).to_bits(), 0x3f7f_ffff);
-        assert_eq!(sample(&mut producing(0x7fff_ffc0)), 1.0);
-        assert_eq!(sample(&mut producing(0x7fff_ffff)), 1.0);
+        assert_eq!(producing(0x7fff_ffbf).sample().to_bits(), 0x3f7f_ffff);
+        assert_eq!(producing(0x7fff_ffc0).sample(), 1.0);
+        assert_eq!(producing(0x7fff_ffff).sample(), 1.0);
     }
 
     #[test]
     fn samples_stay_in_the_closed_unit_interval() {
         let mut rng = Xorshift128::new();
         for _ in 0..100_000 {
-            let sample = sample(&mut rng);
+            let sample = rng.sample();
             assert!((0.0..=1.0).contains(&sample), "{sample}");
         }
     }
@@ -447,7 +309,7 @@ mod tests {
         // 0xffffe000 steps to 0xffffffff, whose low 31 bits round up to 2^31.
         let mut rng = Xorshift128::with_state([0, 1, 2, 0xffff_e000]);
         assert_eq!(rng.clone().next_u32(), 0xffff_ffff);
-        assert_eq!(sample(&mut rng), 1.0);
+        assert_eq!(rng.sample(), 1.0);
     }
 
     #[test]
@@ -526,7 +388,7 @@ mod tests {
         let mut parent = Xorshift128::new();
         let mut child = parent.fork();
         assert_ne!(child, parent);
-        assert_ne!(sample(&mut child), sample(&mut parent));
+        assert_ne!(child.sample(), parent.sample());
         let mut parent = Xorshift128::seed_from_u64(7);
         let mut child = parent.try_fork().expect("infallible");
         assert_ne!(child, parent);
@@ -552,7 +414,7 @@ mod tests {
     #[test]
     fn nearby_seeds_give_unrelated_first_samples() {
         let firsts: Vec<u32> = (0..16_u64)
-            .map(|seed| sample(&mut Xorshift128::seed_from_u64(seed)).to_bits())
+            .map(|seed| Xorshift128::seed_from_u64(seed).sample().to_bits())
             .collect();
         let mut sorted = firsts.clone();
         sorted.sort_unstable();
@@ -569,72 +431,5 @@ mod tests {
         assert_eq!(a.next_u32(), b.next_u32());
         a.next_u32();
         assert_ne!(a, b);
-    }
-
-    #[test]
-    fn fixed_sources() {
-        for (mut source, expected) in [
-            (FixedRng::ZERO, 0.0),
-            (FixedRng::HALF, 0.5),
-            (FixedRng::ONE, 1.0),
-        ] {
-            assert_eq!(sample(&mut source), expected);
-            assert_eq!(FixedRng::from_sample(expected), Some(source));
-        }
-        let mut fixed = FixedRng(0x1234_5678);
-        assert_eq!(
-            (fixed.next_u32(), fixed.next_u32()),
-            (0x1234_5678, 0x1234_5678)
-        );
-        assert_eq!(fixed.next_u64(), 0x1234_5678_1234_5678);
-        let mut bytes = [0_u8; 6];
-        fixed.fill_bytes(&mut bytes);
-        assert_eq!(bytes, [0x78, 0x56, 0x34, 0x12, 0x78, 0x56]);
-        assert_eq!(fixed, FixedRng(0x1234_5678), "drawing leaves it as it was");
-    }
-
-    #[test]
-    fn from_sample_takes_exactly_the_samples_a_word_maps_to() {
-        for value in [
-            0.25,
-            0.3,
-            0.6,
-            1.0 / 3.0,
-            0.999_999_94,
-            2.0_f32.powi(-8),
-            2.0_f32.powi(-31),
-            3.0 * 2.0_f32.powi(-31),
-        ] {
-            let mut fixed = FixedRng::from_sample(value).unwrap_or_else(|| panic!("{value}"));
-            assert_eq!(sample(&mut fixed).to_bits(), value.to_bits(), "{value}");
-        }
-        for value in [
-            -0.0,
-            -1.0,
-            1.000_000_1,
-            2.0,
-            f32::NAN,
-            f32::INFINITY,
-            f32::NEG_INFINITY,
-            1e-10,
-            2.0_f32.powi(-32),
-            1.5 * 2.0_f32.powi(-31),
-        ] {
-            assert_eq!(FixedRng::from_sample(value), None, "{value}");
-        }
-        assert_eq!(FixedRng::from_sample(0.0), Some(FixedRng::ZERO));
-    }
-
-    #[test]
-    fn every_word_round_trips_through_from_sample() {
-        let mut rng = Xorshift128::new();
-        for _ in 0..10_000 {
-            let mut fixed = FixedRng(rng.next_u32());
-            let value = sample(&mut fixed);
-            assert_eq!(
-                FixedRng::from_sample(value).map(|mut f| sample(&mut f).to_bits()),
-                Some(value.to_bits())
-            );
-        }
     }
 }

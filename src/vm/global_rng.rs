@@ -3,7 +3,7 @@
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use crate::rng::{
-    Xorshift128,
+    RandomSource, Xorshift128,
     rand_core::{Infallible, TryRng},
 };
 
@@ -40,6 +40,12 @@ fn locked() -> MutexGuard<'static, Xorshift128> {
         .unwrap_or_else(PoisonError::into_inner)
 }
 
+impl RandomSource for ProcessRng {
+    fn sample(&mut self) -> f32 {
+        locked().sample()
+    }
+}
+
 impl TryRng for ProcessRng {
     type Error = Infallible;
 
@@ -59,7 +65,7 @@ impl TryRng for ProcessRng {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rng::{rand_core::Rng, sample};
+    use crate::rng::{RandomSource, rand_core::Rng, sample};
 
     /// The generator is process-wide, so these tests must not run concurrently.
     static LOCK: Mutex<()> = Mutex::new(());
@@ -82,6 +88,15 @@ mod tests {
         let got: Vec<u32> = (0..5).map(|_| sample(&mut rng).to_bits()).collect();
         let want: Vec<u32> = reference(5).into_iter().map(f32::to_bits).collect();
         assert_eq!(got, want);
+    }
+
+    #[test]
+    fn a_random_source_sample_is_one_step_of_the_one_generator() {
+        let _guard = exclusive();
+        let mut reference = Xorshift128::new();
+        assert_eq!(ProcessRng.sample().to_bits(), reference.sample().to_bits());
+        assert_eq!(ProcessRng.next_u32(), reference.next_u32());
+        assert_eq!(ProcessRng.sample().to_bits(), reference.sample().to_bits());
     }
 
     #[test]
