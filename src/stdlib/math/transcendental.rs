@@ -1,9 +1,14 @@
-//! The transcendental functions, each evaluated in `f64` and rounded to `f32`, and `sqrt` and the
-//! remainder, where `f32` gives the same value; every NaN they return is chosen here.
+//! The transcendental functions, and `sqrt` and the remainder, where `f32` gives the same value.
 //!
-//! A NaN argument comes back with its quiet bit set (of two, `atan2`'s `y`, `pow`'s base and the
-//! dividend win). An invalid operation on other arguments gives the `invalid` NaN the caller
-//! passes, or `0xffc00000` for the remainder.
+//! The free functions evaluate in `f64` with the `libm` crate and round once; every NaN they
+//! return is chosen here. A NaN argument comes back with its quiet bit set (of two, `atan2`'s `y`,
+//! `pow`'s base and the dividend win). An invalid operation on other arguments gives the `invalid`
+//! NaN the caller passes, or `0xffc00000` for the remainder. [`Libm`] selects between those bodies
+//! and the ports of glibc's single-precision functions.
+
+use std::sync::LazyLock;
+
+use super::{arch::SIN_INDEX_SCALE, glibc};
 
 /// The quiet NaN with the sign bit clear.
 pub(crate) const POSITIVE_NAN: f32 = f32::from_bits(0x7fc0_0000);
@@ -115,6 +120,59 @@ pub(crate) fn rem(a: f32, b: f32) -> f32 {
         nan_of(a, nan_of(b, NEGATIVE_NAN))
     } else {
         r
+    }
+}
+
+/// The library whose bodies compute `sin` … `pow` and the easings' sine table.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code, reason = "the platform dispatch chooses a library")]
+pub(crate) enum Libm {
+    /// The free functions of this module: `f64` rounded once, with the caller's `invalid` NaN.
+    RoundedF64,
+    /// glibc's single-precision functions as its FMA build on x86-64 computes them. They choose
+    /// their own NaNs and ignore `invalid`.
+    Glibc(LogfSymbol),
+}
+
+/// The `logf` symbol a build linked against glibc binds; the other functions give the same values
+/// through either version.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code, reason = "the platform dispatch chooses a symbol")]
+pub(crate) enum LogfSymbol {
+    /// `logf@GLIBC_2.2.5`, the compatibility wrapper: `ln` of a negative is `0x7fc00000`.
+    Compat,
+    /// `logf@GLIBC_2.27`: `ln` of a negative is `0xffc00000`.
+    Current,
+}
+
+#[allow(dead_code, reason = "the platform dispatch calls these")]
+impl Libm {
+    pub(crate) fn sin(self, x: f32, invalid: f32) -> f32 {
+        match self {
+            Self::RoundedF64 => sin(x, invalid),
+            Self::Glibc(_) => glibc::sinf(x),
+        }
+    }
+
+    pub(crate) fn cos(self, x: f32, invalid: f32) -> f32 {
+        match self {
+            Self::RoundedF64 => cos(x, invalid),
+            Self::Glibc(_) => glibc::cosf(x),
+        }
+    }
+
+    /// Entry `index` of the easings' sine table, `sin(index / SIN_INDEX_SCALE)` with the quotient
+    /// in `f32`. glibc's table is filled on first use.
+    pub(crate) fn sin_table_entry(self, index: u16) -> f32 {
+        static GLIBC: LazyLock<Box<[f32]>> = LazyLock::new(|| {
+            (0..=u16::MAX)
+                .map(|i| glibc::sinf(f32::from(i) / SIN_INDEX_SCALE))
+                .collect()
+        });
+        match self {
+            Self::RoundedF64 => sin(f32::from(index) / SIN_INDEX_SCALE, POSITIVE_NAN),
+            Self::Glibc(_) => GLIBC[usize::from(index)],
+        }
     }
 }
 

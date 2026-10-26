@@ -15,7 +15,7 @@ pub(crate) use arm64::*;
 pub(crate) use x86_64::*;
 
 /// 65536/2π.
-const SIN_INDEX_SCALE: f32 = f32::from_bits(0x4622_f983);
+pub(super) const SIN_INDEX_SCALE: f32 = f32::from_bits(0x4622_f983);
 
 /// 2π/65536.
 #[cfg(any(target_arch = "aarch64", test))]
