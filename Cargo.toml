@@ -95,3 +95,7 @@ required-features = ["vm", "stdlib"]
 name = "compile"
 harness = false
 required-features = ["compiler", "stdlib"]
+
+[[test]]
+name = "glibc_oracle"
+required-features = ["fuzz", "compiler"]

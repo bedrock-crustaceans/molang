@@ -28,6 +28,15 @@ and clippy with each feature alone (`--no-default-features --features <feature>`
 
 Hostile-input tests can allocate a lot; run them under a memory cap, for example `systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0 cargo test …`.
 
+### The glibc oracle
+
+`src/stdlib/math/glibc/` ports glibc's single-precision `sinf`, `cosf`, `expf`, `exp2f`, `logf`, `log2f`, `powf`, `asinf`, `acosf`, `atanf` and `atan2f` bit for bit, as glibc 2.41 computes them on an x86-64 CPU with FMA (the build glibc selects there, whose fused multiply-adds each port mirrors with `mul_add`). Their unit tests pin known results on every host. `tests/glibc_oracle.rs` (features `fuzz` and `compiler`) compares them with the host's own glibc and so runs only on x86-64 Linux with glibc, the one test behind a `cfg`; a failure names the host's glibc version, since another version or a CPU without FMA can differ without the port being wrong. Its default run takes about a second; the ignored sweep of every `f32` through each one-argument function (and 2³² random pairs through `powf` and `atan2f`) takes some minutes in release, and `MOLANG_EXHAUSTIVE` limits it to a comma-separated list of names:
+
+```bash
+cargo test --release --features fuzz,compiler --test glibc_oracle -- --ignored
+MOLANG_EXHAUSTIVE=sinf,powf cargo test --release --features fuzz,compiler --test glibc_oracle -- --ignored
+```
+
 ### The fuzz crate
 
 `fuzz/` (`molang-fuzz`, not published) is a separate package with its own empty `[workspace]`. It depends on `molang` with the features `vm`, `fuzz` and `stdlib` and reads crate-private items through the hidden `molang::internals` module. Its library (`fuzz/src/`) holds `tree_walker`, a second evaluator that walks the optimised tree, and `generator`, the program generator. The library and its tests run on stable; running a fuzz target needs nightly and `cargo-fuzz`.

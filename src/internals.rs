@@ -32,6 +32,14 @@ pub mod reference_catalog {
     pub use crate::reference_catalog::{math, options};
 }
 
+/// The ports of glibc's single-precision functions, for the test against the host's glibc.
+#[cfg(feature = "compiler")]
+pub mod glibc {
+    pub use crate::stdlib::math::glibc::{
+        acosf, asinf, atan2f, atanf, cosf, exp2f, expf, log2f, logf, logf_compat, powf, sinf,
+    };
+}
+
 /// The host math function `r` refers to in `math`, the catalogue `r` came from.
 #[cfg(feature = "compiler")]
 pub fn math_decl(math: &MathCatalog, r: MathRef) -> &MathDecl {
