@@ -8,14 +8,17 @@
 //! | Source | Sample from one 32-bit output `u` | Used by |
 //! |---|---|---|
 //! | [`Xorshift128`], [`Bits31`], [`FixedRng`] | `(u & 0x7fff_ffff) · 2^-31`, in `f32` | entities, items, blocks, commands, particles' `math.random` |
+//! | [`MersenneTwister`] | `u · 2^-32` in `f64`, then rounded to `f32` | world generation: feature rules and scatter features |
 //!
 //! Both mappings can give exactly 1. `rand_core` is re-exported here, so a host needs no
 //! dependency of its own.
 
 use rand_core::{Infallible, TryRng, utils};
 
+mod mersenne_twister;
 mod xorshift;
 
+pub use mersenne_twister::MersenneTwister;
 pub use xorshift::Xorshift128;
 
 /// The `rand_core` 0.10 crate, whose `Rng` [`Bits31`] adapts and the generators here implement;
@@ -28,10 +31,11 @@ pub use rand_core;
 /// [module](self) table). The operators clamp a sample outside `[0, 1]`, NaN to 0.
 ///
 /// ```
-/// use molang::rng::{Bits31, FixedRng, RandomSource, Xorshift128};
+/// use molang::rng::{Bits31, FixedRng, MersenneTwister, RandomSource, Xorshift128};
 ///
 /// assert_eq!(FixedRng::HALF.sample(), 0.5);
 /// assert_eq!(Xorshift128::new().sample(), Bits31(Xorshift128::new()).sample());
+/// assert_ne!(MersenneTwister::new(5489).sample(), Bits31(MersenneTwister::new(5489)).sample());
 ///
 /// /// A source of its own: every sample is a quarter.
 /// struct Quarter;
