@@ -14,7 +14,7 @@ use super::sink::RuntimeSink;
 use super::value::Value;
 use crate::catalog::{QueryCatalog, QueryDecl, QueryIndex};
 use crate::hash::HashedStr;
-use crate::rng::rand_core::Rng;
+use crate::rng::RandomSource;
 use crate::version::MolangVersion;
 
 /// What a query implementation returns; an `Err` goes to the [`RuntimeSink`] and the call
@@ -264,7 +264,7 @@ pub trait QueryBackend<'w, H: Host> {
     /// The host's world-access object.
     fn host(&mut self) -> &mut H::Access<'w>;
     /// The random source of the evaluation.
-    fn rng(&mut self) -> &mut dyn Rng;
+    fn rng(&mut self) -> &mut dyn RandomSource;
     /// The run-time diagnostics sink, for messages a query logs without failing.
     fn sink(&mut self) -> &mut dyn RuntimeSink;
     /// The current value of a `variable.` name in the subjects' map.
@@ -359,8 +359,8 @@ impl<'a, 'w, H: Host> QueryCx<'a, 'w, H> {
         self.backend.host()
     }
 
-    /// The random source; [`rng::sample`](crate::rng::sample) draws a sample as the operators do.
-    pub fn rng(&mut self) -> &mut dyn Rng {
+    /// The random source; [`RandomSource::sample`] draws a sample as the operators do.
+    pub fn rng(&mut self) -> &mut dyn RandomSource {
         self.backend.rng()
     }
 
@@ -448,7 +448,7 @@ mod tests {
         DefaultReturn, QueryDecl, QuerySetMask, QueryShape, ReturnType, Side, VersionRange,
         VersionRanges,
     };
-    use crate::rng::{FixedRng, sample};
+    use crate::rng::{FixedRng, RandomSource};
     use crate::stdlib::query;
     use crate::vm::{CollectSink, HostAccess, RuntimeMsg, StructValue};
 
@@ -539,7 +539,7 @@ mod tests {
             self.world
         }
 
-        fn rng(&mut self) -> &mut dyn Rng {
+        fn rng(&mut self) -> &mut dyn RandomSource {
             &mut self.rng
         }
 
@@ -601,7 +601,7 @@ mod tests {
 
     fn logs_and_draws(cx: &mut QueryCx<'_, '_, TestHost>) -> QueryResult<TestHost> {
         cx.sink().runtime(RuntimeMsg::PublicAccessUnderflow);
-        let sample = sample(cx.rng());
+        let sample = cx.rng().sample();
         let moo = cx
             .context(ContextName::new("moo"))
             .and_then(|v| v.as_actor())
@@ -1100,7 +1100,7 @@ mod tests {
                 }
             );
             assert_eq!(cx.host().babies, [4]);
-            assert_eq!(sample(cx.rng()), 0.5);
+            assert_eq!(cx.rng().sample(), 0.5);
             cx.sink().runtime(RuntimeMsg::PublicAccessUnderflow);
             assert_eq!(cx.variable(VariableName::new("speed")), Some(V::Float(4.0)));
             assert_eq!(cx.variable(VariableName::new("other")), None);

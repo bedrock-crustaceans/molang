@@ -2,7 +2,7 @@
 
 use super::Vm;
 use crate::compile::program::{Program, QueryCall};
-use crate::rng::rand_core::Rng;
+use crate::rng::RandomSource;
 use crate::vm::{
     cx::EvalCx,
     host::{Host, Subjects},
@@ -102,7 +102,7 @@ impl<'w, H: Host> QueryBackend<'w, H> for Backend<'_, '_, 'w, H> {
         self.cx.host
     }
 
-    fn rng(&mut self) -> &mut dyn Rng {
+    fn rng(&mut self) -> &mut dyn RandomSource {
         self.cx.rng
     }
 
@@ -137,7 +137,7 @@ mod tests {
     use super::*;
     use crate::catalog::{DefaultReturn, QueryCatalog, QueryDecl, QueryShape, Side};
     use crate::compile::{CompileOptions, compile};
-    use crate::rng::{Xorshift128, sample};
+    use crate::rng::{RandomSource, Xorshift128};
     use crate::stdlib::query;
     use crate::version::MolangVersion;
     use crate::vm::eval::test_support::*;
@@ -289,7 +289,7 @@ mod tests {
             .context(ContextName::new("k"))
             .map_or(0.0, |v| v.as_f32());
         let this = cx.subjects().this;
-        let sample = sample(cx.rng());
+        let sample = cx.rng().sample();
         cx.sink().runtime(RuntimeMsg::LoopLimit { limit: 7 });
         Ok(Value::Float(x + k * 10.0 + this * 100.0 + sample))
     }
@@ -308,7 +308,7 @@ mod tests {
     }
 
     fn first_sample() -> f32 {
-        sample(&mut Xorshift128::new())
+        Xorshift128::new().sample()
     }
 
     #[test]
@@ -339,7 +339,7 @@ mod tests {
         table(&mut env).set(query::POSITION, first_arg).unwrap();
         set(&mut env, &[("x", 1.0)]);
         let mut expected = env.rng.clone();
-        let sample = sample(&mut expected);
+        let sample = expected.sample();
         assert_eq!(compile_ok(src).eval(&mut env.cx()), NV::Float(sample + 1.0));
         assert_eq!(env.rng, expected, "exactly one draw");
     }
@@ -349,7 +349,7 @@ mod tests {
         let mut env = server_env();
         table(&mut env).set(query::POSITION, twice).unwrap();
         let mut expected = env.rng.clone();
-        let (a, b) = (sample(&mut expected), sample(&mut expected));
+        let (a, b) = (expected.sample(), expected.sample());
         assert_eq!(
             compile_ok("q.position(math.random(0, 1))").eval(&mut env.cx()),
             NV::Float(a + b)

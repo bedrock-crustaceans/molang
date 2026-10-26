@@ -9,7 +9,7 @@ use super::query::QueryTable;
 use super::sink::{BoundedSink, RuntimeSink};
 use super::value::Value;
 use super::vars::{TempMap, VariableMap, VariableStore};
-use crate::rng::{Xorshift128, rand_core::Rng};
+use crate::rng::{RandomSource, Xorshift128};
 
 /// The context of one evaluation: its subjects and the host-owned state around it.
 ///
@@ -26,9 +26,10 @@ pub struct EvalCx<'a, 'w, H: Host> {
     pub context: &'a dyn ContextProvider<H>,
     /// The host's query implementations; `None`: every call returns its declared default.
     pub queries: Option<&'a QueryTable<H>>,
-    /// The random source: [`Xorshift128`], [`FixedRng`](crate::rng::FixedRng),
-    /// [`ProcessRng`](super::ProcessRng) or any other `rand_core` generator.
-    pub rng: &'a mut dyn Rng,
+    /// The random source: [`Xorshift128`], [`MersenneTwister`](crate::rng::MersenneTwister),
+    /// [`FixedRng`](crate::rng::FixedRng), [`ProcessRng`](super::ProcessRng), a `rand_core`
+    /// generator in [`Bits31`](crate::rng::Bits31), or any other [`RandomSource`].
+    pub rng: &'a mut dyn RandomSource,
     /// Where run-time diagnostics go: [`BoundedSink`], [`LogOnce`](super::LogOnce),
     /// [`NullSink`](super::NullSink) or the unbounded [`CollectSink`](super::CollectSink).
     pub sink: &'a mut dyn RuntimeSink,
@@ -374,7 +375,7 @@ impl<H: Host, V, C, R, S> HostEnv<H, V, C, R, S> {
     }
 
     /// The same environment with another random source.
-    pub fn with_rng<R2: Rng>(self, rng: R2) -> HostEnv<H, V, C, R2, S> {
+    pub fn with_rng<R2: RandomSource>(self, rng: R2) -> HostEnv<H, V, C, R2, S> {
         HostEnv {
             variables: self.variables,
             context: self.context,
@@ -408,7 +409,7 @@ impl<H: Host, V, C, R, S> HostEnv<H, V, C, R, S> {
     where
         V: VariableStore<H>,
         C: ContextProvider<H>,
-        R: Rng,
+        R: RandomSource,
         S: RuntimeSink,
     {
         EvalCx {
@@ -445,7 +446,7 @@ mod tests {
 
     use super::*;
     use crate::catalog::Side;
-    use crate::rng::{FixedRng, sample};
+    use crate::rng::{FixedRng, RandomSource};
     use crate::stdlib::{self, query};
     use crate::vm::{
         Access, CollectSink, NoContext, NoVariables, NullSink, QueryCx, QueryError, ResourceRef,
@@ -937,8 +938,8 @@ mod tests {
                 Some(Value::string("moo"))
             );
             assert_eq!(cx.limits, EvalLimits::DEFAULT);
-            let first = sample(cx.rng);
-            assert_eq!(first, sample(&mut Xorshift128::new()));
+            let first = cx.rng.sample();
+            assert_eq!(first, Xorshift128::new().sample());
             assert_eq!(cx.arrow_target(&Value::Actor(())), None);
             assert!(cx.queries.is_none());
         }
@@ -1109,7 +1110,7 @@ mod tests {
 
         let mut env = env.with_rng(FixedRng::HALF);
         let mut world = World { alive: &[] };
-        assert_eq!(sample(env.cx(&mut world, Subjects::none()).rng), 0.5);
+        assert_eq!(env.cx(&mut world, Subjects::none()).rng.sample(), 0.5);
         assert_eq!(
             (
                 env.limits,
@@ -1132,7 +1133,7 @@ mod tests {
             ),
             (limits, Some(1), true)
         );
-        assert_eq!(sample(env.cx(&mut world, Subjects::none()).rng), 0.5);
+        assert_eq!(env.cx(&mut world, Subjects::none()).rng.sample(), 0.5);
     }
 
     #[test]

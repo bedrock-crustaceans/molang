@@ -9,7 +9,7 @@ use thiserror::Error;
 use super::{Arity, ByName, MAX_DECLS, is_canonical_name};
 use crate::numeric::Platform;
 use crate::ops::ExpressionOp;
-use crate::rng::rand_core::Rng;
+use crate::rng::RandomSource;
 
 /// The most arguments a host math function takes.
 pub const MAX_MATH_ARGS: u8 = 8;
@@ -19,9 +19,9 @@ pub const MAX_MATH_ARGS: u8 = 8;
 pub type PureMathFn = dyn Fn(Platform, &[f32]) -> f32 + Send + Sync;
 
 /// The signature of a volatile host math function: the expression's platform, the evaluation's
-/// random source, then the arguments (see [`MathDecl`]). [`rng::sample`](crate::rng::sample) draws a sample as the
-/// standard functions do.
-pub type VolatileMathFn = dyn Fn(Platform, &mut dyn Rng, &[f32]) -> f32 + Send + Sync;
+/// random source, then the arguments (see [`MathDecl`]). [`RandomSource::sample`] draws a sample
+/// as the standard functions do.
+pub type VolatileMathFn = dyn Fn(Platform, &mut dyn RandomSource, &[f32]) -> f32 + Send + Sync;
 
 /// How a host math function is evaluated.
 #[derive(Clone)]
@@ -92,7 +92,7 @@ impl MathDecl {
     pub fn volatile(
         name: &str,
         args: Arity,
-        f: impl Fn(Platform, &mut dyn Rng, &[f32]) -> f32 + Send + Sync + 'static,
+        f: impl Fn(Platform, &mut dyn RandomSource, &[f32]) -> f32 + Send + Sync + 'static,
     ) -> Result<Self, MathError> {
         Self::new(name, args, MathImpl::Volatile(Arc::new(f)))
     }
@@ -166,11 +166,10 @@ struct Inner {
 ///
 /// ```
 /// use molang::catalog::{Arity, MathCatalog, MathDecl};
-/// use molang::rng::sample;
 ///
 /// let math = MathCatalog::new([
 ///     MathDecl::pure("math.twice", Arity::exactly(1), |_, a| a[0] * 2.0)?,
-///     MathDecl::volatile("math.jitter", Arity::exactly(1), |_, rng, a| a[0] + sample(rng))?,
+///     MathDecl::volatile("math.jitter", Arity::exactly(1), |_, rng, a| a[0] + rng.sample())?,
 /// ])?;
 /// assert_eq!(math.len(), 2);
 /// assert!(math.get("math.jitter").is_some_and(|f| f.is_volatile()));
@@ -315,7 +314,7 @@ pub enum MathError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rng::{FixedRng, sample};
+    use crate::rng::FixedRng;
     use crate::stdlib::MathFn;
 
     fn pure(name: &str) -> MathDecl {
@@ -334,7 +333,7 @@ mod tests {
         };
         assert_eq!(call(Platform::default(), &[1.0, 2.0, 3.0]), 6.0);
         let g = MathDecl::volatile("math.g", Arity::exactly(MAX_MATH_ARGS), |_, rng, a| {
-            a[7] + sample(rng)
+            a[7] + rng.sample()
         })
         .unwrap();
         assert!(g.is_volatile());

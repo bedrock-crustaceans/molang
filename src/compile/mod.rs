@@ -287,10 +287,7 @@ pub(crate) mod test_support {
                 MathDecl::pure("math.sum", Arity::between(1, 3), |_, a| a.iter().sum()).unwrap(),
                 MathDecl::pure("math.sinh", one, |_, a| a[0] + 0.5).unwrap(),
                 MathDecl::pure("math.tag", one, |_, a| a[0] + 0.25).unwrap(),
-                MathDecl::volatile("math.noise", one, |_, rng, a| {
-                    a[0] + crate::rng::sample(rng)
-                })
-                .unwrap(),
+                MathDecl::volatile("math.noise", one, |_, rng, a| a[0] + rng.sample()).unwrap(),
             ])
             .unwrap()
         });

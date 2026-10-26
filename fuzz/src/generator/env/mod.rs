@@ -11,10 +11,7 @@ pub use differential::{Verdict, differential};
 pub use table::queries;
 
 use arbitrary::{Arbitrary, Unstructured};
-use molang::rng::{
-    FixedRng, Xorshift128,
-    rand_core::{Infallible, TryRng},
-};
+use molang::rng::{FixedRng, RandomSource, Xorshift128};
 use molang::vm::{
     CollectSink, ContextMap, ContextName, EvalCx, EvalLimits, Host, HostAccess, QueryTable,
     StructValue, Subjects, TempMap, Temps, Value, VariableMap, VariableName, VariableStore,
@@ -140,27 +137,11 @@ pub enum FuzzRng {
     Fixed(FixedRng),
 }
 
-impl TryRng for FuzzRng {
-    type Error = Infallible;
-
-    fn try_next_u32(&mut self) -> Result<u32, Infallible> {
+impl RandomSource for FuzzRng {
+    fn sample(&mut self) -> f32 {
         match self {
-            Self::Xorshift(rng) => rng.try_next_u32(),
-            Self::Fixed(rng) => rng.try_next_u32(),
-        }
-    }
-
-    fn try_next_u64(&mut self) -> Result<u64, Infallible> {
-        match self {
-            Self::Xorshift(rng) => rng.try_next_u64(),
-            Self::Fixed(rng) => rng.try_next_u64(),
-        }
-    }
-
-    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {
-        match self {
-            Self::Xorshift(rng) => rng.try_fill_bytes(dst),
-            Self::Fixed(rng) => rng.try_fill_bytes(dst),
+            Self::Xorshift(rng) => rng.sample(),
+            Self::Fixed(rng) => rng.sample(),
         }
     }
 }
@@ -384,7 +365,7 @@ mod tests {
     use super::*;
     use crate::generator::env::test_support::{var, *};
     use molang::hash::HashedStr;
-    use molang::rng::sample;
+    use molang::rng::RandomSource;
     use molang::vm::{Access, ContextProvider};
 
     #[test]
@@ -571,7 +552,7 @@ mod tests {
     fn a_fixed_source_gives_its_sample_every_time() {
         let mut rng = FuzzRng::Fixed(QUARTER);
         for _ in 0..5 {
-            assert_eq!(sample(&mut rng), 0.25);
+            assert_eq!(rng.sample(), 0.25);
         }
         assert_eq!(
             rng,
@@ -585,7 +566,7 @@ mod tests {
         let mut rng = FuzzRng::Xorshift(Xorshift128::new());
         let mut reference = Xorshift128::new();
         for _ in 0..10 {
-            assert_eq!(sample(&mut rng).to_bits(), sample(&mut reference).to_bits());
+            assert_eq!(rng.sample().to_bits(), reference.sample().to_bits());
         }
         assert_eq!(rng, FuzzRng::Xorshift(reference));
         assert_ne!(
@@ -619,22 +600,6 @@ mod tests {
             FuzzRng::Xorshift(Xorshift128::new()),
             FuzzRng::Fixed(FixedRng::HALF)
         );
-    }
-
-    #[test]
-    fn every_method_of_the_source_draws_from_its_generator() {
-        use molang::rng::rand_core::Rng;
-        let mut rng = FuzzRng::Xorshift(Xorshift128::new());
-        let mut reference = Xorshift128::new();
-        assert_eq!(rng.next_u64(), reference.next_u64());
-        let (mut got, mut want) = ([0_u8; 5], [0_u8; 5]);
-        rng.fill_bytes(&mut got);
-        reference.fill_bytes(&mut want);
-        assert_eq!((got, rng), (want, FuzzRng::Xorshift(reference)));
-        let mut fixed = FuzzRng::Fixed(FixedRng(0x0102_0304));
-        assert_eq!(fixed.next_u64(), 0x0102_0304_0102_0304);
-        fixed.fill_bytes(&mut got);
-        assert_eq!(got, [4, 3, 2, 1, 4]);
     }
 
     #[test]

@@ -240,7 +240,7 @@ pub(crate) mod test_support {
     }
 
     pub(crate) fn draw(cx: &mut QueryCx<'_, '_, World>) -> Result<V, QueryError> {
-        Ok(Value::Float(molang::rng::sample(cx.rng())))
+        Ok(Value::Float(cx.rng().sample()))
     }
 
     impl Env {

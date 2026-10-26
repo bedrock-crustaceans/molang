@@ -4373,8 +4373,8 @@ mod shapes_by_value {
         // Random functions are never merged: each is its own draw.
         let mut generator = Xorshift128::new();
         let (first, second) = {
-            use molang::rng::sample;
-            (sample(&mut generator), sample(&mut generator))
+            use molang::rng::RandomSource;
+            (generator.sample(), generator.sample())
         };
         assert_eq!(
             run("math.random(0,1) + math.random(0,1)", 13, &[]),

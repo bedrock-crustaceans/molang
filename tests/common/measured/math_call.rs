@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use molang::numeric::{Platform, PostOp};
-use molang::rng::{rand_core::Rng, sample};
+use molang::rng::RandomSource;
 use molang::stdlib::math;
 
 /// `literal` picks between the constant-operand and the run-time form of `mod`, `random` and
@@ -108,7 +108,7 @@ pub fn parse_call(expr: &str) -> Option<Call> {
 }
 
 /// `None` for a function name or arity the math library does not have.
-pub fn evaluate_call(platform: Platform, call: &Call, rng: &mut dyn Rng) -> Option<f32> {
+pub fn evaluate_call(platform: Platform, call: &Call, rng: &mut dyn RandomSource) -> Option<f32> {
     let post = PostOp::IDENTITY;
     let values: Vec<f32> = call.args.iter().map(|a| a.value).collect();
     let all_literal = call.args.iter().all(|a| a.literal);
@@ -145,7 +145,7 @@ pub fn evaluate_call(platform: Platform, call: &Call, rng: &mut dyn Rng) -> Opti
         }
         ("pow", &[a, b]) => math::pow(platform, a, b, post),
         ("random", &[a, b]) => {
-            let sample = sample(rng);
+            let sample = rng.sample();
             if all_literal {
                 math::random_folded(
                     platform,
@@ -157,7 +157,7 @@ pub fn evaluate_call(platform: Platform, call: &Call, rng: &mut dyn Rng) -> Opti
             }
         }
         ("random_integer", &[a, b]) => {
-            let sample = sample(rng);
+            let sample = rng.sample();
             if all_literal {
                 math::random_integer_const_bounds(platform, a, b, sample, post)
             } else {

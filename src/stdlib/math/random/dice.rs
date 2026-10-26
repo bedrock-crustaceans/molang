@@ -2,7 +2,7 @@
 
 use super::clamp_sample;
 use crate::numeric::{Platform, PostOp, arith, fpu};
-use crate::rng::{rand_core::Rng, sample};
+use crate::rng::RandomSource;
 use crate::stdlib::math::formula::{self, Sort, integer_reach, sorted_bounds};
 
 /// The number of rolls of `math.die_roll(n, …)`: `n` truncated, at least 0.
@@ -18,14 +18,14 @@ pub fn die_roll_count(platform: Platform, n: f32) -> u32 {
 ///
 /// ```
 /// use molang::numeric::{Platform, PostOp};
-/// use molang::rng::{Xorshift128, sample};
+/// use molang::rng::{Xorshift128, RandomSource};
 /// use molang::stdlib::math::DieRoll;
 ///
 /// let mut rng = Xorshift128::new();
 /// let mut roll = DieRoll::new(Platform::default(), 3.0, 1.0, 6.0);
 /// while roll.remaining() > 0 {
 ///     // … charge one step, stop early if the budget is spent …
-///     roll.roll(sample(&mut rng));
+///     roll.roll(rng.sample());
 /// }
 /// let sum = roll.finish(PostOp::IDENTITY);
 /// assert!((3.0..=18.0).contains(&sum));
@@ -98,7 +98,7 @@ impl DieRoll {
 }
 
 #[inline]
-fn roll_all<R: Rng + ?Sized>(
+fn roll_all<R: RandomSource + ?Sized>(
     mut roll: DieRoll,
     max_rolls: u32,
     rng: &mut R,
@@ -108,7 +108,7 @@ fn roll_all<R: Rng + ?Sized>(
         return None;
     }
     while roll.remaining() > 0 {
-        roll.roll(sample(rng));
+        roll.roll(rng.sample());
     }
     Some(roll.finish(post))
 }
@@ -119,7 +119,7 @@ fn roll_all<R: Rng + ?Sized>(
 /// `None`, without drawing, when the count exceeds `max_rolls` (`u32::MAX` for no limit; a count
 /// near 2^31 takes seconds).
 #[inline]
-pub fn die_roll<R: Rng + ?Sized>(
+pub fn die_roll<R: RandomSource + ?Sized>(
     platform: Platform,
     n: f32,
     a: f32,
@@ -136,7 +136,7 @@ pub fn die_roll<R: Rng + ?Sized>(
 ///
 /// `None`, without drawing, when the count exceeds `max_rolls`.
 #[inline]
-pub fn die_roll_integer<R: Rng + ?Sized>(
+pub fn die_roll_integer<R: RandomSource + ?Sized>(
     platform: Platform,
     n: f32,
     a: f32,
@@ -157,14 +157,14 @@ pub fn die_roll_integer<R: Rng + ?Sized>(
 mod tests {
     use super::*;
     use crate::numeric::test_support::*;
-    use crate::rng::{FixedRng, sample};
+    use crate::rng::{FixedRng, RandomSource};
     use crate::stdlib::math::formula::integer_draw;
     use proptest::prelude::*;
 
     const NO_LIMIT: u32 = u32::MAX;
     const P: Platform = LINUX;
 
-    /// Plays back the words of `samples` in a loop and counts its draws.
+    /// Plays back `samples` in a loop and counts its draws.
     struct Scripted {
         samples: Vec<f32>,
         draws: usize,
@@ -186,21 +186,11 @@ mod tests {
         }
     }
 
-    impl rand_core::TryRng for Scripted {
-        type Error = rand_core::Infallible;
-
-        fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+    impl RandomSource for Scripted {
+        fn sample(&mut self) -> f32 {
             let sample = self.samples[self.draws % self.samples.len()];
             self.draws += 1;
-            Ok(FixedRng::from_sample(sample).expect("a word's sample").0)
-        }
-
-        fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-            unreachable!("a sample is one next_u32")
-        }
-
-        fn try_fill_bytes(&mut self, _: &mut [u8]) -> Result<(), Self::Error> {
-            unreachable!("a sample is one next_u32")
+            sample
         }
     }
 
@@ -461,7 +451,7 @@ mod tests {
     #[test]
     fn die_roll_accepts_an_unsized_source() {
         let mut rng = FixedRng::ONE;
-        let dynamic: &mut dyn rand_core::Rng = &mut rng;
+        let dynamic: &mut dyn RandomSource = &mut rng;
         assert_eq!(
             die_roll(P, 3.0, 1.0, 6.0, NO_LIMIT, dynamic, ID),
             Some(18.0)
@@ -496,7 +486,7 @@ mod tests {
             offset in -4.0_f32..4.0,
         ) {
             let post = PostOp::new(scale, offset);
-            let samples: Vec<f32> = words.into_iter().map(|word| sample(&mut FixedRng(word))).collect();
+            let samples: Vec<f32> = words.into_iter().map(|word| FixedRng(word).sample()).collect();
             let mut rng = scripted(&samples);
             let whole = if integer {
                 die_roll_integer(P, n, a, b, NO_LIMIT, &mut rng, post)

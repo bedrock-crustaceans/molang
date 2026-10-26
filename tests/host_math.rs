@@ -7,7 +7,6 @@ use molang::catalog::{Arity, MathCatalog, MathDecl, MathError};
 use molang::compile::{CompileFailure, CompileOptions, Compiled, Expr, ProgramFlags, compile};
 use molang::diag::{DiagCode, Severity};
 use molang::ops::{ExpressionOp, OpSet};
-use molang::rng::sample;
 use molang::version::MolangVersion;
 
 /// `math.twice` (`2·x`), `math.tag` (`x + 0.25`), `math.neg_zero` (−0), `math.pair` (`a − b`),
@@ -30,7 +29,7 @@ fn catalog() -> MathCatalog {
             a.iter().rev().fold(0.0, |sum, x| sum * 2.0 + x)
         })
         .unwrap(),
-        MathDecl::volatile("math.draw", one, |_, rng, a| a[0] + sample(rng)).unwrap(),
+        MathDecl::volatile("math.draw", one, |_, rng, a| a[0] + rng.sample()).unwrap(),
     ])
     .unwrap()
 }
@@ -193,7 +192,7 @@ fn overrides() -> MathCatalog {
         MathDecl::pure("math.sin", Arity::exactly(1), |_, a| a[0] + 100.0).unwrap(),
         MathDecl::pure("math.random", Arity::exactly(2), |_, a| a[0] + a[1]).unwrap(),
         MathDecl::volatile("math.random_integer", Arity::exactly(2), |_, rng, a| {
-            1000.0 + a[0] + sample(rng)
+            1000.0 + a[0] + rng.sample()
         })
         .unwrap(),
     ])
@@ -436,7 +435,7 @@ fn the_disassembly_and_the_tree_notation_name_the_function() {
 mod evaluation {
     use super::*;
     use molang::numeric::{Platform, PostOp};
-    use molang::rng::{Xorshift128, rand_core::SeedableRng, sample};
+    use molang::rng::{RandomSource, Xorshift128, rand_core::SeedableRng};
     use molang::stdlib::math;
     use molang::vm::{NoHostEnv, Value, VariableName};
     use std::sync::Arc;
@@ -520,11 +519,7 @@ mod evaluation {
         let mut env = NoHostEnv::new();
         env.rng = Xorshift128::seed_from_u64(7);
         let mut samples = Xorshift128::seed_from_u64(7);
-        let (first, second, third) = (
-            sample(&mut samples),
-            sample(&mut samples),
-            sample(&mut samples),
-        );
+        let (first, second, third) = (samples.sample(), samples.sample(), samples.sample());
         assert_eq!(call.eval_f32(&mut env.cx()), 10.0 + second);
         let read = |name: &str| {
             env.variables
@@ -557,7 +552,7 @@ mod evaluation {
             91.0
         );
         env.rng = Xorshift128::seed_from_u64(3);
-        let draw = sample(&mut Xorshift128::seed_from_u64(3));
+        let draw = Xorshift128::seed_from_u64(3).sample();
         assert_eq!(
             expr("math.random_integer(v.x, 1)", &math).eval_f32(&mut env.cx()),
             1090.0 + draw

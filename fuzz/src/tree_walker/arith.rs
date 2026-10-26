@@ -7,7 +7,6 @@ use molang::hash::HashedStr;
 use molang::internals::{Node, Payload, math_decl};
 use molang::numeric::{self, Platform, PostOp, arith};
 use molang::ops::ExpressionOp as Op;
-use molang::rng;
 use molang::stdlib::math;
 use molang::vm::{EvalCx, Host, Value};
 
@@ -161,7 +160,7 @@ impl<H: Host> Walker<H> {
         let mut roll = start(self.platform, count, a, b);
         while roll.remaining() > 0 {
             self.step(cx)?;
-            roll.roll(rng::sample(cx.rng));
+            roll.roll(cx.rng.sample());
         }
         Ok(Value::Float(roll.finish(n.post())))
     }
@@ -268,7 +267,7 @@ impl<H: Host> Walker<H> {
         let (a, b) = (child(n, 0), child(n, 1));
         if a.is(Op::Float) && b.is(Op::Float) {
             self.step(cx)?;
-            let sample = rng::sample(cx.rng);
+            let sample = cx.rng.sample();
             let (p, a, b) = (self.platform, a.float(), b.float());
             return Ok(Value::Float(match draw {
                 Draw::Float => {
@@ -278,7 +277,7 @@ impl<H: Host> Walker<H> {
             }));
         }
         let (a, b) = self.two(n, cx)?;
-        let sample = rng::sample(cx.rng);
+        let sample = cx.rng.sample();
         Ok(Value::Float(match draw {
             Draw::Float => math::random(self.platform, a, b, sample, post),
             Draw::Integer => math::random_integer(self.platform, a, b, sample, post),
@@ -358,7 +357,7 @@ mod tests {
     use crate::tree_walker::test_support::*;
     use molang::compile::compile;
     use molang::numeric::Platform;
-    use molang::rng::{Xorshift128, sample};
+    use molang::rng::{RandomSource, Xorshift128};
 
     #[test]
     fn arithmetic_with_post_ops() {
@@ -556,14 +555,14 @@ mod tests {
     fn the_random_operators_draw_once_in_evaluation_order() {
         let run = both("math.random(0, 1) + math.random(0, 1) * 2");
         let mut rng = Xorshift128::new();
-        let (a, b) = (sample(&mut rng), sample(&mut rng));
+        let (a, b) = (rng.sample(), rng.sample());
         assert_eq!(bits(run.f()), bits(a + b * 2.0));
         assert_eq!(run.env.rng, FuzzRng::Xorshift(rng));
         // Bounds that draw are evaluated before the sample.
         let run = both("math.random(math.random(0, 1), 2)");
         let mut rng = Xorshift128::new();
-        let first = sample(&mut rng);
-        let second = sample(&mut rng);
+        let first = rng.sample();
+        let second = rng.sample();
         assert_eq!(bits(run.f()), bits(first + (2.0 - first) * second));
     }
 
@@ -587,7 +586,7 @@ mod tests {
         assert_eq!(float("math.helper_mix(1, 4)"), 1.0);
         let run = both("math.random(0, 1) + math.helper_noise(v.x) * 2 + math.random(0, 1) * 4");
         let mut rng = Xorshift128::new();
-        let (a, b, c) = (sample(&mut rng), sample(&mut rng), sample(&mut rng));
+        let (a, b, c) = (rng.sample(), rng.sample(), rng.sample());
         assert_eq!(bits(run.f()), bits(a + (3.0 + b) * 2.0 + c * 4.0));
         assert_eq!(run.env.rng, FuzzRng::Xorshift(rng));
     }
@@ -620,7 +619,7 @@ mod tests {
         let run = both("math.die_roll(v.x, 0, 1)");
         let mut rng = Xorshift128::new();
         for _ in 0..3 {
-            sample(&mut rng);
+            rng.sample();
         }
         assert_eq!(run.env.rng, FuzzRng::Xorshift(rng));
         let run = both("math.die_roll(0, 0, 1)");

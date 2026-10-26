@@ -74,7 +74,7 @@ pub fn math() -> &'static MathCatalog {
             }),
             MathDecl::pure("math.helper_sum", Arity::between(1, 8), weighted),
             MathDecl::volatile("math.helper_noise", Arity::exactly(1), |_, rng, a| {
-                a[0] + crate::rng::sample(rng)
+                a[0] + rng.sample()
             }),
         ]
         .map(|decl| decl.unwrap_or_else(|error| panic!("reference catalogue: {error}")));

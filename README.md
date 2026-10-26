@@ -147,14 +147,13 @@ Declare them in a `MathCatalog` and pass it in `CompileOptions::math`; `math.<na
 ```rust
 use molang::catalog::{Arity, MathCatalog, MathDecl};
 use molang::compile::{CompileOptions, compile};
-use molang::rng::sample;
 use molang::version::MolangVersion;
 use molang::vm::NoHostEnv;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let math = MathCatalog::new([
         MathDecl::pure("math.hypot", Arity::exactly(2), |_, a| a[0].hypot(a[1]))?,
-        MathDecl::volatile("math.jitter", Arity::exactly(1), |_, rng, a| a[0] * sample(rng))?,
+        MathDecl::volatile("math.jitter", Arity::exactly(1), |_, rng, a| a[0] * rng.sample())?,
     ])?;
     let options = CompileOptions {
         math: Some(math),

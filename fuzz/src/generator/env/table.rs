@@ -120,7 +120,7 @@ fn log(cx: &mut Cx<'_, '_>) -> QueryResult<FuzzHost> {
 mod tests {
     use super::*;
     use crate::generator::env::{FuzzEnv, FuzzRng, Subject, TempLifetime, test_support::*};
-    use molang::rng::{FixedRng, Xorshift128, sample};
+    use molang::rng::{FixedRng, RandomSource, Xorshift128};
     use molang::vm::EvalLimits;
 
     #[test]
@@ -178,7 +178,7 @@ mod tests {
             let mut count = 0;
             let mut reference = Xorshift128::new();
             while env.rng != FuzzRng::Xorshift(reference.clone()) && count < 10 {
-                sample(&mut reference);
+                reference.sample();
                 count += 1;
             }
             count
@@ -297,13 +297,13 @@ mod tests {
             let mut env = xorshift_env();
             run("q.log(1, math.random(0, 1), math.random(0, 1))", &mut env);
             let mut reference = Xorshift128::new();
-            sample(&mut reference);
-            sample(&mut reference);
+            reference.sample();
+            reference.sample();
             assert_eq!(env.rng, FuzzRng::Xorshift(reference));
             // The first one is the value, and it is drawn first.
             let mut env = xorshift_env();
             let first = run("q.log(math.random(0, 1), math.random(0, 1))", &mut env).as_f32();
-            assert_eq!(first.to_bits(), sample(&mut Xorshift128::new()).to_bits());
+            assert_eq!(first.to_bits(), Xorshift128::new().sample().to_bits());
         }
 
         #[test]
@@ -401,7 +401,7 @@ mod tests {
             let mut env = xorshift_env();
             let total = run("q.sum_test(math.random(0, 1), math.random(0, 1))", &mut env).as_f32();
             let mut reference = Xorshift128::new();
-            let expected = sample(&mut reference) + sample(&mut reference);
+            let expected = reference.sample() + reference.sample();
             assert_eq!(total.to_bits(), expected.to_bits());
         }
     }

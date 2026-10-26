@@ -354,7 +354,7 @@ mod runtime_messages {
 
     use molang::catalog::Side;
     use molang::compile::{CompileOptions, compile};
-    use molang::rng::{Xorshift128, sample};
+    use molang::rng::{RandomSource, Xorshift128};
     use molang::stdlib::query;
     use molang::version::MolangVersion;
     use molang::vm::{
@@ -404,7 +404,7 @@ mod runtime_messages {
     /// its value is the subject actor's number.
     fn health(cx: &mut QueryCx<'_, '_, Farm>) -> Result<Value<Farm>, QueryError> {
         let subjects = cx.subjects();
-        let sample = sample(cx.rng());
+        let sample = cx.rng().sample();
         cx.host().seen.push((subjects, sample));
         Ok(Value::Float(subjects.actor.map_or(0.0, |a| a as f32)))
     }
@@ -503,14 +503,14 @@ mod runtime_messages {
             ..Subjects::actor(1)
         };
         let mut reference = Xorshift128::new();
-        let first = sample(&mut reference);
+        let first = reference.sample();
         assert_eq!(
             env.variables
                 .actor(1)
                 .and_then(|m| m.get(VariableName::new("r"))),
             Some(&Value::Float(first))
         );
-        let samples: Vec<f32> = (0..3).map(|_| sample(&mut reference)).collect();
+        let samples: Vec<f32> = (0..3).map(|_| reference.sample()).collect();
         assert_eq!(
             world.seen,
             [
@@ -1153,7 +1153,7 @@ mod process_rng {
 
     use crate::common::compile_support::{server_expr, server_expr_at};
 
-    use molang::rng::{Xorshift128, rand_core::Rng, sample};
+    use molang::rng::{RandomSource, Xorshift128, rand_core::Rng};
     use molang::vm::{NoHostEnv, ProcessRng};
 
     /// Both tests reset and draw from the one process-wide generator, so they take turns.
@@ -1171,7 +1171,7 @@ mod process_rng {
             let mut rng = ProcessRng;
             let mut cx = env.cx();
             cx.rng = &mut rng;
-            assert_eq!(expr.eval_f32(&mut cx), sample(&mut reference));
+            assert_eq!(expr.eval_f32(&mut cx), reference.sample());
         }
         // Two fresh per-evaluator generators repeat each other.
         assert_eq!(
@@ -1193,12 +1193,12 @@ mod process_rng {
         let first = raw.next_u32();
         assert_eq!(first, 3_701_687_786);
         assert_eq!(
-            sample(&mut Xorshift128::new()),
+            Xorshift128::new().sample(),
             ((first & 0x7fff_ffff) as f32) * 2.0_f32.powi(-31)
         );
         // A sample can round to exactly 1.0.
         assert_eq!(
-            sample(&mut Xorshift128::with_state([0, 1, 2, 0xffff_e000])),
+            Xorshift128::with_state([0, 1, 2, 0xffff_e000]).sample(),
             1.0
         );
 
@@ -1210,8 +1210,67 @@ mod process_rng {
             let mut rng = ProcessRng;
             let mut cx = env.cx();
             cx.rng = &mut rng;
-            assert_eq!(expr.eval_f32(&mut cx), sample(&mut reference));
+            assert_eq!(expr.eval_f32(&mut cx), reference.sample());
         }
+    }
+}
+
+mod world_generation_rng {
+    //! A `MersenneTwister` as the random source: samples through the 32-bit mapping.
+
+    use crate::common::compile_support::server_expr;
+
+    use molang::rng::{Bits31, FixedRng, MersenneTwister, RandomSource, rand_core::Rng};
+    use molang::vm::NoHostEnv;
+
+    /// `u · 2^-32` in `f64`, rounded to `f32`.
+    fn mapped(word: u32) -> f32 {
+        (f64::from(word) / 4_294_967_296.0) as f32
+    }
+
+    #[test]
+    fn math_random_draws_the_32_bit_mapped_outputs() {
+        let expr = server_expr("math.random(0, 1)");
+        let mut mt = MersenneTwister::new(5489);
+        let mut words = mt.clone();
+        let mut env = NoHostEnv::new();
+        let mut differs_from_31_bits = false;
+        for _ in 0..64 {
+            let mut cx = env.cx();
+            cx.rng = &mut mt;
+            let got = expr.eval_f32(&mut cx);
+            let word = words.next_u32();
+            assert_eq!(got.to_bits(), mapped(word).to_bits());
+            differs_from_31_bits |= got != Bits31(FixedRng(word)).sample();
+        }
+        assert!(differs_from_31_bits);
+        let mut cx = env.cx();
+        let mut fresh = MersenneTwister::new(5489);
+        cx.rng = &mut fresh;
+        assert_eq!(expr.eval_f32(&mut cx).to_bits(), 0x3f50_91bb);
+    }
+
+    #[test]
+    fn math_die_roll_sums_one_mapped_output_per_roll() {
+        let expr = server_expr("math.die_roll(3, 0, 1)");
+        let mut words = MersenneTwister::for_chunk_decoration(12_345, 3, -7);
+        let expected = (0..3).fold(0.0_f32, |sum, _| sum + mapped(words.next_u32()));
+        let mut env = NoHostEnv::new();
+        let mut cx = env.cx();
+        let mut mt = MersenneTwister::for_chunk_decoration(12_345, 3, -7);
+        cx.rng = &mut mt;
+        assert_eq!(expr.eval_f32(&mut cx).to_bits(), expected.to_bits());
+        assert_eq!(mt, words, "three draws");
+    }
+
+    #[test]
+    fn a_host_env_owns_the_generator() {
+        let expr = server_expr("math.random(0, 1)");
+        let mut env =
+            molang::vm::HostEnv::<molang::vm::NoHost>::default().with_rng(MersenneTwister::new(1));
+        let got = expr.eval_f32(&mut env.cx(&mut molang::vm::NoHost, molang::vm::Subjects::none()));
+        assert_eq!(got.to_bits(), mapped(1_791_095_845).to_bits());
+        assert_eq!(env.rng.next_u32(), 4_282_876_139);
     }
 }
 
@@ -1924,7 +1983,7 @@ mod value_type {
 mod variable_maps {
     use molang::hash::HashedStr;
 
-    use molang::rng::{FixedRng, Xorshift128, sample};
+    use molang::rng::{FixedRng, RandomSource, Xorshift128};
 
     use molang::vm::{
         Access, AnyName, ContextMap, ContextName, ContextProvider, EvalCx, EvalLimits, Host,
@@ -2415,8 +2474,8 @@ mod variable_maps {
             );
             assert_eq!(cx.limits, EvalLimits::DEFAULT);
             // The first sample of the standard xorshift128 sequence.
-            let first = sample(cx.rng);
-            assert_eq!(first, sample(&mut Xorshift128::new()));
+            let first = cx.rng.sample();
+            assert_eq!(first, Xorshift128::new().sample());
             assert!(cx.queries.is_none());
         }
         assert_eq!(
@@ -2433,7 +2492,7 @@ mod query_tables {
     use molang::catalog::{DefaultReturn, QueryCatalog, Side};
     use molang::stdlib::query;
 
-    use molang::rng::{FixedRng, rand_core::Rng, sample};
+    use molang::rng::{FixedRng, RandomSource};
 
     use molang::vm::{
         CollectSink, ContextName, Host, HostAccess, QueryBackend, QueryCx, QueryResult, QueryTable,
@@ -2505,7 +2564,7 @@ mod query_tables {
             self.world
         }
 
-        fn rng(&mut self) -> &mut dyn Rng {
+        fn rng(&mut self) -> &mut dyn RandomSource {
             &mut self.rng
         }
 
@@ -2566,7 +2625,7 @@ mod query_tables {
 
     fn logs_and_draws(cx: &mut QueryCx<'_, '_, TestHost>) -> QueryResult<TestHost> {
         cx.sink().runtime(RuntimeMsg::PublicAccessUnderflow);
-        let sample = sample(cx.rng());
+        let sample = cx.rng().sample();
         let moo = cx
             .context(ContextName::new("moo"))
             .and_then(|v| v.as_actor())
@@ -2770,7 +2829,7 @@ mod query_tables {
 
 mod message_sinks {
     use molang::catalog::Side;
-    use molang::rng::{FixedRng, rand_core::Rng};
+    use molang::rng::{FixedRng, RandomSource};
     use molang::stdlib::query;
     use molang::version::MolangVersion;
     use molang::vm::{
@@ -2788,7 +2847,7 @@ mod message_sinks {
         fn host(&mut self) -> &mut NoHost {
             &mut self.0
         }
-        fn rng(&mut self) -> &mut dyn Rng {
+        fn rng(&mut self) -> &mut dyn RandomSource {
             &mut self.2
         }
         fn sink(&mut self) -> &mut dyn RuntimeSink {

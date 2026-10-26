@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 
 use molang::compile::Compiled;
-use molang::rng::rand_core::Rng;
+use molang::rng::RandomSource;
 use molang::stdlib::query;
 use molang::vm::{
     ContextMap, EvalCx, EvalLimits, Host, HostAccess, LogLevel, QueryCx, QueryError, QueryResult,
@@ -221,7 +221,7 @@ impl Env {
 
     pub fn with_cx<R>(
         &mut self,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomSource,
         sink: &mut dyn RuntimeSink,
         f: impl FnOnce(&mut EvalCx<'_, '_, TestHost>) -> R,
     ) -> R {
@@ -249,7 +249,7 @@ impl Env {
     pub fn eval(
         &mut self,
         compiled: &Compiled,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomSource,
         sink: &mut dyn RuntimeSink,
     ) -> Value<TestHost> {
         self.with_cx(rng, sink, |cx| {

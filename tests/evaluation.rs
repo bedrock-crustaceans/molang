@@ -14,7 +14,7 @@ mod control_flow {
         host::{Actor, Env},
     };
     use molang::compile::{CompileFailure, CompileOptions, compile};
-    use molang::rng::{Xorshift128, sample};
+    use molang::rng::{RandomSource, Xorshift128};
     use molang::version::MolangVersion;
     use molang::vm::{CollectSink, EvalLimits, NoHostEnv, Value, VariableName};
 
@@ -381,7 +381,7 @@ mod control_flow {
         let expr = server_expr("math.random(0, 1) + math.random(0, 1)");
         let mut env = NoHostEnv::new();
         let mut reference = Xorshift128::new();
-        let expected = sample(&mut reference) + sample(&mut reference);
+        let expected = reference.sample() + reference.sample();
         assert_eq!(expr.eval_f32(&mut env.cx()), expected);
     }
 

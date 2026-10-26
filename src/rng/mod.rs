@@ -73,12 +73,6 @@ const fn bits31(word: u32) -> f32 {
     (word & 0x7fff_ffff) as f32 * (1.0 / 2_147_483_648.0)
 }
 
-/// Draws one `next_u32` of `rng` under the 31-bit mapping.
-#[inline]
-pub fn sample<R: rand_core::Rng + ?Sized>(rng: &mut R) -> f32 {
-    bits31(rng.next_u32())
-}
-
 /// Any `rand_core` generator as a [`RandomSource`] with the 31-bit mapping: each sample is one
 /// `next_u32` `u` mapped to `(u & 0x7fff_ffff) · 2^-31`, rounded to nearest.
 ///

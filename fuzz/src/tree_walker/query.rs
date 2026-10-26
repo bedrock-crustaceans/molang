@@ -3,7 +3,7 @@
 use super::walker::with_post;
 use super::{Eval, Unwind, Walker};
 use molang::internals::{Node, Payload, query_cx};
-use molang::rng::rand_core::Rng;
+use molang::rng::RandomSource;
 use molang::vm::{
     ContextName, EvalCx, Host, QueryBackend, RuntimeMsg, RuntimeSink, Subjects, Value, VariableName,
 };
@@ -55,7 +55,7 @@ impl<'w, H: Host> QueryBackend<'w, H> for ArgEval<'_, '_, 'w, H> {
         self.cx.host
     }
 
-    fn rng(&mut self) -> &mut dyn Rng {
+    fn rng(&mut self) -> &mut dyn RandomSource {
         self.cx.rng
     }
 
@@ -107,7 +107,7 @@ impl<H: Host> Walker<H> {
 mod tests {
     use super::*;
     use crate::tree_walker::test_support::*;
-    use molang::rng::{Xorshift128, sample};
+    use molang::rng::{RandomSource, Xorshift128};
     use molang::vm::QueryCx;
 
     #[test]
@@ -162,9 +162,9 @@ mod tests {
         // `log` evaluates all of them, in order.
         let run = both("q.log(math.random(0, 1), math.random(0, 1), math.random(0, 1))");
         let mut rng = Xorshift128::new();
-        let first = sample(&mut rng);
-        sample(&mut rng);
-        sample(&mut rng);
+        let first = rng.sample();
+        rng.sample();
+        rng.sample();
         assert_eq!(bits(run.f()), bits(first));
         assert_eq!(
             run.env.rng,
@@ -195,7 +195,7 @@ mod tests {
         assert_eq!(run.f(), 0.5);
         let run = both("q.experimental_test");
         let mut expected = Xorshift128::new();
-        assert_eq!(bits(run.f()), bits(sample(&mut expected)));
+        assert_eq!(bits(run.f()), bits(expected.sample()));
         assert_eq!(run.env.rng, FuzzRng::Xorshift(expected));
     }
 

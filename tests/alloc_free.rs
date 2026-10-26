@@ -7,7 +7,7 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
 use molang::compile::{CompileOptions, ProgramFlags, compile};
-use molang::rng::{Xorshift128, sample};
+use molang::rng::Xorshift128;
 use molang::stdlib::query;
 use molang::version::MolangVersion;
 use molang::vm::{
@@ -252,7 +252,7 @@ fn a_host_math_call_does_not_allocate() {
         MathDecl::pure("math.span", Arity::between(1, 8), |_, a| a.iter().sum())
             .expect("a declaration"),
         MathDecl::volatile("math.draw", Arity::exactly(1), |_, rng, a| {
-            a[0] + sample(rng)
+            a[0] + rng.sample()
         })
         .expect("a declaration"),
     ])

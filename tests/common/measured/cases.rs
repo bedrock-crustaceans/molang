@@ -25,7 +25,7 @@ use crate::common::host::{Actor, Env, LIVE_ACTOR, SECOND_ACTOR, TestHost};
 #[cfg(feature = "vm")]
 use molang::compile::{Compiled, ProgramFlags};
 #[cfg(feature = "vm")]
-use molang::rng::rand_core::Rng;
+use molang::rng::RandomSource;
 #[cfg(feature = "vm")]
 use molang::vm::{CollectSink, ContextName, Value, VariableMap, VariableName};
 #[cfg(feature = "vm")]
@@ -1029,14 +1029,14 @@ struct CaseState {
     env: Env,
     /// What a row that assigns starts from: the setup's map plus the setup steps met so far.
     initial: VariableMap<TestHost>,
-    rng: Box<dyn Rng>,
+    rng: Box<dyn RandomSource>,
 }
 
 #[cfg(feature = "vm")]
 impl CaseState {
     fn new(case: &EvalCase) -> Self {
         let env = case.initial_env();
-        let rng: Box<dyn Rng> = match case.fixed_random {
+        let rng: Box<dyn RandomSource> = match case.fixed_random {
             Some(fixed) => Box::new(fixed),
             None => Box::new(Xorshift128::new()),
         };

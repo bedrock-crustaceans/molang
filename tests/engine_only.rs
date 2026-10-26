@@ -110,7 +110,7 @@ fn the_standard_names_are_known_only_with_the_feature() {
 mod evaluation {
     use molang::catalog::{Arity, MathCatalog, MathDecl, QueryCatalog};
     use molang::compile::{CompileOptions, compile};
-    use molang::rng::{FixedRng, sample};
+    use molang::rng::FixedRng;
     use molang::version::MolangVersion;
     use molang::vm::{NoHost, NoHostEnv, QueryCx, QueryResult, QueryTable, Value, VariableName};
 
@@ -209,7 +209,7 @@ mod evaluation {
         let math =
             MathCatalog::new([
                 MathDecl::volatile("math.draw", Arity::exactly(1), |_, rng, a| {
-                    a[0] + sample(rng)
+                    a[0] + rng.sample()
                 })
                 .expect("a declaration"),
             ])

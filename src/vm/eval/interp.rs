@@ -12,14 +12,14 @@ use crate::catalog::{MAX_MATH_ARGS, MathImpl, MathRef};
 use crate::compile::program::{Divisor, Instr, PostIdx, Program, TempIdx};
 use crate::hash::HashedStr;
 use crate::numeric::{self, arith};
+#[cfg(feature = "stdlib")]
+use crate::stdlib::math;
 use crate::vm::{
     cx::{EvalCx, Temps},
     host::Host,
     sink::RuntimeMsg,
     value::{ResourceRef, Value},
 };
-#[cfg(feature = "stdlib")]
-use crate::{rng, stdlib::math};
 
 impl<H: Host, R: Slot<H>> Vm<H, R> {
     /// Runs from `pc` until the (sub-)program ends.
@@ -201,7 +201,7 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                 #[cfg(feature = "stdlib")]
                 Instr::Random { p } => {
                     // The sample is drawn before the bounds are read.
-                    let sample = rng::sample(cx.rng);
+                    let sample = cx.rng.sample();
                     let a = self.pop().f32();
                     self.acc = R::float(math::random(
                         platform,
@@ -213,12 +213,12 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::RandomConst { p } => {
-                    let sample = rng::sample(cx.rng);
+                    let sample = cx.rng.sample();
                     self.acc = R::float(math::random_folded(platform, sample, program.post(p)));
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::RandomInt { p } => {
-                    let sample = rng::sample(cx.rng);
+                    let sample = cx.rng.sample();
                     let a = self.pop().f32();
                     self.acc = R::float(math::random_integer(
                         platform,
@@ -230,7 +230,7 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::RandomIntConst { c, p } => {
-                    let sample = rng::sample(cx.rng);
+                    let sample = cx.rng.sample();
                     let [lo, hi] = program.konst_pair(c);
                     let value = math::random_integer_const_bounds(
                         platform,
@@ -376,7 +376,7 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
         let mut roll = dice(platform, n, a, b);
         while roll.remaining() > 0 {
             self.step(cx, step_budget)?;
-            roll.roll(rng::sample(cx.rng));
+            roll.roll(cx.rng.sample());
         }
         Ok(roll)
     }
@@ -501,7 +501,7 @@ mod tests {
     use crate::compile::program::ConstIdx;
     use crate::compile::{CompileOptions, compile};
     use crate::numeric::{Platform, PostOp};
-    use crate::rng::{Xorshift128, sample};
+    use crate::rng::{RandomSource, Xorshift128};
     use crate::version::{MolangVersion, RawVersion};
     use crate::vm::eval::test_support::*;
     use crate::vm::{NoHost, NoHostEnv, TempName};
@@ -694,7 +694,7 @@ mod tests {
             setup(&mut env);
             let mut expected = env.rng.clone();
             for _ in 0..draws {
-                sample(&mut expected);
+                expected.sample();
             }
             compile_ok(src).eval(&mut env.cx());
             assert_eq!(env.rng, expected, "{src}");
@@ -704,7 +704,7 @@ mod tests {
     #[test]
     fn random_values_come_from_the_samples() {
         let mut first = Xorshift128::new();
-        let sample = sample(&mut first);
+        let sample = first.sample();
         let r = ran("math.random(10, 20)", |_| {});
         assert_eq!(
             r.value,
@@ -887,7 +887,7 @@ mod tests {
         expr.eval(&mut env.cx());
         let mut expected = before;
         for _ in 0..4 {
-            sample(&mut expected);
+            expected.sample();
         }
         assert_eq!(env.rng, expected);
     }

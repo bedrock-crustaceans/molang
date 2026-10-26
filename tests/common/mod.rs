@@ -124,7 +124,7 @@ pub fn word(sample: f32) -> u32 {
         .0
 }
 
-/// Plays back the words of `samples` in order, then of `rest`, and counts the draws.
+/// Plays back `samples` in order, then `rest`, and counts the draws.
 #[cfg(feature = "compiler")]
 #[derive(Debug)]
 pub struct Samples<'a> {
@@ -155,21 +155,11 @@ impl<'a> Samples<'a> {
 }
 
 #[cfg(feature = "compiler")]
-impl molang::rng::rand_core::TryRng for Samples<'_> {
-    type Error = std::convert::Infallible;
-
-    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+impl molang::rng::RandomSource for Samples<'_> {
+    fn sample(&mut self) -> f32 {
         let sample = self.samples.get(self.draws).copied().unwrap_or(self.rest);
         self.draws += 1;
-        Ok(word(sample))
-    }
-
-    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-        unreachable!("a sample is one next_u32")
-    }
-
-    fn try_fill_bytes(&mut self, _: &mut [u8]) -> Result<(), Self::Error> {
-        unreachable!("a sample is one next_u32")
+        sample
     }
 }
 

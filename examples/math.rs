@@ -9,7 +9,6 @@
 use molang::catalog::{Arity, MathCatalog, MathDecl};
 use molang::compile::{CompileOptions, compile};
 use molang::numeric::{Platform, PostOp};
-use molang::rng::sample;
 use molang::stdlib::math;
 use molang::version::MolangVersion;
 use molang::vm::{NoHostEnv, Value, VariableName};
@@ -22,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })?,
         // Volatile: `a + b · r` for one draw `r`.
         MathDecl::volatile("math.gauss", Arity::exactly(2), |_, rng, a| {
-            a[0] + a[1] * (sample(rng) - 0.5)
+            a[0] + a[1] * (rng.sample() - 0.5)
         })?,
         // An override: `math.clamp` that also accepts its bounds in either order. `f32::clamp`
         // would panic on NaN bounds.

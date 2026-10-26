@@ -140,7 +140,7 @@ mod tests {
     use molang::compile::compile;
     use molang::numeric::Platform;
     use molang::rng::Xorshift128;
-    use molang::rng::{FixedRng, sample};
+    use molang::rng::{FixedRng, RandomSource};
     use molang::version::RawVersion;
     use molang::vm::{Access, EvalLimits, TempName, Value, VariableName};
     use std::cell::RefCell;
@@ -592,7 +592,7 @@ mod tests {
         };
         assert_eq!(with_late(&case, |_, _| {}), Ok(Verdict::Agree));
         let why = with_late(&case, |_, vm| {
-            sample(&mut vm.rng);
+            vm.rng.sample();
         })
         .expect_err("a disagreement");
         assert!(why.contains("random source: Xorshift("), "{why}");
@@ -809,7 +809,7 @@ mod tests {
         });
         assert_eq!(
             value.as_f32().to_bits(),
-            sample(&mut Xorshift128::new()).to_bits()
+            Xorshift128::new().sample().to_bits()
         );
         assert!(matches!(env.rng, FuzzRng::Xorshift(_)));
     }

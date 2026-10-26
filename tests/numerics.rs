@@ -2460,9 +2460,8 @@ mod fixed_generator {
 
 mod generator {
     use molang::rng::{
-        FixedRng, Xorshift128,
+        FixedRng, RandomSource, Xorshift128,
         rand_core::{Rng, SeedableRng},
-        sample,
     };
 
     #[test]
@@ -2494,7 +2493,7 @@ mod generator {
 
         // sample = (w & 0x7fffffff) · 2^-31 as f32
         let mut rng = Xorshift128::new();
-        let samples: Vec<u32> = (0..6).map(|_| sample(&mut rng).to_bits()).collect();
+        let samples: Vec<u32> = (0..6).map(|_| rng.sample().to_bits()).collect();
         assert_eq!(
             samples,
             [
@@ -2512,7 +2511,7 @@ mod generator {
     fn samples_stay_in_the_closed_unit_interval() {
         let mut rng = Xorshift128::new();
         for _ in 0..100_000 {
-            let sample = sample(&mut rng);
+            let sample = rng.sample();
             assert!((0.0..=1.0).contains(&sample), "{sample}");
         }
     }
@@ -2523,7 +2522,7 @@ mod generator {
         // bits round up to 2^31 when converted to f32.
         let mut rng = Xorshift128::with_state([0, 1, 2, 0xffff_e000]);
         assert_eq!(rng.clone().next_u32(), 0xffff_ffff);
-        assert_eq!(sample(&mut rng), 1.0);
+        assert_eq!(rng.sample(), 1.0);
     }
 
     #[test]
@@ -2556,25 +2555,25 @@ mod generator {
             (FixedRng::HALF, 0.5),
             (FixedRng::ONE, 1.0),
         ] {
-            assert_eq!(sample(&mut source), expected);
+            assert_eq!(source.sample(), expected);
         }
         let mut fixed = FixedRng::from_sample(0.25).expect("a word's sample");
-        assert_eq!((sample(&mut fixed), sample(&mut fixed)), (0.25, 0.25));
+        assert_eq!((fixed.sample(), fixed.sample()), (0.25, 0.25));
         assert_eq!(FixedRng::from_sample(f32::NAN), None);
     }
 
     #[test]
     fn a_mutable_reference_is_a_source() {
-        fn draw_two(mut rng: impl Rng) -> (f32, f32) {
-            (sample(&mut rng), sample(&mut rng))
+        fn draw_two(mut rng: impl RandomSource) -> (f32, f32) {
+            (rng.sample(), rng.sample())
         }
         let mut rng = Xorshift128::new();
         let first = draw_two(&mut rng);
-        let dynamic: &mut dyn Rng = &mut rng;
+        let dynamic: &mut dyn RandomSource = &mut rng;
         let second = draw_two(dynamic);
         let mut reference = Xorshift128::new();
-        assert_eq!(first, (sample(&mut reference), sample(&mut reference)));
-        assert_eq!(second, (sample(&mut reference), sample(&mut reference)));
+        assert_eq!(first, (reference.sample(), reference.sample()));
+        assert_eq!(second, (reference.sample(), reference.sample()));
     }
 }
 
@@ -2589,8 +2588,7 @@ mod math_library {
     use molang::numeric::{Platform, PostOp};
 
     use crate::common::P;
-    use crate::common::word;
-    use molang::rng::rand_core::{Infallible, TryRng};
+    use molang::rng::RandomSource;
 
     /// `|actual − expected| <= tolerance`; non-finite expectations must match to the bit.
     fn within(actual: f32, expected: f32, tolerance: f32) -> bool {
@@ -2617,22 +2615,12 @@ mod math_library {
         draws: usize,
     }
 
-    /// Plays back the words of `samples` in a loop and counts its draws.
-    impl TryRng for Scripted {
-        type Error = Infallible;
-
-        fn try_next_u32(&mut self) -> Result<u32, Infallible> {
+    /// Plays back `samples` in a loop and counts its draws.
+    impl RandomSource for Scripted {
+        fn sample(&mut self) -> f32 {
             let sample = self.samples[self.draws % self.samples.len()];
             self.draws += 1;
-            Ok(word(sample))
-        }
-
-        fn try_next_u64(&mut self) -> Result<u64, Infallible> {
-            unreachable!("a sample is one next_u32")
-        }
-
-        fn try_fill_bytes(&mut self, _: &mut [u8]) -> Result<(), Infallible> {
-            unreachable!("a sample is one next_u32")
+            sample
         }
     }
 

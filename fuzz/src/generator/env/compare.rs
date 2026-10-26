@@ -141,7 +141,7 @@ mod tests {
         ACTORS, FuzzActor, FuzzRng, Subject, TempLifetime, test_support::*,
     };
     use molang::hash::HashedStr;
-    use molang::rng::{FixedRng, Xorshift128, sample};
+    use molang::rng::{FixedRng, RandomSource, Xorshift128};
     use molang::vm::{Access, EvalLimits, StructValue, TempName};
     use std::thread;
 
@@ -780,7 +780,7 @@ mod tests {
     fn a_changed_random_source_is_reported() {
         let a = xorshift_env();
         let mut b = a.clone();
-        sample(&mut b.rng);
+        b.rng.sample();
         let why = state_difference(&a, &b).expect("a difference");
         assert!(why.starts_with("random source: Xorshift("), "{why}");
         // A forced sample is compared by bits, and a kind change is a difference.
@@ -803,9 +803,9 @@ mod tests {
     fn a_draw_count_difference_is_a_difference_of_the_random_state() {
         let a = xorshift_env();
         let (mut one, mut two) = (a.clone(), a.clone());
-        sample(&mut one.rng);
-        sample(&mut two.rng);
-        sample(&mut two.rng);
+        one.rng.sample();
+        two.rng.sample();
+        two.rng.sample();
         assert_eq!(state_difference(&one, &one.clone()), None);
         assert!(state_difference(&one, &two).is_some());
         assert!(state_difference(&a, &one).is_some());
@@ -951,7 +951,7 @@ mod tests {
             .expect("temps")
             .set(TempName::new("t"), float(1.0));
         b.sink.messages.push("m".to_owned());
-        sample(&mut b.rng);
+        b.rng.sample();
         let why = state_difference(&a, &b).expect("differences");
         let parts: Vec<&str> = why.split("; ").collect();
         assert_eq!(parts.len(), 5, "{why}");

@@ -16,13 +16,13 @@ static PROCESS_XORSHIFT: Mutex<Xorshift128> = Mutex::new(Xorshift128::new());
 /// state is never torn.
 ///
 /// ```
-/// use molang::rng::{Xorshift128, sample};
+/// use molang::rng::{Xorshift128, RandomSource};
 /// use molang::vm::ProcessRng;
 ///
 /// ProcessRng::reset();
 /// let mut reference = Xorshift128::new();
-/// assert_eq!(sample(&mut ProcessRng), sample(&mut reference));
-/// assert_eq!(sample(&mut ProcessRng), sample(&mut reference));
+/// assert_eq!(ProcessRng.sample(), reference.sample());
+/// assert_eq!(ProcessRng.sample(), reference.sample());
 /// ```
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProcessRng;
@@ -65,7 +65,7 @@ impl TryRng for ProcessRng {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rng::{RandomSource, rand_core::Rng, sample};
+    use crate::rng::{RandomSource, rand_core::Rng};
 
     /// The generator is process-wide, so these tests must not run concurrently.
     static LOCK: Mutex<()> = Mutex::new(());
@@ -78,14 +78,14 @@ mod tests {
 
     fn reference(n: usize) -> Vec<f32> {
         let mut rng = Xorshift128::new();
-        (0..n).map(|_| sample(&mut rng)).collect()
+        (0..n).map(|_| rng.sample()).collect()
     }
 
     #[test]
     fn the_first_samples_are_those_of_a_freshly_seeded_generator() {
         let _guard = exclusive();
         let mut rng = ProcessRng;
-        let got: Vec<u32> = (0..5).map(|_| sample(&mut rng).to_bits()).collect();
+        let got: Vec<u32> = (0..5).map(|_| rng.sample().to_bits()).collect();
         let want: Vec<u32> = reference(5).into_iter().map(f32::to_bits).collect();
         assert_eq!(got, want);
     }
@@ -102,13 +102,13 @@ mod tests {
     #[test]
     fn reset_restarts_the_sequence() {
         let _guard = exclusive();
-        let first = sample(&mut ProcessRng);
+        let first = ProcessRng.sample();
         for _ in 0..3 {
-            sample(&mut ProcessRng);
+            ProcessRng.sample();
         }
-        assert_ne!(sample(&mut ProcessRng).to_bits(), first.to_bits());
+        assert_ne!(ProcessRng.sample().to_bits(), first.to_bits());
         ProcessRng::reset();
-        assert_eq!(sample(&mut ProcessRng).to_bits(), first.to_bits());
+        assert_eq!(ProcessRng.sample().to_bits(), first.to_bits());
         assert_eq!(first.to_bits(), reference(1)[0].to_bits());
     }
 
@@ -116,13 +116,7 @@ mod tests {
     fn every_value_shares_the_one_generator() {
         let _guard = exclusive();
         let (mut a, mut b) = (ProcessRng, ProcessRng);
-        let got = [
-            sample(&mut a),
-            sample(&mut b),
-            sample(&mut a),
-            sample(&mut b),
-            sample(&mut a),
-        ];
+        let got = [a.sample(), b.sample(), a.sample(), b.sample(), a.sample()];
         let want = reference(5);
         for (got, want) in got.iter().zip(&want) {
             assert_eq!(got.to_bits(), want.to_bits());
@@ -133,7 +127,7 @@ mod tests {
     fn samples_stay_in_the_unit_interval() {
         let _guard = exclusive();
         for _ in 0..10_000 {
-            let sample = sample(&mut ProcessRng);
+            let sample = ProcessRng.sample();
             assert!((0.0..=1.0).contains(&sample), "{sample}");
         }
     }
@@ -145,7 +139,7 @@ mod tests {
             .map(|_| {
                 std::thread::spawn(|| {
                     (0..1000)
-                        .map(|_| sample(&mut ProcessRng).to_bits())
+                        .map(|_| ProcessRng.sample().to_bits())
                         .collect::<Vec<u32>>()
                 })
             })
@@ -182,8 +176,8 @@ mod tests {
         assert!(poisoner.join().is_err());
         assert!(PROCESS_XORSHIFT.is_poisoned());
         ProcessRng::reset();
-        assert_eq!(sample(&mut ProcessRng).to_bits(), reference(1)[0].to_bits());
-        assert_eq!(sample(&mut ProcessRng).to_bits(), reference(2)[1].to_bits());
+        assert_eq!(ProcessRng.sample().to_bits(), reference(1)[0].to_bits());
+        assert_eq!(ProcessRng.sample().to_bits(), reference(2)[1].to_bits());
     }
 
     #[test]
