@@ -161,6 +161,22 @@ impl Libm {
         }
     }
 
+    /// `|x| > 1` gives [`POSITIVE_NAN`].
+    pub(crate) fn asin(self, x: f32) -> f32 {
+        match self {
+            Self::RoundedF64 => asin(x),
+            Self::Glibc(_) => glibc::asinf(x),
+        }
+    }
+
+    /// `|x| > 1` gives [`POSITIVE_NAN`].
+    pub(crate) fn acos(self, x: f32) -> f32 {
+        match self {
+            Self::RoundedF64 => acos(x),
+            Self::Glibc(_) => glibc::acosf(x),
+        }
+    }
+
     pub(crate) fn exp(self, x: f32) -> f32 {
         match self {
             Self::RoundedF64 => exp(x),

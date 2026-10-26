@@ -11,11 +11,13 @@
 //! functions are named after the symbols they reproduce; a `_compat` suffix marks the
 //! `GLIBC_2.2.5` wrapper where its results differ from the current symbol's.
 
+mod asin_acos;
 mod exp;
 mod log;
 mod pow;
 mod sincos;
 
+pub use asin_acos::{acosf, asinf};
 pub use exp::{exp2f, expf};
 #[allow(unused_imports, reason = "only the oracle test takes `log2`")]
 pub use log::log2f;
