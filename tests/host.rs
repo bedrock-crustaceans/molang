@@ -4,7 +4,7 @@
 
 mod common;
 
-use molangx::vm::{NoHost, NoHostEnv, QueryTable};
+use molang::vm::{NoHost, NoHostEnv, QueryTable};
 
 /// The query table of an environment built with one.
 fn table(env: &mut NoHostEnv) -> &mut QueryTable<NoHost> {
@@ -14,16 +14,16 @@ fn table(env: &mut NoHostEnv) -> &mut QueryTable<NoHost> {
 mod queries {
     use crate::common::compile_support::{client_expr, client_expr_at};
     use crate::table;
-    use molangx::hash::HashedStr;
-    use molangx::vm::QueryTable;
+    use molang::hash::HashedStr;
+    use molang::vm::QueryTable;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use molangx::catalog::Side;
-    use molangx::compile::{CompileOptions, Deviations, compile};
-    use molangx::diag::DiagCode;
-    use molangx::stdlib::query;
-    use molangx::version::MolangVersion;
-    use molangx::vm::{NoHost, NoHostEnv, QueryCx, QueryError, Value, VariableName};
+    use molang::catalog::Side;
+    use molang::compile::{CompileOptions, Deviations, compile};
+    use molang::diag::DiagCode;
+    use molang::stdlib::query;
+    use molang::version::MolangVersion;
+    use molang::vm::{NoHost, NoHostEnv, QueryCx, QueryError, Value, VariableName};
 
     type Result = std::result::Result<Value<NoHost>, QueryError>;
 
@@ -59,7 +59,7 @@ mod queries {
     #[test]
     fn arguments_are_evaluated_on_demand() {
         let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molangx::stdlib::queries(Side::Server))),
+            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
             ..NoHostEnv::new()
         };
         table(&mut env).set(query::IS_BABY, twice_first).unwrap();
@@ -81,7 +81,7 @@ mod queries {
     #[test]
     fn arguments_share_the_evaluation() {
         let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molangx::stdlib::queries(Side::Server))),
+            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
             ..NoHostEnv::new()
         };
         table(&mut env).set(query::IS_BABY, reads_variable).unwrap();
@@ -98,7 +98,7 @@ mod queries {
     #[test]
     fn a_missing_read_in_an_argument_ends_only_the_argument() {
         let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molangx::stdlib::queries(Side::Server))),
+            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
             ..NoHostEnv::new()
         };
         table(&mut env).set(query::IS_BABY, reads_variable).unwrap();
@@ -117,7 +117,7 @@ mod queries {
     #[test]
     fn stubs_version_ranges_and_failures() {
         let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molangx::stdlib::queries(Side::Server))),
+            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
             ..NoHostEnv::new()
         };
         for (name, default) in [
@@ -170,10 +170,7 @@ mod queries {
         let lint = |deviations: Deviations, side: Side, source: &str, code: DiagCode| {
             let options = CompileOptions {
                 deviations,
-                ..CompileOptions::new(
-                    molangx::stdlib::queries(side).clone(),
-                    MolangVersion::LATEST,
-                )
+                ..CompileOptions::new(molang::stdlib::queries(side).clone(), MolangVersion::LATEST)
             };
             compile(source, &options)
                 .diagnostics()
@@ -224,7 +221,7 @@ mod queries {
     /// expression's declaration returns; otherwise the call is worth the expression's default.
     #[test]
     fn a_table_of_another_catalogue_runs_only_what_the_expression_was_compiled_to_expect() {
-        use molangx::catalog::{Arity, QueryDecl, QueryShape, ReturnType};
+        use molang::catalog::{Arity, QueryDecl, QueryShape, ReturnType};
         let declaring = |returns: ReturnType| {
             let double = QueryDecl::new(
                 "query.double",
@@ -235,7 +232,7 @@ mod queries {
                 },
             )
             .unwrap();
-            molangx::stdlib::queries(Side::Server)
+            molang::stdlib::queries(Side::Server)
                 .extended([double])
                 .unwrap()
         };
@@ -274,8 +271,8 @@ mod queries {
     /// calls against the new declaration and a table of the new catalogue runs it by name.
     #[test]
     fn an_overriding_declaration_replaces_a_built_in_one() {
-        use molangx::catalog::{Arity, CatalogError, QueryDecl, QueryShape, ReturnType};
-        let standard = molangx::stdlib::queries(Side::Client);
+        use molang::catalog::{Arity, CatalogError, QueryDecl, QueryShape, ReturnType};
+        let standard = molang::stdlib::queries(Side::Client);
         let life_time = QueryDecl::new(
             query::LIFE_TIME,
             QueryShape {
@@ -355,12 +352,12 @@ mod queries {
 mod runtime_messages {
     //! The run-time messages an evaluation emits, and what `->` switches.
 
-    use molangx::catalog::Side;
-    use molangx::compile::{CompileOptions, compile};
-    use molangx::rng::{Xorshift128, sample};
-    use molangx::stdlib::query;
-    use molangx::version::MolangVersion;
-    use molangx::vm::{
+    use molang::catalog::Side;
+    use molang::compile::{CompileOptions, compile};
+    use molang::rng::{Xorshift128, sample};
+    use molang::stdlib::query;
+    use molang::version::MolangVersion;
+    use molang::vm::{
         Access, ContextMap, ContextName, Host, HostAccess, HostEnv, QueryCx, QueryError,
         QueryTable, Subjects, Value, VariableName, VariableStorage,
     };
@@ -428,11 +425,11 @@ mod runtime_messages {
         two.set_public(VariableName::new("x"), Value::Float(2.0));
         two.set_public(
             VariableName::new("pubs"),
-            Value::structure(molangx::vm::StructValue::from([("a", 1.0)])),
+            Value::structure(molang::vm::StructValue::from([("a", 1.0)])),
         );
         two.refresh_snapshots();
         assert_eq!(two.access(VariableName::new("x")), Some(Access::Public));
-        let mut queries = QueryTable::new(molangx::stdlib::queries(Side::Server));
+        let mut queries = QueryTable::new(molang::stdlib::queries(Side::Server));
         queries.set(query::HEALTH, health).unwrap();
         queries.set(query::LOG, log).unwrap();
         let env = HostEnv::new(queries)
@@ -681,11 +678,11 @@ mod query_misuse {
 
     use crate::common::compile_support::compile_expr;
     use crate::table;
-    use molangx::catalog::Side;
-    use molangx::compile::{CompileOptions, Deviations, Expr};
-    use molangx::stdlib::query;
-    use molangx::version::MolangVersion;
-    use molangx::vm::{
+    use molang::catalog::Side;
+    use molang::compile::{CompileOptions, Deviations, Expr};
+    use molang::stdlib::query;
+    use molang::version::MolangVersion;
+    use molang::vm::{
         CollectSink, LogOnce, NoHost, NoHostEnv, QueryCx, QueryError, QueryTable, Value,
     };
 
@@ -760,7 +757,7 @@ mod query_misuse {
 
     fn env() -> NoHostEnv {
         let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molangx::stdlib::queries(Side::Server))),
+            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
             ..NoHostEnv::new()
         };
         table(&mut env)
@@ -791,7 +788,7 @@ mod query_misuse {
 
     fn default_of(name: &str) -> Value<NoHost> {
         Value::from(
-            molangx::stdlib::queries(Side::Client)
+            molang::stdlib::queries(Side::Client)
                 .get(name)
                 .unwrap()
                 .shape()
@@ -906,8 +903,8 @@ mod query_misuse {
 mod names_a_host_makes {
     //! The names a host makes, read back by an evaluation.
 
-    use molangx::hash::HashedStr;
-    use molangx::vm::{NoHost, StructValue, Value};
+    use molang::hash::HashedStr;
+    use molang::vm::{NoHost, StructValue, Value};
 
     type V = Value<NoHost>;
 
@@ -920,9 +917,9 @@ mod names_a_host_makes {
     #[cfg(feature = "compiler")]
     #[test]
     fn names_a_host_makes_are_canonical() {
-        use molangx::compile::{CompileOptions, compile};
-        use molangx::version::MolangVersion;
-        use molangx::vm::{ContextName, NoHostEnv, TempName, VariableName};
+        use molang::compile::{CompileOptions, compile};
+        use molang::version::MolangVersion;
+        use molang::vm::{ContextName, NoHostEnv, TempName, VariableName};
 
         assert_eq!(StructValue::<NoHost>::key("Speed"), h("speed"));
         assert_eq!(StructValue::<NoHost>::key("a\0b"), h("a"));
@@ -961,7 +958,7 @@ mod names_a_host_makes {
     /// A name that is empty up to its NUL is no name, like `v.`.
     #[test]
     fn name_key_parse_reads_the_text_up_to_its_nul() {
-        use molangx::vm::{AnyName, TempName, VariableName};
+        use molang::vm::{AnyName, TempName, VariableName};
 
         assert_eq!(VariableName::parse("v.\0x"), None);
         assert_eq!(VariableName::parse("v."), None);
@@ -980,9 +977,9 @@ mod variable_store {
     use crate::common::compile_support::server_expr;
     use crate::common::host::{Actor, Env, TestHost};
 
-    use molangx::rng::Xorshift128;
+    use molang::rng::Xorshift128;
 
-    use molangx::vm::{
+    use molang::vm::{
         Access, CollectSink, ContextName, EvalCx, EvalLimits, NoContext, NoHost, NoHostEnv,
         NoVariables, NullSink, Subjects, Temps, Value, VariableMap, VariableName,
     };
@@ -1156,8 +1153,8 @@ mod process_rng {
 
     use crate::common::compile_support::{server_expr, server_expr_at};
 
-    use molangx::rng::{Xorshift128, rand_core::Rng, sample};
-    use molangx::vm::{NoHostEnv, ProcessRng};
+    use molang::rng::{Xorshift128, rand_core::Rng, sample};
+    use molang::vm::{NoHostEnv, ProcessRng};
 
     /// Both tests reset and draw from the one process-wide generator, so they take turns.
     static SERIAL: Mutex<()> = Mutex::new(());
@@ -1223,12 +1220,12 @@ mod query_defaults {
 
     use crate::common::compile_support::client_expr;
     use crate::table;
-    use molangx::catalog::Side;
+    use molang::catalog::Side;
 
-    use molangx::hash::HashedStr;
-    use molangx::stdlib::query;
+    use molang::hash::HashedStr;
+    use molang::stdlib::query;
 
-    use molangx::vm::{NoHost, NoHostEnv, QueryCx, QueryError, QueryTable, Value};
+    use molang::vm::{NoHost, NoHostEnv, QueryCx, QueryError, QueryTable, Value};
 
     fn failing(cx: &mut QueryCx<'_, '_, NoHost>) -> Result<Value<NoHost>, QueryError> {
         Err(cx.error("host failure"))
@@ -1241,7 +1238,7 @@ mod query_defaults {
     #[test]
     fn a_failing_query_falls_back_to_its_own_default() {
         let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molangx::stdlib::queries(Side::Server))),
+            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
             ..NoHostEnv::new()
         };
         let cases: [(&str, &str, Value<NoHost>); 4] = [
@@ -1272,7 +1269,7 @@ mod query_defaults {
     #[test]
     fn the_expression_goes_on_after_a_failing_query() {
         let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molangx::stdlib::queries(Side::Server))),
+            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
             ..NoHostEnv::new()
         };
         table(&mut env)
@@ -1296,7 +1293,7 @@ mod public_variables {
 
     use crate::common::compile_support::server_expr;
 
-    use molangx::vm::{
+    use molang::vm::{
         ContextMap, ContextName, Host, HostAccess, HostEnv, Subjects, Value, VariableName,
         VariableStorage,
     };
@@ -1430,7 +1427,7 @@ mod temps {
 
     use crate::common::compile_support::server_expr;
 
-    use molangx::vm::{HostEnv, NoHost, Subjects, TempMap, TempName, Temps, Value};
+    use molang::vm::{HostEnv, NoHost, Subjects, TempMap, TempName, Temps, Value};
 
     fn run(env: &mut HostEnv<NoHost>, source: &str) -> (Value<NoHost>, Vec<String>) {
         let expr = server_expr(source);
@@ -1489,10 +1486,10 @@ mod temps {
 
 mod sinks {
     use crate::common::host::{Env, LevelSink};
-    use molangx::compile::{CompileOptions, compile};
-    use molangx::rng::Xorshift128;
-    use molangx::version::MolangVersion;
-    use molangx::vm::LogLevel;
+    use molang::compile::{CompileOptions, compile};
+    use molang::rng::Xorshift128;
+    use molang::version::MolangVersion;
+    use molang::vm::LogLevel;
 
     #[test]
     fn query_failures_and_evaluator_messages_arrive_in_order() {
@@ -1543,7 +1540,7 @@ mod sinks {
         assert!(
             everything.lines[0]
                 .1
-                .starts_with("molangx: loop stopped after its budget of 2 iterations")
+                .starts_with("molang: loop stopped after its budget of 2 iterations")
         );
         assert_eq!(
             language_only.lines,
@@ -1558,11 +1555,11 @@ mod sinks {
 mod value_type {
     use std::sync::Arc;
 
-    use molangx::hash::HashedStr;
+    use molang::hash::HashedStr;
 
-    use molangx::catalog::DefaultReturn;
+    use molang::catalog::DefaultReturn;
 
-    use molangx::vm::{
+    use molang::vm::{
         Host, HostAccess, NoHost, ResourceRef, StructValue, Subjects, Value, ValueKind,
     };
 
@@ -1817,7 +1814,7 @@ mod value_type {
         assert_eq!(err.name, h("x"));
         assert!(
             err.to_string()
-                .starts_with("molangx: a struct already has a member named '")
+                .starts_with("molang: a struct already has a member named '")
         );
         assert!(
             err.to_string()
@@ -1925,11 +1922,11 @@ mod value_type {
 }
 
 mod variable_maps {
-    use molangx::hash::HashedStr;
+    use molang::hash::HashedStr;
 
-    use molangx::rng::{FixedRng, Xorshift128, sample};
+    use molang::rng::{FixedRng, Xorshift128, sample};
 
-    use molangx::vm::{
+    use molang::vm::{
         Access, AnyName, ContextMap, ContextName, ContextProvider, EvalCx, EvalLimits, Host,
         HostAccess, NoContext, NoHost, NoHostEnv, NoVariables, NullSink, StructValue, Subjects,
         TempName, Temps, Value, VariableMap, VariableName, VariableStorage, VariableStore,
@@ -2374,7 +2371,7 @@ mod variable_maps {
         let limits = EvalLimits::default();
         assert_eq!(
             limits.loop_iterations,
-            Some(molangx::vm::EvalLimits::DEFAULT_LOOP_ITERATIONS)
+            Some(molang::vm::EvalLimits::DEFAULT_LOOP_ITERATIONS)
         );
         assert_eq!(limits.loop_iterations, Some(1024));
         assert_eq!(limits.total_steps, Some(1_048_576));
@@ -2431,14 +2428,14 @@ mod variable_maps {
 }
 
 mod query_tables {
-    use molangx::version::MolangVersion;
+    use molang::version::MolangVersion;
 
-    use molangx::catalog::{DefaultReturn, QueryCatalog, Side};
-    use molangx::stdlib::query;
+    use molang::catalog::{DefaultReturn, QueryCatalog, Side};
+    use molang::stdlib::query;
 
-    use molangx::rng::{FixedRng, rand_core::Rng, sample};
+    use molang::rng::{FixedRng, rand_core::Rng, sample};
 
-    use molangx::vm::{
+    use molang::vm::{
         CollectSink, ContextName, Host, HostAccess, QueryBackend, QueryCx, QueryResult, QueryTable,
         RuntimeMsg, RuntimeSink, StructValue, Subjects, Value, VariableName,
     };
@@ -2467,7 +2464,7 @@ mod query_tables {
 
     /// The client's standard catalogue, which the stub tables are for.
     fn client() -> &'static QueryCatalog {
-        molangx::stdlib::queries(Side::Client)
+        molang::stdlib::queries(Side::Client)
     }
 
     /// A stand-in for the evaluator: arguments are precomputed values, and it counts evaluations.
@@ -2772,11 +2769,11 @@ mod query_tables {
 }
 
 mod message_sinks {
-    use molangx::catalog::Side;
-    use molangx::rng::{FixedRng, rand_core::Rng};
-    use molangx::stdlib::query;
-    use molangx::version::MolangVersion;
-    use molangx::vm::{
+    use molang::catalog::Side;
+    use molang::rng::{FixedRng, rand_core::Rng};
+    use molang::stdlib::query;
+    use molang::version::MolangVersion;
+    use molang::vm::{
         CollectSink, ContextName, LogLevel, LogOnce, NoHost, NullSink, QueryBackend, QueryCx,
         QueryError, RuntimeMsg, RuntimeSink, Subjects, Value, VariableName,
     };
@@ -2815,7 +2812,7 @@ mod message_sinks {
     fn query_error(name: &str, message: impl std::fmt::Display) -> QueryError {
         let mut backend = Nothing(NoHost, NullSink, FixedRng::HALF);
         let cx = QueryCx::new(
-            molangx::stdlib::queries(Side::Server),
+            molang::stdlib::queries(Side::Server),
             name,
             MolangVersion::LATEST,
             &mut backend,
@@ -2866,7 +2863,7 @@ mod message_sinks {
             RuntimeMsg::QueryDepthLimit { limit: 8 },
         ] {
             assert_eq!(msg.level(), LogLevel::Warn);
-            assert!(msg.to_string().starts_with("molangx: "));
+            assert!(msg.to_string().starts_with("molang: "));
         }
         assert!(
             RuntimeMsg::LoopLimit { limit: 1024 }
@@ -2946,7 +2943,7 @@ mod message_sinks {
         assert_eq!(
             collect.messages,
             [
-                "molangx: a public-access scope was closed while none was open",
+                "molang: a public-access scope was closed while none was open",
                 "query.max_durability has no item"
             ]
         );
@@ -3007,7 +3004,7 @@ mod message_texts {
     #[cfg(feature = "vm")]
     #[test]
     fn log_levels_are_ordered_from_warn_to_error() {
-        use molangx::vm::LogLevel;
+        use molang::vm::LogLevel;
         let levels = [LogLevel::Warn, LogLevel::Error];
         assert!(
             levels.windows(2).all(|pair| pair[0] < pair[1]),
@@ -3018,21 +3015,21 @@ mod message_texts {
     #[cfg(feature = "vm")]
     #[test]
     fn public_access_underflow_and_host_type_texts() {
-        use molangx::vm::{LogLevel, RuntimeMsg};
+        use molang::vm::{LogLevel, RuntimeMsg};
         let cases = [
             (
                 RuntimeMsg::PublicAccessUnderflow,
-                "molangx: a public-access scope was closed while none was open",
+                "molang: a public-access scope was closed while none was open",
             ),
             (
                 RuntimeMsg::IncompatibleType { name: None },
-                "molangx: a host value has an incompatible type",
+                "molang: a host value has an incompatible type",
             ),
             (
                 RuntimeMsg::IncompatibleType {
                     name: Some("texture.default"),
                 },
-                "molangx: a host value has an incompatible type: texture.default",
+                "molang: a host value has an incompatible type: texture.default",
             ),
         ];
         for (msg, text) in cases {
@@ -3044,8 +3041,8 @@ mod message_texts {
     #[cfg(feature = "vm")]
     #[test]
     fn duplicate_member() {
-        use molangx::hash::HashedStr;
-        use molangx::vm::{LogLevel, NoHost, RuntimeMsg, StructValue, Value};
+        use molang::hash::HashedStr;
+        use molang::vm::{LogLevel, NoHost, RuntimeMsg, StructValue, Value};
 
         let mut members = StructValue::<NoHost>::new();
         members
@@ -3059,12 +3056,12 @@ mod message_texts {
         assert!(
             error
                 .to_string()
-                .starts_with("molangx: a struct already has a member named '")
+                .starts_with("molang: a struct already has a member named '")
         );
         let msg = RuntimeMsg::DuplicateMember { name: "x" };
         assert_eq!(
             msg.to_string(),
-            "molangx: a struct already has a member named 'x'"
+            "molang: a struct already has a member named 'x'"
         );
         assert_eq!(msg.level(), LogLevel::Warn);
     }

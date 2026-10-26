@@ -3,10 +3,10 @@
 
 use std::collections::HashSet;
 
-use molangx::compile::Compiled;
-use molangx::rng::rand_core::Rng;
-use molangx::stdlib::query;
-use molangx::vm::{
+use molang::compile::Compiled;
+use molang::rng::rand_core::Rng;
+use molang::stdlib::query;
+use molang::vm::{
     ContextMap, EvalCx, EvalLimits, Host, HostAccess, LogLevel, QueryCx, QueryError, QueryResult,
     QueryTable, RuntimeMsg, RuntimeSink, Subjects, TempMap, Temps, Value, VariableMap,
 };
@@ -265,7 +265,7 @@ impl Default for Env {
 }
 
 /// Keeps each message with its level; a query failure is kept at Error level. With `language_only`,
-/// `molangx: ` messages are dropped, while the longer unknown-variable wording logged inside `->`
+/// `molang: ` messages are dropped, while the longer unknown-variable wording logged inside `->`
 /// is kept.
 #[derive(Debug, Default)]
 pub struct LevelSink {

@@ -9,13 +9,13 @@ use std::borrow::Cow;
 use std::ops::Range;
 
 use common::compile_support::{at, client_at, messages, messages_at, server_at};
-use molangx::catalog::{QueryAdmission, QueryDecl, QuerySetMask, ReturnType, Side};
-use molangx::compile::{
+use molang::catalog::{QueryAdmission, QueryDecl, QuerySetMask, ReturnType, Side};
+use molang::compile::{
     CompileFailure, CompileOptions, Deviations, Expr, MAX_DIAGNOSTICS, MAX_SOURCE_LEN, compile,
 };
-use molangx::diag::{DiagCode, Diagnostic, Effect, LanguageMessage, Severity};
-use molangx::ops::OpSet;
-use molangx::version::{ExperimentMask, MolangVersion, RawVersion};
+use molang::diag::{DiagCode, Diagnostic, Effect, LanguageMessage, Severity};
+use molang::ops::OpSet;
+use molang::version::{ExperimentMask, MolangVersion, RawVersion};
 
 struct Case {
     row: u8,
@@ -641,7 +641,7 @@ fn every_reachable_row() {
     // #12 follows #10 and #11 above; the link-stage rows and the rows that need options are tested
     // below.
     covered.extend([12, 21, 22, 37, 43, 47, 48, 49]);
-    let missing: Vec<u8> = molangx::diag::LanguageMessage::ALL
+    let missing: Vec<u8> = molang::diag::LanguageMessage::ALL
         .iter()
         .map(|message| message.row())
         .filter(|row| !covered.contains(row))
@@ -719,7 +719,7 @@ fn operation_not_allowed() {
 #[test]
 fn query_must_return_a_number() {
     let default = QueryAdmission::Sets(QuerySetMask::DEFAULT);
-    let non_numeric = molangx::stdlib::queries(Side::Client)
+    let non_numeric = molang::stdlib::queries(Side::Client)
         .iter()
         .find(|decl| {
             !decl.shape().returns.intersects(ReturnType::NUMBER)
@@ -995,7 +995,7 @@ fn own_diagnostics_have_no_language_message_text() {
         ours(
             "q.is_on_screen",
             &CompileOptions {
-                catalog: molangx::stdlib::queries(Side::Server).clone(),
+                catalog: molang::stdlib::queries(Side::Server).clone(),
                 ..latest.clone()
             },
             DiagCode::QueryClientOnly
@@ -1065,7 +1065,7 @@ fn arithmetic_on_statements() {
 #[cfg(feature = "vm")]
 #[test]
 fn log_once_across_evaluations() {
-    use molangx::vm::{CollectSink, LogOnce, NoHostEnv};
+    use molang::vm::{CollectSink, LogOnce, NoHostEnv};
 
     let compiled = compile(
         "return v.missing;",
@@ -1232,13 +1232,13 @@ fn the_diagnostic_limit_keeps_the_first_and_counts_the_rest() {
 /// Lints and warnings outside the parser-message table, each with its switch in `Deviations`.
 mod own_lints {
     use crate::common::compile_support::{client_at, messages, server_at};
-    use molangx::compile::{
+    use molang::compile::{
         CompileFailure, CompileOptions, Compiled, Deviations, MAX_SOURCE_LEN, compile,
         compile_source,
     };
-    use molangx::diag::{DiagCode, Severity};
-    use molangx::json::MolangSource;
-    use molangx::version::MolangVersion;
+    use molang::diag::{DiagCode, Severity};
+    use molang::json::MolangSource;
+    use molang::version::MolangVersion;
 
     fn codes(compiled: &Compiled) -> Vec<DiagCode> {
         compiled.diagnostics().iter().map(|d| d.code()).collect()

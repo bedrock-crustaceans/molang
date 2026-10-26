@@ -22,13 +22,13 @@ mod walker;
 
 pub use predicate::models;
 
-use molangx::catalog::{MathCatalog, QueryCatalog};
-use molangx::compile::Expr;
-use molangx::hash::HashedStr;
-use molangx::internals::{Payload, tree};
-use molangx::ops::ExpressionOp as Op;
-use molangx::version::MolangVersion;
-use molangx::vm::{EvalCx, Host, Subjects, TempMap, Value};
+use molang::catalog::{MathCatalog, QueryCatalog};
+use molang::compile::Expr;
+use molang::hash::HashedStr;
+use molang::internals::{Payload, tree};
+use molang::ops::ExpressionOp as Op;
+use molang::version::MolangVersion;
+use molang::vm::{EvalCx, Host, Subjects, TempMap, Value};
 
 /// Evaluates `expr` by walking its optimised tree. [`Expr::eval`] must give the same value, writes,
 /// random draws, messages and budget outcome.
@@ -36,10 +36,10 @@ use molangx::vm::{EvalCx, Host, Subjects, TempMap, Value};
 /// Like [`Expr::eval`], it leaves `cx.subjects` as it found them.
 ///
 /// ```
-/// use molangx::compile::{CompileOptions, compile};
-/// use molangx::version::MolangVersion;
-/// use molangx::vm::NoHostEnv;
-/// use molangx_fuzz::tree_walker;
+/// use molang::compile::{CompileOptions, compile};
+/// use molang::version::MolangVersion;
+/// use molang::vm::NoHostEnv;
+/// use molang_fuzz::tree_walker;
 ///
 /// let (expr, _) = compile(
 ///     "t.a = 2; return t.a * math.clamp(7, 0, 5);",
@@ -134,16 +134,16 @@ pub(crate) mod test_support {
     pub(crate) use crate::generator::env::FuzzRng;
     pub(crate) use crate::generator::env::{same_entries, same_temps, same_value};
     use crate::tree_walker::{Unwind, Walker, eval};
-    use molangx::compile::{Expr, compile};
-    use molangx::internals::reference_catalog;
-    pub(crate) use molangx::internals::reference_catalog::options;
-    pub(crate) use molangx::internals::tree;
-    use molangx::internals::{Node, Payload};
-    use molangx::numeric::PostOp;
-    use molangx::ops::ExpressionOp as Op;
-    use molangx::rng::{FixedRng, Xorshift128};
-    use molangx::stdlib::query;
-    use molangx::vm::{
+    use molang::compile::{Expr, compile};
+    use molang::internals::reference_catalog;
+    pub(crate) use molang::internals::reference_catalog::options;
+    pub(crate) use molang::internals::tree;
+    use molang::internals::{Node, Payload};
+    use molang::numeric::PostOp;
+    use molang::ops::ExpressionOp as Op;
+    use molang::rng::{FixedRng, Xorshift128};
+    use molang::stdlib::query;
+    use molang::vm::{
         CollectSink, ContextMap, ContextName, EvalCx, EvalLimits, Host, HostAccess, QueryCx,
         QueryError, QueryTable, Subjects, TempMap, TempName, Temps, Value, VariableMap,
         VariableName,
@@ -220,7 +220,7 @@ pub(crate) mod test_support {
     }
 
     pub(crate) fn draw(cx: &mut QueryCx<'_, '_, World>) -> Result<V, QueryError> {
-        Ok(Value::Float(molangx::rng::sample(cx.rng())))
+        Ok(Value::Float(molang::rng::sample(cx.rng())))
     }
 
     impl Env {
@@ -392,7 +392,7 @@ pub(crate) mod test_support {
         x.to_bits()
     }
 
-    pub(crate) const STEP_MESSAGE: &str = "molangx: evaluation stopped after its budget of ";
+    pub(crate) const STEP_MESSAGE: &str = "molang: evaluation stopped after its budget of ";
 
     /// The smallest `total_steps` with which `src` completes (no step-limit message) on `start`,
     /// asserted to be the same for the VM and the tree walker.
@@ -479,7 +479,7 @@ pub(crate) mod test_support {
     }
 
     pub(crate) fn read(op: Op, canonical: &str) -> Node {
-        let name = molangx::internals::Name::new(canonical);
+        let name = molang::internals::Name::new(canonical);
         let payload = match op {
             Op::EntityVariable => Payload::Entity(name),
             Op::TempVariable => Payload::Temp(name),
@@ -516,7 +516,7 @@ mod tests {
 
     use super::*;
     use crate::tree_walker::test_support::*;
-    use molangx::compile::compile;
+    use molang::compile::compile;
 
     #[test]
     fn a_folded_constant_runs_nothing_and_needs_no_budget() {

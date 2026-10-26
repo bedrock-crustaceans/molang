@@ -8,7 +8,7 @@ use thiserror::Error;
 /// A non-empty range of argument counts: `min..=max`, or `min..` when `max` is `None`.
 ///
 /// ```
-/// use molangx::catalog::Arity;
+/// use molang::catalog::Arity;
 ///
 /// const PAIR_OR_TRIPLE: Arity = Arity::between(2, 3);
 /// assert_eq!(Arity::try_from(2..=3), Ok(PAIR_OR_TRIPLE));

@@ -7,12 +7,12 @@
 
 use std::collections::HashMap;
 
-use molangx::catalog::{Arity, QueryDecl, QueryShape, Reads, ReturnType, Side};
-use molangx::compile::{CompileOptions, compile};
-use molangx::hash::HashedStr;
-use molangx::stdlib::{queries, query};
-use molangx::version::MolangVersion;
-use molangx::vm::{
+use molang::catalog::{Arity, QueryDecl, QueryShape, Reads, ReturnType, Side};
+use molang::compile::{CompileOptions, compile};
+use molang::hash::HashedStr;
+use molang::stdlib::{queries, query};
+use molang::version::MolangVersion;
+use molang::vm::{
     ContextName, ContextProvider, Host, HostAccess, HostEnv, QueryCx, QueryResult, QueryTable,
     Subjects, Value, VariableName, VariableStore,
 };

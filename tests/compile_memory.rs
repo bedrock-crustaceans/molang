@@ -7,9 +7,9 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-use molangx::compile::{CompileOptions, Compiled, Deviations, MAX_SOURCE_LEN, compile};
-use molangx::diag::LanguageMessage;
-use molangx::version::MolangVersion;
+use molang::compile::{CompileOptions, Compiled, Deviations, MAX_SOURCE_LEN, compile};
+use molang::diag::LanguageMessage;
+use molang::version::MolangVersion;
 
 struct Counting;
 

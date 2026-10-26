@@ -4,7 +4,7 @@
 //! Every Molang string value is this hash at run time.
 //!
 //! ```
-//! use molangx::hash::HashedStr;
+//! use molang::hash::HashedStr;
 //!
 //! assert_eq!(HashedStr::new("a").as_u64(), 12_638_153_115_695_167_422);
 //! assert_eq!(HashedStr::new(""), HashedStr::EMPTY);

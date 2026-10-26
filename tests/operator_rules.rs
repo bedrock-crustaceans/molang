@@ -6,7 +6,7 @@
 
 mod common;
 
-use molangx::ops::{ExpressionOp, OP_META, OpFlags};
+use molang::ops::{ExpressionOp, OP_META, OpFlags};
 
 #[test]
 fn the_table_lists_111_ops_in_index_order() {
@@ -64,9 +64,9 @@ mod rules {
     //! Rules that compile text, at the latest version unless a gate says otherwise.
 
     use crate::common::compile_support::{client_at, message_ids, messages_at};
-    use molangx::compile::{CompileFailure, CompileOptions, Compiled, Expr, compile};
+    use molang::compile::{CompileFailure, CompileOptions, Compiled, Expr, compile};
 
-    use molangx::ops::ExpressionOp::{self, *};
+    use molang::ops::ExpressionOp::{self, *};
 
     fn at(source: &str, version: i16) -> Compiled {
         compile(source, &client_at(version))
@@ -360,7 +360,7 @@ mod rules {
     #[cfg(feature = "vm")]
     #[test]
     fn a_negative_divisor_keeps_its_sign_from_version_7() {
-        use molangx::vm::NoHostEnv;
+        use molang::vm::NoHostEnv;
 
         let source = "v.a = -1; return 5 / v.a;";
         let eval = |version: i16| {

@@ -191,8 +191,8 @@ impl VersionRange {
 /// implementation `i`.
 ///
 /// ```
-/// use molangx::catalog::{DeclError, QuerySetMask, VersionRange, VersionRanges};
-/// use molangx::version::MolangVersion;
+/// use molang::catalog::{DeclError, QuerySetMask, VersionRange, VersionRanges};
+/// use molang::version::MolangVersion;
 ///
 /// let early =
 ///     VersionRange::new(MolangVersion::V0, MolangVersion::V7, QuerySetMask::DEFAULT).unwrap();
@@ -394,7 +394,7 @@ impl Default for QueryShape {
 /// The declaration of one query, well-formed by construction ([`QueryDecl::new`]).
 ///
 /// ```
-/// use molangx::catalog::{Arity, DeclError, QueryDecl, QueryShape, ReturnType};
+/// use molang::catalog::{Arity, DeclError, QueryDecl, QueryShape, ReturnType};
 ///
 /// let shape = QueryShape {
 ///     args: Arity::between(0, 2),

@@ -1,7 +1,7 @@
-//! Test tooling of `molangx`: the tree walker, a second evaluator the bytecode VM is checked
+//! Test tooling of `molang`: the tree walker, a second evaluator the bytecode VM is checked
 //! against, and the program generator with its differential check.
 //!
-//! It reads compiler internals through `molangx::internals` (feature `fuzz`), which is outside the
+//! It reads compiler internals through `molang::internals` (feature `fuzz`), which is outside the
 //! `SemVer` guarantee.
 
 #![forbid(unsafe_code)]

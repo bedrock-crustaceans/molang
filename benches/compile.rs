@@ -11,10 +11,10 @@ use std::hint::black_box;
 use std::path::PathBuf;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use molangx::catalog::{QueryAdmission, QuerySetMask, Side};
-use molangx::compile::{CompileFailure, CompileOptions, compile};
-use molangx::stdlib::queries;
-use molangx::version::{MolangVersion, RawVersion};
+use molang::catalog::{QueryAdmission, QuerySetMask, Side};
+use molang::compile::{CompileFailure, CompileOptions, compile};
+use molang::stdlib::queries;
+use molang::version::{MolangVersion, RawVersion};
 
 const SAMPLE: &str = include_str!("compile_sample.txt");
 

@@ -6,7 +6,7 @@
 mod common;
 
 use common::compile_support::{at, message_ids};
-use molangx::compile::{CompileFailure, Expr};
+use molang::compile::{CompileFailure, Expr};
 
 /// `source` is rejected at `version` with the language messages `expected` (by id), and its
 /// failed node is 0.
@@ -44,10 +44,10 @@ mod lexing {
     //! The lexer: case folding, whitespace, numbers, strings, names, and what is no token.
 
     use crate::common::compile_support::{at, client_at, constant, messages, messages_at};
-    use molangx::compile::{CompileFailure, CompileOptions, Deviations, Expr, compile};
-    use molangx::ops::{ExpressionOp, OpSet};
+    use molang::compile::{CompileFailure, CompileOptions, Deviations, Expr, compile};
+    use molang::ops::{ExpressionOp, OpSet};
     #[cfg(feature = "vm")]
-    use molangx::vm::NoHostEnv;
+    use molang::vm::NoHostEnv;
 
     fn bits(source: &str) -> u32 {
         constant(source).to_bits()
@@ -243,7 +243,7 @@ mod lexing {
         );
         assert_eq!(
             compiled.diagnostics()[0].severity(),
-            molangx::diag::Severity::Warning
+            molang::diag::Severity::Warning
         );
         assert_eq!(
             messages_at("1ex", 13),
@@ -544,7 +544,7 @@ mod grouping {
     //! The messages a malformed operator layout gets.
 
     use crate::common::compile_support::{at, messages_at};
-    use molangx::compile::CompileFailure;
+    use molang::compile::CompileFailure;
 
     /// `- -` collapses into `+`.
     #[test]
@@ -716,10 +716,10 @@ mod folding {
 
     use crate::common::compile_support::{at, client_at, constant};
     use crate::common::per_arch;
-    use molangx::compile::{CompileFailure, Expr, compile};
-    use molangx::numeric::{ARCH, Arch};
+    use molang::compile::{CompileFailure, Expr, compile};
+    use molang::numeric::{ARCH, Arch};
     #[cfg(feature = "vm")]
-    use molangx::vm::{NoHostEnv, Value, VariableName};
+    use molang::vm::{NoHostEnv, Value, VariableName};
 
     fn is_constant(source: &str) -> bool {
         let compiled = at(source, 13);
@@ -993,12 +993,12 @@ mod parsing {
     //! Which texts the parser accepts or rejects, at which version, with which messages.
 
     use crate::common::compile_support::{at, client_at, constant, messages, messages_at};
-    use molangx::catalog::{QueryAdmission, QueryDecl, QuerySetMask, Side};
-    use molangx::compile::{CompileFailure, CompileOptions, Expr, compile};
-    use molangx::ops::{ExpressionOp, OpSet};
-    use molangx::version::{ExperimentMask, RawVersion};
+    use molang::catalog::{QueryAdmission, QueryDecl, QuerySetMask, Side};
+    use molang::compile::{CompileFailure, CompileOptions, Expr, compile};
+    use molang::ops::{ExpressionOp, OpSet};
+    use molang::version::{ExperimentMask, RawVersion};
     #[cfg(feature = "vm")]
-    use molangx::vm::{NoHostEnv, Value, VariableName};
+    use molang::vm::{NoHostEnv, Value, VariableName};
 
     fn rejected_with_zero(source: &str, version: i16) -> Vec<String> {
         let compiled = at(source, version);
@@ -1351,13 +1351,13 @@ mod parsing {
             );
         }
         let default = QueryAdmission::Sets(QuerySetMask::DEFAULT);
-        let name = molangx::stdlib::queries(Side::Client)
+        let name = molang::stdlib::queries(Side::Client)
             .iter()
             .find(|decl| {
                 !decl
                     .shape()
                     .returns
-                    .intersects(molangx::catalog::ReturnType::NUMBER)
+                    .intersects(molang::catalog::ReturnType::NUMBER)
                     && decl
                         .resolve(RawVersion(0), &default, ExperimentMask::empty())
                         .is_some()
@@ -1482,7 +1482,7 @@ mod strings {
     //! String literals through a compile and, with the evaluator, at run time.
 
     use crate::common::compile_support::{at, messages_at};
-    use molangx::compile::CompileFailure;
+    use molang::compile::CompileFailure;
 
     /// The text of #36 for an operator applied to a string literal.
     fn non_numerical(operator: &str) -> String {
@@ -1518,9 +1518,9 @@ mod strings {
 
     #[cfg(feature = "vm")]
     mod eval {
-        use molangx::compile::CompileFailure;
-        use molangx::hash::HashedStr;
-        use molangx::vm::{NoHost, NoHostEnv, Value};
+        use molang::compile::CompileFailure;
+        use molang::hash::HashedStr;
+        use molang::vm::{NoHost, NoHostEnv, Value};
 
         use super::{at, non_numerical};
 
@@ -1609,10 +1609,10 @@ mod versions {
     #[cfg(feature = "vm")]
     use crate::common::compile_support::client_expr_at;
     use crate::common::compile_support::{at, client_at, messages_at, server_at};
-    use molangx::compile::{CompileFailure, compile};
-    use molangx::diag::{DiagCode, Severity};
+    use molang::compile::{CompileFailure, compile};
+    use molang::diag::{DiagCode, Severity};
     #[cfg(feature = "vm")]
-    use molangx::vm::NoHostEnv;
+    use molang::vm::NoHostEnv;
 
     #[test]
     fn unknown_tokens_do_not_depend_on_the_version() {
@@ -1700,13 +1700,13 @@ mod restrictions {
     //! and the side.
 
     use crate::common::compile_support::{client_at, messages, server_at};
-    use molangx::catalog::{QueryAdmission, QueryAllowList, QuerySetMask, Side};
-    use molangx::compile::{CompileFailure, CompileOptions, Deviations, compile};
-    use molangx::diag::{DiagCode, Severity};
-    use molangx::json::MolangSource;
-    use molangx::ops::OpSet;
-    use molangx::stdlib::query;
-    use molangx::version::{ExperimentMask, MolangVersion, RawVersion};
+    use molang::catalog::{QueryAdmission, QueryAllowList, QuerySetMask, Side};
+    use molang::compile::{CompileFailure, CompileOptions, Deviations, compile};
+    use molang::diag::{DiagCode, Severity};
+    use molang::json::MolangSource;
+    use molang::ops::OpSet;
+    use molang::stdlib::query;
+    use molang::version::{ExperimentMask, MolangVersion, RawVersion};
 
     fn unresolved(name: &str, rest: &str) -> Vec<String> {
         vec![
@@ -1774,7 +1774,7 @@ mod restrictions {
     #[test]
     fn allow_lists() {
         // `without_assignments_or_random` keeps the dice allowed.
-        let server = molangx::stdlib::queries(Side::Server);
+        let server = molang::stdlib::queries(Side::Server);
         let allowed = QueryAllowList::new(server, [query::BLOCK_STATE]).expect("declared");
         let block = CompileOptions {
             admission: QueryAdmission::Only(allowed.clone()),
@@ -1833,7 +1833,7 @@ mod restrictions {
     #[test]
     fn operation_mask() {
         let no_loops = CompileOptions {
-            allowed_ops: OpSet::all().without(molangx::ops::ExpressionOp::Loop),
+            allowed_ops: OpSet::all().without(molang::ops::ExpressionOp::Loop),
             ..CompileOptions::server(MolangVersion::LATEST)
         };
         assert_eq!(
@@ -1884,7 +1884,7 @@ mod restrictions {
 
         let source = MolangSource::object("query.is_baby", 9);
         assert_eq!(
-            CompileOptions::for_source(molangx::stdlib::queries(Side::Server).clone(), &source)
+            CompileOptions::for_source(molang::stdlib::queries(Side::Server).clone(), &source)
                 .expect("a source with a version")
                 .raw_version,
             RawVersion(9)
@@ -1892,11 +1892,8 @@ mod restrictions {
         assert_eq!(
             compile(
                 source.as_str(),
-                &CompileOptions::for_source(
-                    molangx::stdlib::queries(Side::Server).clone(),
-                    &source
-                )
-                .expect("a source with a version")
+                &CompileOptions::for_source(molang::stdlib::queries(Side::Server).clone(), &source)
+                    .expect("a source with a version")
             )
             .failure(),
             None
@@ -1931,7 +1928,7 @@ mod restrictions {
     fn side() {
         let server = CompileOptions::server(MolangVersion::LATEST);
         let client = CompileOptions {
-            catalog: molangx::stdlib::queries(Side::Client).clone(),
+            catalog: molang::stdlib::queries(Side::Client).clone(),
             ..server.clone()
         };
         let on_server = compile("q.is_on_screen", &server);
@@ -1980,8 +1977,8 @@ mod restrictions {
             elsewhere.diagnostics()
         );
 
-        let name = molangx::stdlib::queries(Side::Server).iter().find(|decl| {
-            decl.shape().side == molangx::catalog::QuerySide::CLIENT
+        let name = molang::stdlib::queries(Side::Server).iter().find(|decl| {
+            decl.shape().side == molang::catalog::QuerySide::CLIENT
                 && decl
                     .resolve(
                         RawVersion(13),
@@ -2063,14 +2060,14 @@ mod queries {
     //! Query resolution as a compile result: the `q.` alias and what every kind of miss logs.
 
     use crate::common::compile_support::{message_ids, server_at};
-    use molangx::catalog::{
+    use molang::catalog::{
         Arity, QueryAdmission, QueryAllowList, QueryDecl, QuerySetMask, QueryShape, QuerySide,
         ReturnType, Side,
     };
-    use molangx::compile::{CompileFailure, CompileOptions, compile};
-    use molangx::diag::DiagCode;
-    use molangx::stdlib::query;
-    use molangx::version::{ExperimentMask, MolangVersion};
+    use molang::compile::{CompileFailure, CompileOptions, compile};
+    use molang::diag::DiagCode;
+    use molang::stdlib::query;
+    use molang::version::{ExperimentMask, MolangVersion};
 
     use crate::common;
 
@@ -2203,7 +2200,7 @@ mod queries {
             },
         )
         .unwrap();
-        let catalog = molangx::stdlib::queries(Side::Server)
+        let catalog = molang::stdlib::queries(Side::Server)
             .extended([my_name])
             .unwrap();
         let options = CompileOptions::new(catalog.clone(), MolangVersion::LATEST);
@@ -2288,14 +2285,14 @@ mod compile_source {
     //! keeps its gate and raw versions consistent.
 
     use crate::common::compile_support::server_at;
-    use molangx::catalog::Side;
-    use molangx::compile::{
+    use molang::catalog::Side;
+    use molang::compile::{
         CompileFailure, CompileOptions, Compiled, Deviations, Expr, compile, compile_source,
     };
-    use molangx::diag::{DiagCode, LanguageMessage, Severity};
-    use molangx::json::MolangSource;
-    use molangx::ops::OpSet;
-    use molangx::version::{MolangVersion, RawVersion};
+    use molang::diag::{DiagCode, LanguageMessage, Severity};
+    use molang::json::MolangSource;
+    use molang::ops::OpSet;
+    use molang::version::{MolangVersion, RawVersion};
 
     /// `'a' + 1` is an error from version 3.
     const STRING_MATH: &str = "'a' + 1";
@@ -2329,7 +2326,7 @@ mod compile_source {
         assert_eq!(
             compile(
                 old.as_str(),
-                &CompileOptions::for_source(molangx::stdlib::queries(Side::Server).clone(), &old)
+                &CompileOptions::for_source(molang::stdlib::queries(Side::Server).clone(), &old)
                     .expect("a source with a version")
             )
             .failure(),
@@ -2341,7 +2338,7 @@ mod compile_source {
     /// options at another version compiles and logs exactly as `compile` at the source's.
     #[test]
     fn every_gate_reads_the_compile_version() {
-        let catalog = molangx::stdlib::queries(Side::Server);
+        let catalog = molang::stdlib::queries(Side::Server);
         let at = |raw: i16| CompileOptions::from_raw_version(catalog.clone(), RawVersion(raw));
         let messages = |compiled: &Compiled| {
             compiled
@@ -2526,12 +2523,12 @@ mod deviations {
     //! under `Deviations::NONE`.
 
     use crate::common::compile_support::{messages, server_at};
-    use molangx::compile::{
+    use molang::compile::{
         CompileFailure, CompileOptions, Compiled, Deviations, Expr, MAX_DIAGNOSTICS,
         MAX_SOURCE_LEN, compile,
     };
-    use molangx::diag::{DiagCode, Severity};
-    use molangx::version::RawVersion;
+    use molang::diag::{DiagCode, Severity};
+    use molang::version::RawVersion;
 
     fn under(source: &str, raw_version: i16, deviations: Deviations) -> Compiled {
         compile(
@@ -2738,8 +2735,8 @@ mod link {
     //! The link stage: the results it decides and the two messages it logs, in order.
 
     use crate::common::compile_support::server_at;
-    use molangx::compile::{CompileFailure, Compiled, Expr, ProgramFlags, compile};
-    use molangx::diag::LanguageMessage;
+    use molang::compile::{CompileFailure, Compiled, Expr, ProgramFlags, compile};
+    use molang::diag::LanguageMessage;
 
     fn at(source: &str, version: i16) -> Compiled {
         compile(source, &server_at(version))
@@ -2899,11 +2896,11 @@ mod link {
 mod options {
     //! The public surface of a compile: the fields of `CompileOptions`, the program's flags.
 
-    use molangx::catalog::{QueryAdmission, QueryAllowList, QuerySetMask, Side};
-    use molangx::compile::{CompileOptions, Deviations, ProgramFlags, compile};
-    use molangx::ops::OpSet;
-    use molangx::stdlib::query;
-    use molangx::version::{ExperimentMask, MolangVersion, RawVersion};
+    use molang::catalog::{QueryAdmission, QueryAllowList, QuerySetMask, Side};
+    use molang::compile::{CompileOptions, Deviations, ProgramFlags, compile};
+    use molang::ops::OpSet;
+    use molang::stdlib::query;
+    use molang::version::{ExperimentMask, MolangVersion, RawVersion};
 
     #[test]
     fn compile_options() {
@@ -2917,7 +2914,7 @@ mod options {
         assert_eq!(new.allowed_ops, OpSet::all());
         assert_eq!(new.experiments, ExperimentMask::empty());
         assert!(!new.keep_source);
-        assert_eq!(new.catalog, molangx::stdlib::queries(Side::Server).clone());
+        assert_eq!(new.catalog, molang::stdlib::queries(Side::Server).clone());
         assert_eq!(new.deviations, Deviations::ALL);
         assert_eq!(new.allowed_ops.len(), 111);
         assert_eq!(compile("v.x = math.random(0, 1);", &new).failure(), None);
@@ -2968,11 +2965,11 @@ mod fields {
 
     use crate::common::compile_support::messages;
     use crate::common::per_arch;
-    use molangx::catalog::{QueryAdmission, QueryAllowList, QueryDecl, QuerySetMask, Side};
-    use molangx::compile::{CompileFailure, CompileOptions, Deviations, compile};
-    use molangx::ops::{ExpressionOp, OpSet};
-    use molangx::stdlib::query;
-    use molangx::version::{Experiment, ExperimentMask, MolangVersion, RawVersion};
+    use molang::catalog::{QueryAdmission, QueryAllowList, QueryDecl, QuerySetMask, Side};
+    use molang::compile::{CompileFailure, CompileOptions, Deviations, compile};
+    use molang::ops::{ExpressionOp, OpSet};
+    use molang::stdlib::query;
+    use molang::version::{Experiment, ExperimentMask, MolangVersion, RawVersion};
 
     /// Version 4 reports a lone `?` as a binary operator without a right side, version 5 as a
     /// conditional without sub-expressions.
@@ -3090,7 +3087,7 @@ mod fields {
 
     #[test]
     fn an_allow_list_admits_only_the_listed_queries() {
-        let allowed = QueryAllowList::new(molangx::stdlib::queries(Side::Server), [query::IS_BABY])
+        let allowed = QueryAllowList::new(molang::stdlib::queries(Side::Server), [query::IS_BABY])
             .expect("declared");
         let listed = CompileOptions {
             admission: QueryAdmission::Only(allowed),
@@ -3115,8 +3112,8 @@ mod fields {
     /// A list built from one catalogue restricts a compile against another to the names it lists.
     #[test]
     fn an_allow_list_and_the_catalogue_are_independent() {
-        let server = molangx::stdlib::queries(Side::Server);
-        let client = molangx::stdlib::queries(Side::Client);
+        let server = molang::stdlib::queries(Side::Server);
+        let client = molang::stdlib::queries(Side::Client);
         let list = QueryAllowList::new(server, [query::BLOCK_STATE]).expect("declared");
         let base = CompileOptions::server(MolangVersion::LATEST);
         let o = CompileOptions {
@@ -3136,8 +3133,7 @@ mod fields {
         // A host catalogue is kept, so its own queries resolve once listed.
         let own = client
             .extended([
-                QueryDecl::new("query.mine", molangx::catalog::QueryShape::DEFAULT)
-                    .expect("a name"),
+                QueryDecl::new("query.mine", molang::catalog::QueryShape::DEFAULT).expect("a name"),
             ])
             .expect("new");
         let mine = QueryAllowList::new(&own, ["query.mine"]).expect("declared");
@@ -3223,7 +3219,7 @@ mod fields {
             Some(CompileFailure::Rejected)
         );
         let client = CompileOptions {
-            catalog: molangx::stdlib::queries(Side::Client).clone(),
+            catalog: molang::stdlib::queries(Side::Client).clone(),
             ..base.clone()
         };
         assert_eq!(compile("q.is_on_screen", &client).failure(), None);
@@ -3311,14 +3307,14 @@ mod pitfalls {
         per_arch,
     };
     #[cfg(feature = "vm")]
-    use molangx::compile::compile;
-    use molangx::compile::{CompileFailure, Expr};
+    use molang::compile::compile;
+    use molang::compile::{CompileFailure, Expr};
     #[cfg(feature = "vm")]
-    use molangx::numeric::{ARCH, Arch};
+    use molang::numeric::{ARCH, Arch};
     #[cfg(feature = "vm")]
-    use molangx::rng::FixedRng;
+    use molang::rng::FixedRng;
     #[cfg(feature = "vm")]
-    use molangx::vm::{EvalLimits, NoHostEnv, Temps, Value, VariableMap, VariableName};
+    use molang::vm::{EvalLimits, NoHostEnv, Temps, Value, VariableMap, VariableName};
 
     fn constant_at(source: &str, version: i16) -> Option<f32> {
         let compiled = at(source, version);
@@ -3439,7 +3435,7 @@ mod pitfalls {
         assert_eq!(value, 0.0);
         assert_eq!(
             messages,
-            ["molangx: evaluation stopped after its budget of 1048576 steps"]
+            ["molang: evaluation stopped after its budget of 1048576 steps"]
         );
         assert_eq!(eval_forced("math.die_roll(-3, 0, 4)", 0.5), 0.0);
     }
@@ -3623,9 +3619,9 @@ mod names_and_targets {
 
     use super::{assert_parsed, assert_rejected};
     use crate::common::compile_support::{at, message_ids, messages_at};
-    use molangx::compile::Expr;
+    use molang::compile::Expr;
 
-    use molangx::compile::CompileFailure;
+    use molang::compile::CompileFailure;
 
     const CONTEXT_ASSIGNMENT: &str = "Error: assignment to non-variable not allowed. Expression is trying to assign to a: Context Variable 'context.' or 'c.'";
 
@@ -3998,13 +3994,13 @@ mod shapes_by_value {
     use crate::common::compile_support::{at, constant, messages, messages_at};
     #[cfg(feature = "vm")]
     use crate::common::compile_support::{client_expr, client_expr_at};
-    use molangx::compile::CompileFailure;
+    use molang::compile::CompileFailure;
     #[cfg(feature = "vm")]
-    use molangx::hash::HashedStr;
+    use molang::hash::HashedStr;
     #[cfg(feature = "vm")]
-    use molangx::rng::Xorshift128;
+    use molang::rng::Xorshift128;
     #[cfg(feature = "vm")]
-    use molangx::vm::{NoHost, NoHostEnv, StructValue, Value, VariableName};
+    use molang::vm::{NoHost, NoHostEnv, StructValue, Value, VariableName};
 
     #[cfg(feature = "vm")]
     fn run(source: &str, version: i16, vars: &[(&str, f32)]) -> f32 {
@@ -4392,7 +4388,7 @@ mod shapes_by_value {
         // Random functions are never merged: each is its own draw.
         let mut generator = Xorshift128::new();
         let (first, second) = {
-            use molangx::rng::sample;
+            use molang::rng::sample;
             (sample(&mut generator), sample(&mut generator))
         };
         assert_eq!(
@@ -4767,9 +4763,9 @@ mod shapes_by_value {
 mod deviation_switches {
     //! Which deviations and budgets switch off.
 
-    use molangx::compile::Deviations;
+    use molang::compile::Deviations;
     #[cfg(feature = "vm")]
-    use molangx::vm::EvalLimits;
+    use molang::vm::EvalLimits;
 
     #[test]
     fn every_compiler_deviation_switches_off() {
@@ -4836,9 +4832,9 @@ mod deviation_switches {
 mod public_fields {
     //! These tests name every field, so a field becoming private, or a new one, fails to compile.
 
-    use molangx::compile::Deviations;
+    use molang::compile::Deviations;
     #[cfg(feature = "vm")]
-    use molangx::vm::EvalLimits;
+    use molang::vm::EvalLimits;
 
     #[test]
     fn deviations_are_a_struct_of_public_switches() {

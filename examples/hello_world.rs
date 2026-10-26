@@ -3,9 +3,9 @@
 //!
 //! Run with `cargo run --example hello_world --features vm`.
 
-use molangx::compile::{CompileError, CompileOptions, compile};
-use molangx::version::MolangVersion;
-use molangx::vm::{NoHostEnv, Value, VariableName};
+use molang::compile::{CompileError, CompileOptions, compile};
+use molang::version::MolangVersion;
+use molang::vm::{NoHostEnv, Value, VariableName};
 
 fn main() -> Result<(), CompileError> {
     let options = CompileOptions::server(MolangVersion::LATEST);

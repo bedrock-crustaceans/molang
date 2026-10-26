@@ -167,9 +167,9 @@ impl<H: Host> Debug for Value<H> {
 /// ```
 /// # #[cfg(feature = "stdlib")]
 /// # {
-/// use molangx::compile::{CompileOptions, compile};
-/// use molangx::version::MolangVersion;
-/// use molangx::vm::{StructValue, NoHostEnv, Value, VariableName};
+/// use molang::compile::{CompileOptions, compile};
+/// use molang::version::MolangVersion;
+/// use molang::vm::{StructValue, NoHostEnv, Value, VariableName};
 ///
 /// let (expr, _) = compile(
 ///     "v.a.z = 1; loop(31, { v.b = v.a; v.a.x = v.b; v.a.y = v.b; });",

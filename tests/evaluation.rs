@@ -14,10 +14,10 @@ mod control_flow {
         host::{Actor, Env},
         per_arch,
     };
-    use molangx::compile::{CompileFailure, CompileOptions, compile};
-    use molangx::rng::{Xorshift128, sample};
-    use molangx::version::MolangVersion;
-    use molangx::vm::{CollectSink, EvalLimits, NoHostEnv, Value, VariableName};
+    use molang::compile::{CompileFailure, CompileOptions, compile};
+    use molang::rng::{Xorshift128, sample};
+    use molang::version::MolangVersion;
+    use molang::vm::{CollectSink, EvalLimits, NoHostEnv, Value, VariableName};
 
     fn eval(source: &str) -> f32 {
         server_expr(source).eval_f32(&mut NoHostEnv::new().cx())
@@ -353,7 +353,7 @@ mod control_flow {
         assert_eq!(expr.as_constant(), None);
         assert!(
             expr.flags()
-                .contains(molangx::compile::ProgramFlags::HAS_ASSIGNMENT)
+                .contains(molang::compile::ProgramFlags::HAS_ASSIGNMENT)
         );
         let mut env = NoHostEnv::new();
         assert_eq!(expr.eval(&mut env.cx()), Value::Float(6.0));
@@ -456,11 +456,11 @@ mod control_flow {
 mod variables {
     use crate::common::compile_support::server_expr;
     use crate::common::host::{Env, TestHost};
-    use molangx::compile::ProgramFlags;
-    use molangx::hash::HashedStr;
-    use molangx::rng::Xorshift128;
+    use molang::compile::ProgramFlags;
+    use molang::hash::HashedStr;
+    use molang::rng::Xorshift128;
 
-    use molangx::vm::{
+    use molang::vm::{
         CollectSink, NoHost, NoHostEnv, StructValue, TempMap, TempName, Temps, Value, VariableName,
     };
 
@@ -807,9 +807,9 @@ mod evaluation_model {
     use crate::common::compile_support::{server_expr, server_expr_at};
     use crate::common::host::{Actor, Env};
 
-    use molangx::hash::HashedStr;
-    use molangx::rng::Xorshift128;
-    use molangx::vm::{
+    use molang::hash::HashedStr;
+    use molang::rng::Xorshift128;
+    use molang::vm::{
         CollectSink, ContextName, EvalLimits, NoHostEnv, Subjects, Value, VariableName,
     };
 
@@ -817,7 +817,7 @@ mod evaluation_model {
         server_expr(source).eval_f32(&mut env.cx())
     }
 
-    fn var(env: &NoHostEnv, name: &str) -> Option<Value<molangx::vm::NoHost>> {
+    fn var(env: &NoHostEnv, name: &str) -> Option<Value<molang::vm::NoHost>> {
         env.variables.get(VariableName::new(name)).cloned()
     }
 
@@ -885,7 +885,7 @@ mod evaluation_model {
         assert_eq!(subjects, Subjects::actor(Actor::Handle(1)));
         assert_eq!(
             sink.messages,
-            ["molangx: evaluation stopped after its budget of 50 steps"]
+            ["molang: evaluation stopped after its budget of 50 steps"]
         );
     }
 
@@ -908,7 +908,7 @@ mod evaluation_model {
             assert_eq!(eval_in(&mut env, &source), 0.0, "{count}");
             assert_eq!(
                 env.sink.take(),
-                ["molangx: evaluation stopped after its budget of 20000 steps"],
+                ["molang: evaluation stopped after its budget of 20000 steps"],
                 "{count}"
             );
         }
@@ -968,8 +968,8 @@ mod evaluation_model {
 mod names {
     use crate::common::compile_support::server_expr;
 
-    use molangx::rng::Xorshift128;
-    use molangx::vm::{CollectSink, ContextName, NoHostEnv, TempMap, Temps, Value};
+    use molang::rng::Xorshift128;
+    use molang::vm::{CollectSink, ContextName, NoHostEnv, TempMap, Temps, Value};
 
     use crate::common::host::{Actor, Env};
 
@@ -1033,8 +1033,8 @@ mod names {
 
 mod statements {
     use crate::common::compile_support::{server_at, server_expr_at};
-    use molangx::compile::compile;
-    use molangx::vm::{NoHostEnv, Value, VariableName};
+    use molang::compile::compile;
+    use molang::vm::{NoHostEnv, Value, VariableName};
 
     fn eval_at(source: &str, version: i16) -> (f32, NoHostEnv) {
         let expr = server_expr_at(source, version);
@@ -1149,10 +1149,10 @@ mod result_kinds {
 
     use crate::common::compile_support::{server_at, server_expr};
     use crate::common::host::{Actor, Env};
-    use molangx::compile::{CompileFailure, compile};
-    use molangx::hash::HashedStr;
-    use molangx::rng::Xorshift128;
-    use molangx::vm::{
+    use molang::compile::{CompileFailure, compile};
+    use molang::hash::HashedStr;
+    use molang::rng::Xorshift128;
+    use molang::vm::{
         CollectSink, ContextName, NoHost, NoHostEnv, StructValue, Value, VariableName,
     };
 
@@ -1270,8 +1270,8 @@ mod result_kinds {
 
 mod threads {
     use crate::common::compile_support::server_expr;
-    use molangx::compile::Expr;
-    use molangx::vm::{NoHostEnv, Value, VariableName};
+    use molang::compile::Expr;
+    use molang::vm::{NoHostEnv, Value, VariableName};
 
     fn assert_send_sync<T: Send + Sync>() {}
     fn assert_send<T: Send>() {}

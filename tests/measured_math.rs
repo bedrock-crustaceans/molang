@@ -11,8 +11,8 @@ mod common;
 use common::measured::math_call::parse_call;
 use common::measured::*;
 use common::per_arch;
-use molangx::numeric::{self, ARCH, Arch, PostOp};
-use molangx::stdlib::math;
+use molang::numeric::{self, ARCH, Arch, PostOp};
+use molang::stdlib::math;
 
 /// NaN through `math.max` / `math.min`, `math.mod` by zero and other questions asked through
 /// `query.log`, and a missing read.

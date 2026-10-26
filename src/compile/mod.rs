@@ -110,9 +110,9 @@ pub(crate) fn compile_at(
 /// ```
 /// # #[cfg(feature = "stdlib")]
 /// # {
-/// use molangx::compile::{CompileFailure, CompileOptions, compile_source};
-/// use molangx::json::MolangSource;
-/// use molangx::version::MolangVersion;
+/// use molang::compile::{CompileFailure, CompileOptions, compile_source};
+/// use molang::json::MolangSource;
+/// use molang::version::MolangVersion;
 ///
 /// // A field's options, version-free in effect.
 /// let field = CompileOptions::server(MolangVersion::LATEST);

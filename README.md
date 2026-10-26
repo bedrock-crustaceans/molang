@@ -1,18 +1,18 @@
-# molangx
+# molang
 
-[![Crates.io](https://img.shields.io/crates/v/molangx.svg)](https://crates.io/crates/molangx) [![docs.rs](https://img.shields.io/docsrs/molangx)](https://docs.rs/molangx) [![CI](https://github.com/bedrock-crustaceans/molangx/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bedrock-crustaceans/molangx/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/bedrock-crustaceans/molangx/blob/main/LICENSE)
+[![Crates.io](https://img.shields.io/crates/v/molang.svg)](https://crates.io/crates/molang) [![docs.rs](https://img.shields.io/docsrs/molang)](https://docs.rs/molang) [![CI](https://github.com/bedrock-crustaceans/molangx/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bedrock-crustaceans/molangx/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/bedrock-crustaceans/molangx/blob/main/LICENSE)
 
 A pure-Rust compiler and bytecode VM for [Molang](https://learn.microsoft.com/en-us/minecraft/creator/reference/content/molangreference/examples/molangconcepts/molangintroduction), the expression language of Minecraft: Bedrock Edition, at every Molang version. Part of the [bedrock-crustaceans](https://github.com/bedrock-crustaceans) ecosystem.
 
-molangx compiles Molang text to bytecode and evaluates it. Queries are declared, not implemented: a `QueryCatalog` holds their names, argument counts, version windows and query sets, so the compiler can tell that `query.does_not_exist` does not resolve, while the implementations come from a `QueryTable` your embedding fills in, one function per query name; a query without one returns the default of its declaration. The crate is not a JSON loader either: a field that holds Molang reaches it through `MolangValueRepr` as a plain `JsonScalar`.
+molang compiles Molang text to bytecode and evaluates it. Queries are declared, not implemented: a `QueryCatalog` holds their names, argument counts, version windows and query sets, so the compiler can tell that `query.does_not_exist` does not resolve, while the implementations come from a `QueryTable` your embedding fills in, one function per query name; a query without one returns the default of its declaration. The crate is not a JSON loader either: a field that holds Molang reaches it through `MolangValueRepr` as a plain `JsonScalar`.
 
 ## Installation
 
-molangx uses edition 2024 and needs Rust 1.92 or newer and `std`:
+molang uses edition 2024 and needs Rust 1.92 or newer and `std`:
 
 ```toml
 [dependencies]
-molangx = { version = "0.1", features = ["vm"] }
+molang = { version = "1", features = ["vm"] }
 ```
 
 `vm` is everything needed to compile and evaluate; the other flags are listed under [Features](#features). Without `stdlib` (`default-features = false`) the crate is the engine alone: no `math.*` name and no query is known, so a host declares its queries with `QueryCatalog::new`, its math functions in a `MathCatalog`, and compiles with `CompileOptions::new`.
@@ -22,11 +22,11 @@ molangx = { version = "0.1", features = ["vm"] }
 `compile` never fails: a rejected expression compiles to the constant 0 with its diagnostics attached (`Compiled::expr_or_zero`), and `Compiled::into_result` gives a `Result` instead. `NoHostEnv` evaluates without a world (numbers, strings, `variable.` / `temp.` / `context.`, `math.*`); an embedding with a world uses `HostEnv` (see the [`host`](https://github.com/bedrock-crustaceans/molangx/blob/main/examples/host.rs) example).
 
 ```rust
-use molangx::compile::{CompileOptions, compile};
-use molangx::version::MolangVersion;
-use molangx::vm::{NoHostEnv, Value, VariableName};
+use molang::compile::{CompileOptions, compile};
+use molang::version::MolangVersion;
+use molang::vm::{NoHostEnv, Value, VariableName};
 
-fn main() -> Result<(), molangx::compile::CompileError> {
+fn main() -> Result<(), molang::compile::CompileError> {
     let options = CompileOptions::server(MolangVersion::LATEST);
     // A success carries what the compile logged (warnings, notes) along with the expression.
     let source = "v.speed * 2 + math.clamp(1 + 2 * 3, 0, 5)";
@@ -49,18 +49,18 @@ fn main() -> Result<(), molangx::compile::CompileError> {
 
 A `MolangSource` is text plus version. `compile_source(&source, &options)` compiles it at its own version, and `CompileCache::compile_source` does the same through the cache; `compile(text, &options)` uses the options' version instead.
 
-`CompileOptions::server` and `CompileOptions::client` compile against `stdlib::queries(Side::Server)` and `stdlib::queries(Side::Client)`; there is no default side. For the catalogue of an older release, `stdlib::queries_at(side, &release)` takes a `semver::Version` (`semver` is re-exported as `molangx::version::semver`; a new major version of it is a breaking change of this crate).
+`CompileOptions::server` and `CompileOptions::client` compile against `stdlib::queries(Side::Server)` and `stdlib::queries(Side::Client)`; there is no default side. For the catalogue of an older release, `stdlib::queries_at(side, &release)` takes a `semver::Version` (`semver` is re-exported as `molang::version::semver`; a new major version of it is a breaking change of this crate).
 
 ## Queries of your own
 
 Declare them in an extended catalogue, compile against it, and install the functions in a `QueryTable` built from it. `NoHostEnv::new()` and the default `HostEnv` hold no `QueryTable`, so every query returns its declared default. To change a query the catalogue already declares (a standard query's argument count or return type), build a catalogue with `QueryCatalog::overriding`, which replaces each declaration of the same name in place.
 
 ```rust
-use molangx::catalog::{Arity, QueryDecl, QueryShape, ReturnType, Side};
-use molangx::compile::{CompileOptions, compile};
-use molangx::stdlib;
-use molangx::version::MolangVersion;
-use molangx::vm::{NoHost, NoHostEnv, QueryCx, QueryResult, QueryTable, Value};
+use molang::catalog::{Arity, QueryDecl, QueryShape, ReturnType, Side};
+use molang::compile::{CompileOptions, compile};
+use molang::stdlib;
+use molang::version::MolangVersion;
+use molang::vm::{NoHost, NoHostEnv, QueryCx, QueryResult, QueryTable, Value};
 
 fn double(cx: &mut QueryCx<'_, '_, NoHost>) -> QueryResult<NoHost> {
     Ok(Value::Float(cx.arg_f32(0).unwrap_or(0.0) * 2.0))
@@ -89,11 +89,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 `context.*` is read-only and filled by the caller for one evaluation. Nothing is declared at compile time: any name compiles, and a read the provider does not answer is a missing variable, which ends the expression with 0 and logs a message unless `??` catches it. `NoHostEnv` and the default `HostEnv` hold a `ContextMap`, filled before each evaluation; `HostEnv::with_context` swaps in any `ContextProvider` of your own, one that reads straight from the host's state for instance (see the [`host`](https://github.com/bedrock-crustaceans/molangx/blob/main/examples/host.rs) example), and `NoContext` answers nothing.
 
 ```rust
-use molangx::compile::{CompileOptions, compile};
-use molangx::version::MolangVersion;
-use molangx::vm::{ContextName, NoHostEnv, Value};
+use molang::compile::{CompileOptions, compile};
+use molang::version::MolangVersion;
+use molang::vm::{ContextName, NoHostEnv, Value};
 
-fn main() -> Result<(), molangx::compile::CompileError> {
+fn main() -> Result<(), molang::compile::CompileError> {
     let options = CompileOptions::server(MolangVersion::LATEST);
     let (expr, _) = compile("c.damage * 0.5 + (c.bonus ?? 1)", &options).into_result()?;
 
@@ -112,11 +112,11 @@ fn main() -> Result<(), molangx::compile::CompileError> {
 Declare them in a `MathCatalog` and pass it in `CompileOptions::math`; `math.<name>(…)` then calls them like the standard functions, with float arguments (at most `MAX_MATH_ARGS`) and the argument count checked at compile time. A pure function must be deterministic: a call of constants is folded at compile time and equal calls are merged. A volatile function gets the evaluation's random source (`&mut dyn rand_core::Rng`; `rng::sample` draws a sample as the standard functions do), is never folded or merged, and is forbidden by `OpSet::without_assignments_or_random`. A function must not panic. A function may take a standard function's name (all but the constant `math.pi`) and then replaces the standard function while the catalogue is in the options, as an ordinary host call.
 
 ```rust
-use molangx::catalog::{Arity, MathCatalog, MathDecl};
-use molangx::compile::{CompileOptions, compile};
-use molangx::rng::sample;
-use molangx::version::MolangVersion;
-use molangx::vm::NoHostEnv;
+use molang::catalog::{Arity, MathCatalog, MathDecl};
+use molang::compile::{CompileOptions, compile};
+use molang::rng::sample;
+use molang::version::MolangVersion;
+use molang::vm::NoHostEnv;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let math = MathCatalog::new([
@@ -137,7 +137,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Features
 
-`stdlib` is on by default. Every public item has one path, the module this table names (`molangx::compile::CompileOptions`); [docs.rs](https://docs.rs/molangx) shows the feature each item needs.
+`stdlib` is on by default. Every public item has one path, the module this table names (`molang::compile::CompileOptions`); [docs.rs](https://docs.rs/molang) shows the feature each item needs.
 
 | Feature | Contents | Implies |
 | --- | --- | --- |
@@ -177,8 +177,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `diagnostic_limit` | At most `MAX_DIAGNOSTICS` (256) diagnostics, then one `DiagCode::DiagnosticLimit` note counting the rest. | Every diagnostic is kept. | on |
 
 ```rust
-use molangx::compile::{CompileOptions, Deviations};
-use molangx::version::MolangVersion;
+use molang::compile::{CompileOptions, Deviations};
+use molang::version::MolangVersion;
 
 let options = CompileOptions {
     keep_source: true,
@@ -211,7 +211,7 @@ The easings, `math.hermite_blend`, the random interpolation and the inverse-trig
 | `query_depth` | How deep query arguments may nest at run time (the top level is 0); `Some(0)` lets no query evaluate an argument. | None |
 
 ```rust
-use molangx::vm::EvalLimits;
+use molang::vm::EvalLimits;
 
 let limits = EvalLimits {
     loop_iterations: Some(5), // a tighter per-loop budget
@@ -224,7 +224,7 @@ assert!(!limits.is_unlimited());
 
 `temp.*` starts empty in every evaluation; `temps: Temps::Kept(TempMap::new())` on a `HostEnv` or `NoHostEnv` keeps them in a map nothing clears.
 
-The random source is any `rand_core` 0.10 `Rng`, re-exported as `molangx::rng::rand_core` (a new major version of `rand_core` is a breaking change of this crate). Each sample is one `next_u32` `u` mapped to `(u & 0x7fff_ffff) · 2^-31` (`rng::sample`), which can be exactly 1. Each environment has its own `Xorshift128` started from the same standard seeds, so give each one `Xorshift128::seed_from_u64(...)` (`SeedableRng`) unless identical sequences are wanted; `HostEnv::with_rng(ProcessRng)` gives one process-wide generator, `HostEnv::with_rng(generator)` a generator of your own, and `FixedRng` the same sample on every draw.
+The random source is any `rand_core` 0.10 `Rng`, re-exported as `molang::rng::rand_core` (a new major version of `rand_core` is a breaking change of this crate). Each sample is one `next_u32` `u` mapped to `(u & 0x7fff_ffff) · 2^-31` (`rng::sample`), which can be exactly 1. Each environment has its own `Xorshift128` started from the same standard seeds, so give each one `Xorshift128::seed_from_u64(...)` (`SeedableRng`) unless identical sequences are wanted; `HostEnv::with_rng(ProcessRng)` gives one process-wide generator, `HostEnv::with_rng(generator)` a generator of your own, and `FixedRng` the same sample on every draw.
 
 The default message sink, `BoundedSink`, keeps the last 64 messages, each cut to 1 KiB; `LogOnce` drops repeats.
 

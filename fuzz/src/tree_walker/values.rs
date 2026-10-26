@@ -2,12 +2,12 @@
 
 use super::walker::{Slot, child, moved_constant, with_post};
 use super::{Eval, Unwind, Walker};
-use molangx::hash::HashedStr;
-use molangx::internals::{
+use molang::hash::HashedStr;
+use molang::internals::{
     Name, Node, Payload, member_store_check, public_variable, storable, store_cost,
 };
-use molangx::ops::ExpressionOp as Op;
-use molangx::vm::{ContextName, EvalCx, Host, ResourceRef, RuntimeMsg, Value};
+use molang::ops::ExpressionOp as Op;
+use molang::vm::{ContextName, EvalCx, Host, ResourceRef, RuntimeMsg, Value};
 
 impl<H: Host> Walker<H> {
     /// A literal, a resource or `this`.
@@ -174,8 +174,8 @@ impl<H: Host> Walker<H> {
 mod tests {
     use super::*;
     use crate::tree_walker::test_support::*;
-    use molangx::numeric::PostOp;
-    use molangx::vm::{StructValue, TempMap};
+    use molang::numeric::PostOp;
+    use molang::vm::{StructValue, TempMap};
 
     #[test]
     fn a_missing_read_outside_a_handler_logs_and_ends_the_evaluation_with_zero() {
@@ -386,7 +386,7 @@ mod tests {
         assert!(run.env.vars.get(var("q")).is_none(), "nothing is written");
         assert_eq!(
             run.env.messages(),
-            ["molangx: evaluation stopped: a struct would nest deeper than its budget of 2 levels"]
+            ["molang: evaluation stopped: a struct would nest deeper than its budget of 2 levels"]
         );
     }
 
@@ -404,7 +404,7 @@ mod tests {
         assert!(run.env.vars.get(var("after")).is_none());
         assert_eq!(
             run.env.messages(),
-            ["molangx: evaluation stopped: a struct would hold more than its budget of 2 members"]
+            ["molang: evaluation stopped: a struct would hold more than its budget of 2 members"]
         );
         // Rewriting an existing member is never refused.
         let run = both_on("v.q.a = 1; v.q.b = 2; v.q.a = 9; return v.q.a;", &start);
@@ -463,7 +463,7 @@ mod tests {
         )));
         assert_eq!(
             env.messages(),
-            ["molangx: evaluation stopped: a struct would hold more than its budget of 0 members"]
+            ["molang: evaluation stopped: a struct would hold more than its budget of 0 members"]
         );
     }
 
@@ -474,17 +474,17 @@ mod tests {
         for (op, payload, name) in [
             (
                 Op::Geometry,
-                Payload::Geometry(molangx::internals::Name::new("geometry.cow")),
+                Payload::Geometry(molang::internals::Name::new("geometry.cow")),
                 "geometry.cow",
             ),
             (
                 Op::Material,
-                Payload::Material(molangx::internals::Name::new("material.cow")),
+                Payload::Material(molang::internals::Name::new("material.cow")),
                 "material.cow",
             ),
             (
                 Op::Texture,
-                Payload::Texture(molangx::internals::Name::new("texture.cow")),
+                Payload::Texture(molang::internals::Name::new("texture.cow")),
                 "texture.cow",
             ),
         ] {

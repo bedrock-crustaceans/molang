@@ -5,8 +5,8 @@
 //! and back.
 //!
 //! ```
-//! use molangx::json::{JsonScalar, MolangValueRepr, ReadField, ReaderKind, SourceForm};
-//! use molangx::version::RawVersion;
+//! use molang::json::{JsonScalar, MolangValueRepr, ReadField, ReaderKind, SourceForm};
+//! use molang::version::RawVersion;
 //!
 //! let versioned = ReaderKind::StrictVersioned;
 //! // A string takes the version of the load context (here 6) ...

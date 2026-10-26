@@ -7,9 +7,9 @@
 //! ```
 //! # #[cfg(feature = "stdlib")]
 //! # {
-//! use molangx::compile::{CompileOptions, compile};
-//! use molangx::version::MolangVersion;
-//! use molangx::vm::NoHostEnv;
+//! use molang::compile::{CompileOptions, compile};
+//! use molang::version::MolangVersion;
+//! use molang::vm::NoHostEnv;
 //!
 //! let (expr, _) = compile(
 //!     "math.clamp(1 + 2 * 3, 0, 5)",

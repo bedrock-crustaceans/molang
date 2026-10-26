@@ -3,22 +3,22 @@
 
 #![cfg(feature = "stdlib")]
 
-use molangx::catalog::{
+use molang::catalog::{
     Arity, ParseQuerySetError, QueryAdmission, QueryDecl, QuerySetMask, ReturnType, Side,
 };
-use molangx::hash::HashedStr;
-use molangx::json::{MolangSource, MolangValueRepr};
-use molangx::stdlib::query;
-use molangx::version::{EngineVersion, ExperimentMask, MolangVersion, VERSION_THRESHOLDS};
+use molang::hash::HashedStr;
+use molang::json::{MolangSource, MolangValueRepr};
+use molang::stdlib::query;
+use molang::version::{EngineVersion, ExperimentMask, MolangVersion, VERSION_THRESHOLDS};
 
 fn ev(major: u64, minor: u64, patch: u64) -> EngineVersion {
-    EngineVersion::Version(molangx::version::semver::Version::new(major, minor, patch))
+    EngineVersion::Version(molang::version::semver::Version::new(major, minor, patch))
 }
 
 fn ev_pre(major: u64, minor: u64, patch: u64) -> EngineVersion {
-    EngineVersion::Version(molangx::version::semver::Version {
-        pre: molangx::version::semver::Prerelease::new("pre").unwrap(),
-        ..molangx::version::semver::Version::new(major, minor, patch)
+    EngineVersion::Version(molang::version::semver::Version {
+        pre: molang::version::semver::Prerelease::new("pre").unwrap(),
+        ..molang::version::semver::Version::new(major, minor, patch)
     })
 }
 
@@ -33,20 +33,20 @@ mod types_layer {
     fn always_built_layer() {
         assert_eq!(VERSION_THRESHOLDS.len(), 13);
         let source = MolangSource::object("q.is_baby", 9);
-        assert_eq!(source.raw_version(), Some(molangx::version::RawVersion(9)));
+        assert_eq!(source.raw_version(), Some(molang::version::RawVersion(9)));
         let field = MolangValueRepr::read(
-            molangx::json::JsonScalar::Number(1.5),
-            molangx::json::ReaderKind::ScalarOrArray,
+            molang::json::JsonScalar::Number(1.5),
+            molang::json::ReaderKind::ScalarOrArray,
             13,
         );
-        let Ok(molangx::json::ReadField::Value(repr)) = field else {
+        let Ok(molang::json::ReadField::Value(repr)) = field else {
             panic!("a number reads as one value: {field:?}");
         };
         assert_eq!(repr.number(), Some(1.5));
         assert_eq!(HashedStr::new("").as_u64(), 0);
-        assert!(!molangx::stdlib::queries(Side::Client).is_empty());
+        assert!(!molang::stdlib::queries(Side::Client).is_empty());
         assert_eq!(
-            molangx::stdlib::queries(Side::Server)
+            molang::stdlib::queries(Side::Server)
                 .get(query::IS_BABY)
                 .map(QueryDecl::name),
             Some("query.is_baby")
@@ -105,11 +105,11 @@ mod types_layer {
         assert!(MolangVersion::LATEST.reports_expression_errors());
         assert!(MolangVersion::LATEST.signed_division_fix());
         assert_eq!(
-            molangx::version::RawVersion(200).effective(),
+            molang::version::RawVersion(200).effective(),
             MolangVersion::LATEST
         );
         assert_eq!(
-            molangx::version::RawVersion(-200).effective(),
+            molang::version::RawVersion(-200).effective(),
             MolangVersion::Invalid
         );
     }
@@ -139,7 +139,7 @@ mod types_layer {
         assert_eq!(HashedStr::from_bytes(b"a\0b"), HashedStr::new("a"));
         assert_eq!(HashedStr::from_bytes(b"\0a"), HashedStr::EMPTY);
         assert_eq!(
-            molangx::hash::fnv1_64(b"abc"),
+            molang::hash::fnv1_64(b"abc"),
             HashedStr::new("abc").as_u64()
         );
         const A: HashedStr = HashedStr::new("a");
@@ -149,7 +149,7 @@ mod types_layer {
     /// Only by the full name or the suffix after `query.`.
     #[test]
     fn query_lookup() {
-        let catalog = molangx::stdlib::queries(Side::Client);
+        let catalog = molang::stdlib::queries(Side::Client);
         let decl = catalog.get("query.is_baby").expect("a standard query");
         assert_eq!(query::IS_BABY, "query.is_baby");
         assert_eq!((decl.name(), decl.suffix()), ("query.is_baby", "is_baby"));
@@ -166,12 +166,12 @@ mod types_layer {
     /// query.
     #[test]
     fn query_resolution_by_version() {
-        let catalog = molangx::stdlib::queries(Side::Client);
+        let catalog = molang::stdlib::queries(Side::Client);
         let default = QueryAdmission::Sets(QuerySetMask::DEFAULT);
         let resolve = |name: &str, raw| {
             let decl = catalog.get(name)?;
             let range = decl.shape().ranges.as_slice()[usize::from(decl.resolve(
-                molangx::version::RawVersion(raw),
+                molang::version::RawVersion(raw),
                 &default,
                 ExperimentMask::empty(),
             )?)];
@@ -200,13 +200,13 @@ mod types_layer {
     /// A list of names replaces the sets.
     #[test]
     fn query_resolution_by_set_and_allow_list() {
-        let catalog = molangx::stdlib::queries(Side::Client);
+        let catalog = molang::stdlib::queries(Side::Client);
         let resolves = |name: &str, admission: &QueryAdmission| {
             catalog
                 .get(name)
                 .and_then(|d| {
                     d.resolve(
-                        molangx::version::RawVersion(13),
+                        molang::version::RawVersion(13),
                         admission,
                         ExperimentMask::empty(),
                     )
@@ -224,7 +224,7 @@ mod types_layer {
         assert!(by_sets("query.noise", QuerySetMask::BUILTIN));
         // The list ignores the sets and admits only what it names.
         let list =
-            molangx::catalog::QueryAllowList::new(catalog, [query::BLOCK_STATE]).expect("declared");
+            molang::catalog::QueryAllowList::new(catalog, [query::BLOCK_STATE]).expect("declared");
         let allowed = QueryAdmission::Only(list);
         assert!(resolves("query.block_state", &allowed));
         assert!(!resolves("query.is_baby", &allowed));
@@ -240,39 +240,38 @@ mod types_layer {
 
     #[test]
     fn the_root_re_exports_the_types_layer() {
-        let _: molangx::hash::HashedStr = HashedStr::EMPTY;
-        let _: molangx::version::MolangVersion = MolangVersion::LATEST;
-        let _: molangx::version::EngineVersion = EngineVersion::Any;
-        let _: &molangx::catalog::QueryCatalog = molangx::stdlib::queries(Side::Client);
-        let _: molangx::catalog::QueryAdmission =
-            molangx::catalog::QueryAdmission::Sets(QuerySetMask::DEFAULT);
-        let _: Option<&molangx::catalog::QueryDecl> = None::<&molangx::catalog::QueryDecl>;
-        let _: molangx::catalog::Side = Side::Server;
-        let _: molangx::catalog::QuerySetMask = QuerySetMask::DEFAULT;
-        let _: molangx::version::ExperimentMask = ExperimentMask::empty();
-        let _: molangx::ops::ExpressionOp =
-            molangx::ops::ExpressionOp::from_ordinal(0).expect("the first op");
-        let _: molangx::ops::OpSet = molangx::ops::OpSet::all();
-        let _: molangx::json::MolangSource = MolangSource::string("1", 0);
-        let _: molangx::json::ReaderKind = molangx::json::ReaderKind::SchemaValidated;
-        let _: molangx::json::ReprError =
-            molangx::json::ReprError::NumberOutOfRange { value: 1e39 };
-        let _: molangx::json::ReadField = molangx::json::ReadField::NoExpression;
-        assert_eq!(molangx::ops::ExpressionOp::COUNT, 111);
-        assert_eq!(molangx::ops::OpSet::all().len(), 111);
-        assert_eq!(molangx::stdlib::MathFn::all().len(), 61);
+        let _: molang::hash::HashedStr = HashedStr::EMPTY;
+        let _: molang::version::MolangVersion = MolangVersion::LATEST;
+        let _: molang::version::EngineVersion = EngineVersion::Any;
+        let _: &molang::catalog::QueryCatalog = molang::stdlib::queries(Side::Client);
+        let _: molang::catalog::QueryAdmission =
+            molang::catalog::QueryAdmission::Sets(QuerySetMask::DEFAULT);
+        let _: Option<&molang::catalog::QueryDecl> = None::<&molang::catalog::QueryDecl>;
+        let _: molang::catalog::Side = Side::Server;
+        let _: molang::catalog::QuerySetMask = QuerySetMask::DEFAULT;
+        let _: molang::version::ExperimentMask = ExperimentMask::empty();
+        let _: molang::ops::ExpressionOp =
+            molang::ops::ExpressionOp::from_ordinal(0).expect("the first op");
+        let _: molang::ops::OpSet = molang::ops::OpSet::all();
+        let _: molang::json::MolangSource = MolangSource::string("1", 0);
+        let _: molang::json::ReaderKind = molang::json::ReaderKind::SchemaValidated;
+        let _: molang::json::ReprError = molang::json::ReprError::NumberOutOfRange { value: 1e39 };
+        let _: molang::json::ReadField = molang::json::ReadField::NoExpression;
+        assert_eq!(molang::ops::ExpressionOp::COUNT, 111);
+        assert_eq!(molang::ops::OpSet::all().len(), 111);
+        assert_eq!(molang::stdlib::MathFn::all().len(), 61);
     }
 
     /// Whichever 64-bit word the op is in.
     #[test]
     fn an_op_set_with_one_op_is_never_empty() {
-        for op in molangx::ops::ExpressionOp::all() {
-            let single = molangx::ops::OpSet::empty().with(*op);
+        for op in molang::ops::ExpressionOp::all() {
+            let single = molang::ops::OpSet::empty().with(*op);
             assert!(!single.is_empty(), "{op:?}");
             assert_eq!(single.len(), 1, "{op:?}");
             assert!(single.without(*op).is_empty(), "{op:?}");
         }
-        let second_word_only = molangx::ops::OpSet::from_words([0, u64::MAX]);
+        let second_word_only = molang::ops::OpSet::from_words([0, u64::MAX]);
         assert!(!second_word_only.is_empty());
         assert_eq!(second_word_only.len(), 47);
     }
@@ -282,8 +281,8 @@ mod types_layer {
 mod compiler {
     use std::sync::Arc;
 
-    use molangx::compile::{CompileFailure, CompileOptions, Compiled, Expr, compile};
-    use molangx::json::ReprError;
+    use molang::compile::{CompileFailure, CompileOptions, Compiled, Expr, compile};
+    use molang::json::ReprError;
 
     use super::*;
 
@@ -302,7 +301,7 @@ mod compiler {
     /// The options own their catalogues: a host stores them, sends them and clones them.
     #[test]
     fn options_are_owned_values() {
-        use molangx::catalog::{Arity, MathCatalog, MathDecl, QueryAllowList};
+        use molang::catalog::{Arity, MathCatalog, MathDecl, QueryAllowList};
         const fn assert_owned<T: Send + Sync + Clone + Eq + std::hash::Hash + 'static>() {}
         const { assert_owned::<CompileOptions>() };
         struct Host {
@@ -314,7 +313,7 @@ mod compiler {
                     .expect("a declaration"),
             ])
             .expect("a catalogue");
-        let list = QueryAllowList::new(molangx::stdlib::queries(Side::Server), [query::IS_BABY])
+        let list = QueryAllowList::new(molang::stdlib::queries(Side::Server), [query::IS_BABY])
             .expect("a standard query");
         let host = Host {
             options: CompileOptions {
@@ -372,13 +371,12 @@ mod compiler {
     /// The options and their parts are plain data, set with struct-update syntax.
     #[test]
     fn options_are_set_by_struct_update() {
-        use molangx::catalog::QueryAllowList;
-        use molangx::compile::Deviations;
-        use molangx::ops::OpSet;
-        use molangx::version::RawVersion;
-        let list =
-            QueryAllowList::new(molangx::stdlib::queries(Side::Server), [query::BLOCK_STATE])
-                .expect("a standard query");
+        use molang::catalog::QueryAllowList;
+        use molang::compile::Deviations;
+        use molang::ops::OpSet;
+        use molang::version::RawVersion;
+        let list = QueryAllowList::new(molang::stdlib::queries(Side::Server), [query::BLOCK_STATE])
+            .expect("a standard query");
         let block = CompileOptions {
             admission: QueryAdmission::Only(list),
             allowed_ops: OpSet::all().without_assignments_or_random(),
@@ -413,11 +411,11 @@ mod compiler {
     /// Host math functions are declared as values and passed in the options.
     #[test]
     fn host_math_functions_are_plain_data() {
-        use molangx::catalog::{
+        use molang::catalog::{
             Arity, MAX_MATH_ARGS, MathCatalog, MathDecl, MathError, MathImpl, PureMathFn,
             VolatileMathFn,
         };
-        use molangx::rng::{rand_core::Rng, sample};
+        use molang::rng::{rand_core::Rng, sample};
         type Pure = fn(&[f32]) -> f32;
         type Volatile = fn(&mut dyn Rng, &[f32]) -> f32;
         type Declared = Result<MathDecl, MathError>;
@@ -452,7 +450,7 @@ mod compiler {
     #[test]
     fn compile_source_smoke() {
         let source = MolangSource::string("'a' + 1", 2);
-        let compiled = molangx::compile::compile_source(
+        let compiled = molang::compile::compile_source(
             &source,
             &CompileOptions::server(MolangVersion::LATEST),
         );
@@ -463,7 +461,7 @@ mod compiler {
         );
         let source = MolangSource::string("'a' + 1", 3);
         assert_eq!(
-            molangx::compile::compile_source(
+            molang::compile::compile_source(
                 &source,
                 &CompileOptions::server(MolangVersion::LATEST)
             )
@@ -477,12 +475,12 @@ mod compiler {
 mod vm {
     use std::cell::Cell;
 
-    use molangx::catalog::{QueryAdmission, QuerySetMask, Side};
-    use molangx::compile::{CompileOptions, compile};
-    use molangx::rng::{Xorshift128, rand_core::Rng};
-    use molangx::stdlib::query;
-    use molangx::version::MolangVersion;
-    use molangx::vm::{
+    use molang::catalog::{QueryAdmission, QuerySetMask, Side};
+    use molang::compile::{CompileOptions, compile};
+    use molang::rng::{Xorshift128, rand_core::Rng};
+    use molang::stdlib::query;
+    use molang::version::MolangVersion;
+    use molang::vm::{
         CollectSink, ContextMap, ContextName, ContextProvider, EvalCx, EvalLimits, Host,
         HostAccess, HostEnv, NoHost, NoHostEnv, QueryCx, QueryError, QueryTable, Subjects, TempMap,
         Temps, Value, VariableName, VariableStore,
@@ -492,8 +490,8 @@ mod vm {
     /// to a `Value` and returns the value it replaces.
     #[test]
     fn value_maps_build_from_entries_and_set_returns_the_old_value() {
-        use molangx::hash::HashedStr;
-        use molangx::vm::{StructValue, TempName, VariableMap};
+        use molang::hash::HashedStr;
+        use molang::vm::{StructValue, TempName, VariableMap};
         let x = VariableName::new("x");
         let mut variables = VariableMap::<NoHost>::from([(x, 1.0), (VariableName::new("y"), 2.0)]);
         assert_eq!(variables.set(x, 3.0), Some(Value::Float(1.0)));
@@ -548,7 +546,7 @@ mod vm {
     /// with the string on the left.
     #[test]
     fn as_f32_and_mixed_equality() {
-        let low = f32::from_bits(molangx::hash::HashedStr::new("a").as_u64() as u32);
+        let low = f32::from_bits(molang::hash::HashedStr::new("a").as_u64() as u32);
         assert_eq!(
             Value::<NoHost>::string("a").as_f32().to_bits(),
             low.to_bits()
@@ -607,7 +605,7 @@ mod vm {
     /// An unresolvable target is 0 and never entered.
     #[test]
     fn arrow_goes_through_host_access() {
-        let mut queries = QueryTable::<Farm>::new(molangx::stdlib::queries(Side::Server));
+        let mut queries = QueryTable::<Farm>::new(molang::stdlib::queries(Side::Server));
         queries.set(query::IS_BABY, actor_number).unwrap();
         let mut context = ContextMap::<Farm>::new();
         context.set(ContextName::new("other"), Value::Actor(7));
@@ -649,9 +647,9 @@ mod vm {
             subjects_of: Cell::new(0),
         };
         let mut temps = TempMap::<Farm>::new();
-        let mut store = molangx::vm::VariableStorage::<Farm>::new();
+        let mut store = molang::vm::VariableStorage::<Farm>::new();
         let context = ContextMap::<Farm>::new();
-        let mut queries = QueryTable::<Farm>::new(molangx::stdlib::queries(Side::Server));
+        let mut queries = QueryTable::<Farm>::new(molang::stdlib::queries(Side::Server));
         queries.set(query::IS_BABY, actor_number).unwrap();
         let mut rng = Xorshift128::new();
         let mut sink = CollectSink::new();
@@ -705,8 +703,8 @@ mod vm {
     #[cfg(feature = "vm")]
     #[test]
     fn names_are_canonical_and_member_paths_split() {
-        use molangx::hash::HashedStr;
-        use molangx::vm::{NoHostEnv, Value, VariableName};
+        use molang::hash::HashedStr;
+        use molang::vm::{NoHostEnv, Value, VariableName};
         let options = CompileOptions::server(MolangVersion::LATEST);
         let mut env = NoHostEnv::new();
         let write = compile("V.A.b = 3; variable.c = 4;", &options)
@@ -729,9 +727,9 @@ mod vm {
         assert_eq!(parsed.hashed(), HashedStr::new("variable.c"));
         assert_eq!(
             "t.c".parse::<VariableName>(),
-            Err(molangx::vm::ParseNameError)
+            Err(molang::vm::ParseNameError)
         );
-        let any: molangx::vm::AnyName = "t.c".parse().expect("a name");
+        let any: molang::vm::AnyName = "t.c".parse().expect("a name");
         assert_eq!(HashedStr::from(any), HashedStr::new("temp.c"));
         let read = compile("return variable.a.b + v.C;", &options)
             .expr()
@@ -746,13 +744,13 @@ mod vm {
         use std::sync::Arc;
         use std::sync::atomic::{AtomicU32, Ordering};
 
-        use molangx::vm::{
+        use molang::vm::{
             NoHost, NoHostEnv, Query, QueryCx, QueryResult, QueryTable, StructValue, Temps, Value,
         };
         fn seven(_cx: &mut QueryCx<'_, '_, NoHost>) -> QueryResult<NoHost> {
             Ok(Value::Float(7.0))
         }
-        let catalog = molangx::stdlib::queries(Side::Server);
+        let catalog = molang::stdlib::queries(Side::Server);
         let calls = Arc::new(AtomicU32::new(0));
         let counter = Arc::clone(&calls);
         let mut queries = QueryTable::new(catalog);
@@ -788,7 +786,7 @@ mod vm {
         assert_eq!(
             env.temps
                 .kept()
-                .and_then(|temps| temps.get(molangx::vm::TempName::new("n"))),
+                .and_then(|temps| temps.get(molang::vm::TempName::new("n"))),
             Some(&Value::Float(9.0))
         );
         let s: StructValue<NoHost> = [("x", 1.0f32), ("y", 2.0)].into_iter().collect();
@@ -801,7 +799,7 @@ mod vm {
     fn set_shared_installs_one_implementation_in_several_tables() {
         use std::sync::Arc;
 
-        use molangx::vm::{NoHost, NoHostEnv, Query, QueryCx, QueryResult, QueryTable, Value};
+        use molang::vm::{NoHost, NoHostEnv, Query, QueryCx, QueryResult, QueryTable, Value};
         struct Scaled(f32);
         impl Query<NoHost> for Scaled {
             fn call(&self, cx: &mut QueryCx<'_, '_, NoHost>) -> QueryResult<NoHost> {
@@ -809,7 +807,7 @@ mod vm {
             }
         }
         let shared: Arc<dyn Query<NoHost>> = Arc::new(Scaled(3.0));
-        let catalog = molangx::stdlib::queries(Side::Server);
+        let catalog = molang::stdlib::queries(Side::Server);
         let mut first = QueryTable::new(catalog);
         let mut second = QueryTable::new(catalog);
         first
@@ -847,18 +845,18 @@ mod vm {
     #[cfg(feature = "vm")]
     #[test]
     fn every_stub_returns_its_no_subject_default() {
-        use molangx::compile::{CompileOptions, compile};
-        use molangx::vm::{NoHostEnv, Value};
+        use molang::compile::{CompileOptions, compile};
+        use molang::vm::{NoHostEnv, Value};
         let mut env = NoHostEnv::new();
         let mut non_zero = Vec::new();
-        let catalog = molangx::stdlib::queries(Side::Client);
+        let catalog = molang::stdlib::queries(Side::Client);
         for decl in catalog {
             let version = decl.shape().ranges.as_slice()[0].first().as_i16();
             let options = CompileOptions {
                 admission: QueryAdmission::Sets(QuerySetMask::BUILTIN),
                 ..CompileOptions::from_raw_version(
                     catalog.clone(),
-                    molangx::version::RawVersion(version),
+                    molang::version::RawVersion(version),
                 )
             };
             let compiled = compile(decl.name(), &options);
@@ -918,11 +916,11 @@ mod vm {
         // The empty-string hash is the hash 0.
         assert_eq!(
             find("query.owner_identifier"),
-            Some(Value::Hash(molangx::hash::HashedStr::EMPTY))
+            Some(Value::Hash(molang::hash::HashedStr::EMPTY))
         );
         assert_eq!(
             find("query.get_equipped_item_name"),
-            Some(Value::Hash(molangx::hash::HashedStr::EMPTY))
+            Some(Value::Hash(molang::hash::HashedStr::EMPTY))
         );
         assert_eq!(find("query.combine_entities"), Some(Value::actor_array([])));
     }
@@ -932,9 +930,9 @@ mod vm {
 mod cache {
     use std::sync::Arc;
 
-    use molangx::cache::CompileCache;
-    use molangx::compile::CompileOptions;
-    use molangx::version::MolangVersion;
+    use molang::cache::CompileCache;
+    use molang::compile::CompileOptions;
+    use molang::version::MolangVersion;
 
     /// A different version is a different entry.
     #[test]
@@ -948,7 +946,7 @@ mod cache {
         let other = cache.compile(
             "1 + 2",
             &CompileOptions {
-                raw_version: molangx::version::RawVersion(5),
+                raw_version: molang::version::RawVersion(5),
                 ..options
             },
         );
@@ -959,9 +957,9 @@ mod cache {
 
 /// The paths of the standard library.
 mod stdlib {
-    use molangx::catalog::{QueryCatalog, Side};
-    use molangx::stdlib::{self, MATH_META, MathFn, MathMeta, query};
-    use molangx::version::semver::Version;
+    use molang::catalog::{QueryCatalog, Side};
+    use molang::stdlib::{self, MATH_META, MathFn, MathMeta, query};
+    use molang::version::semver::Version;
 
     #[test]
     fn the_standard_library_paths() {
@@ -977,8 +975,8 @@ mod stdlib {
     #[cfg(feature = "compiler")]
     #[test]
     fn the_math_library_paths() {
-        use molangx::numeric::PostOp;
-        use molangx::stdlib::math::{self, DieRoll, PI};
+        use molang::numeric::PostOp;
+        use molang::stdlib::math::{self, DieRoll, PI};
         assert_eq!(math::sin(90.0, PostOp::IDENTITY), 1.0);
         assert_eq!(math::ease_in_quad(0.0, 10.0, 0.5, PostOp::IDENTITY), 2.5);
         assert_eq!(math::pi(PostOp::IDENTITY), PI);
@@ -989,14 +987,14 @@ mod stdlib {
 
 #[cfg(all(feature = "vm", feature = "stdlib"))]
 mod rng {
-    use molangx::compile::{CompileOptions, compile};
-    use molangx::rng::{
+    use molang::compile::{CompileOptions, compile};
+    use molang::rng::{
         FixedRng, Xorshift128,
         rand_core::{Infallible, Rng, SeedableRng, TryRng},
         sample,
     };
-    use molangx::version::MolangVersion;
-    use molangx::vm::{HostEnv, NoHost, NoHostEnv, Subjects};
+    use molang::version::MolangVersion;
+    use molang::vm::{HostEnv, NoHost, NoHostEnv, Subjects};
 
     /// A host's own generator, written against the re-exported `rand_core`: each sample is one
     /// `next_u32`.
@@ -1066,7 +1064,7 @@ mod rng {
 
 #[cfg(feature = "facet")]
 mod facet {
-    use molangx::json::{MolangSource, MolangValueRepr};
+    use molang::json::{MolangSource, MolangValueRepr};
 
     #[test]
     fn facet_json_smoke() {
@@ -1085,7 +1083,7 @@ mod facet {
 
 mod version_thresholds {
     use super::{ev, ev_pre};
-    use molangx::version::{EngineVersion, MolangVersion, VERSION_THRESHOLDS};
+    use molang::version::{EngineVersion, MolangVersion, VERSION_THRESHOLDS};
 
     fn map(major: u64, minor: u64, patch: u64) -> i16 {
         MolangVersion::from(&ev(major, minor, patch)).as_i16()
@@ -1347,19 +1345,19 @@ mod version_thresholds {
     #[test]
     fn effective_clamps_the_raw_value() {
         for raw in -1..=13 {
-            assert_eq!(molangx::version::RawVersion(raw).effective().as_i16(), raw);
+            assert_eq!(molang::version::RawVersion(raw).effective().as_i16(), raw);
         }
         // Above 13 passes every gate as 13 does.
         for raw in [14, 15, 100, i16::MAX] {
             assert_eq!(
-                molangx::version::RawVersion(raw).effective(),
+                molang::version::RawVersion(raw).effective(),
                 MolangVersion::LATEST
             );
         }
         // Below −1 behaves as −1.
         for raw in [-2, -100, i16::MIN] {
             assert_eq!(
-                molangx::version::RawVersion(raw).effective(),
+                molang::version::RawVersion(raw).effective(),
                 MolangVersion::Invalid
             );
         }
@@ -1409,7 +1407,7 @@ mod version_thresholds {
 
 mod engine_version {
     use super::{ev, ev_pre, parse};
-    use molangx::version::{EngineVersion, MolangVersion};
+    use molang::version::{EngineVersion, MolangVersion};
 
     fn molang(text: &str) -> i16 {
         parse(text)
@@ -1551,7 +1549,7 @@ mod engine_version {
 mod fnv_hash {
     //! `HashedStr`: 64-bit FNV-1 with the empty string hashing to 0.
 
-    use molangx::hash::{HashedStr, fnv1_64};
+    use molang::hash::{HashedStr, fnv1_64};
 
     /// The 64-bit FNV offset basis.
     const OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
@@ -1635,18 +1633,18 @@ mod catalog_and_tables {
 
     use std::collections::{BTreeMap, BTreeSet};
 
-    use molangx::catalog::{
+    use molang::catalog::{
         Arity, DefaultReturn, ParseQuerySetError, QueryAdmission, QueryCatalog, QueryDecl,
         QuerySetMask, QuerySide, Reads, ReturnType, Side,
     };
-    use molangx::ops::{ExpressionOp, OpFlags, OpSet};
-    use molangx::stdlib::{MATH_META, MathFn, query};
-    use molangx::version::{Experiment, ExperimentMask, semver::Version};
+    use molang::ops::{ExpressionOp, OpFlags, OpSet};
+    use molang::stdlib::{MATH_META, MathFn, query};
+    use molang::version::{Experiment, ExperimentMask, semver::Version};
 
-    use molangx::version::MolangVersion;
+    use molang::version::MolangVersion;
 
     fn catalog() -> &'static QueryCatalog {
-        molangx::stdlib::queries(Side::Client)
+        molang::stdlib::queries(Side::Client)
     }
 
     /// Every version, `Invalid` included.
@@ -1667,7 +1665,7 @@ mod catalog_and_tables {
     /// Resolution with every set admitted and every experiment enabled: only the version decides.
     fn impl_at(name: &str, v: MolangVersion) -> Option<u8> {
         get(name).resolve(
-            molangx::version::RawVersion(v.as_i16()),
+            molang::version::RawVersion(v.as_i16()),
             &every_set(),
             ExperimentMask::all(),
         )
@@ -1740,7 +1738,7 @@ mod catalog_and_tables {
     #[test]
     fn counts_and_names() {
         assert_eq!(catalog().len(), 315 + 4);
-        assert_eq!(molangx::stdlib::queries(Side::Server).len(), 319);
+        assert_eq!(molang::stdlib::queries(Side::Server).len(), 319);
         assert_eq!(baseline().count(), 315);
         for decl in catalog() {
             assert_eq!(catalog().get(decl.name()), Some(decl));
@@ -1963,17 +1961,17 @@ mod catalog_and_tables {
         let all = ExperimentMask::all();
         for raw in [-1, 14, 15, 1000, i16::MAX, -2, -100, i16::MIN] {
             for decl in catalog() {
-                let listed = molangx::catalog::QueryAllowList::new(catalog(), [decl.name()])
+                let listed = molang::catalog::QueryAllowList::new(catalog(), [decl.name()])
                     .expect("declared");
                 assert_eq!(
-                    decl.resolve(molangx::version::RawVersion(raw), &every_set(), all),
+                    decl.resolve(molang::version::RawVersion(raw), &every_set(), all),
                     None,
                     "{} at {raw}",
                     decl.name()
                 );
                 assert_eq!(
                     decl.resolve(
-                        molangx::version::RawVersion(raw),
+                        molang::version::RawVersion(raw),
                         &QueryAdmission::Only(listed),
                         all
                     ),
@@ -1986,7 +1984,7 @@ mod catalog_and_tables {
                         .ranges
                         .as_slice()
                         .iter()
-                        .all(|r| !r.contains_raw(molangx::version::RawVersion(raw))),
+                        .all(|r| !r.contains_raw(molang::version::RawVersion(raw))),
                     "{} at {raw}",
                     decl.name()
                 );
@@ -1994,12 +1992,12 @@ mod catalog_and_tables {
         }
         // The gates see 14 and 32767 as 13; the window does not.
         assert_eq!(
-            molangx::version::RawVersion(14).effective(),
+            molang::version::RawVersion(14).effective(),
             MolangVersion::LATEST
         );
         assert_eq!(
             get(query::IS_CARRYING_BLOCK).resolve(
-                molangx::version::RawVersion(13),
+                molang::version::RawVersion(13),
                 &every_set(),
                 all
             ),
@@ -2007,20 +2005,20 @@ mod catalog_and_tables {
         );
         assert_eq!(
             get(query::IS_CARRYING_BLOCK).resolve(
-                molangx::version::RawVersion(12),
+                molang::version::RawVersion(12),
                 &every_set(),
                 all
             ),
             Some(0)
         );
         // A source carries the raw value next to the effective one.
-        let src = molangx::json::MolangSource::object("q.is_baby", 14);
+        let src = molang::json::MolangSource::object("q.is_baby", 14);
         let raw = src
             .raw_version()
             .expect("an object form has its own version");
         assert_eq!(
             (raw, src.effective_version()),
-            (molangx::version::RawVersion(14), MolangVersion::LATEST)
+            (molang::version::RawVersion(14), MolangVersion::LATEST)
         );
         assert_eq!(get(query::IS_BABY).resolve(raw, &every_set(), all), None);
     }
@@ -2031,7 +2029,7 @@ mod catalog_and_tables {
         let at = |name: &str, sets| {
             get(name)
                 .resolve(
-                    molangx::version::RawVersion(13),
+                    molang::version::RawVersion(13),
                     &QueryAdmission::Sets(sets),
                     none,
                 )
@@ -2063,7 +2061,7 @@ mod catalog_and_tables {
         for decl in catalog() {
             assert_eq!(
                 decl.resolve(
-                    molangx::version::RawVersion(13),
+                    molang::version::RawVersion(13),
                     &QueryAdmission::Sets(QuerySetMask::empty()),
                     ExperimentMask::all()
                 ),
@@ -2078,10 +2076,10 @@ mod catalog_and_tables {
     fn a_list_replaces_the_sets() {
         let none = ExperimentMask::empty();
         let at = |name: &str, raw: i16, list: &[&str]| {
-            let list = molangx::catalog::QueryAllowList::new(catalog(), list).expect("declared");
+            let list = molang::catalog::QueryAllowList::new(catalog(), list).expect("declared");
             get(name)
                 .resolve(
-                    molangx::version::RawVersion(raw),
+                    molang::version::RawVersion(raw),
                     &QueryAdmission::Only(list),
                     none,
                 )
@@ -2172,8 +2170,8 @@ mod catalog_and_tables {
     #[cfg(feature = "compiler")]
     #[test]
     fn the_catalogue_as_of_a_release() {
-        use molangx::compile::{CompileFailure, CompileOptions, compile};
-        let bds = molangx::stdlib::queries_at(Side::Server, &Version::new(1, 26, 36));
+        use molang::compile::{CompileFailure, CompileOptions, compile};
+        let bds = molang::stdlib::queries_at(Side::Server, &Version::new(1, 26, 36));
         let missing: Vec<&str> = catalog()
             .iter()
             .map(QueryDecl::name)
@@ -2199,15 +2197,15 @@ mod catalog_and_tables {
         );
         // The bound is inclusive; an earlier client has none of the later queries.
         assert!(
-            molangx::stdlib::queries_at(Side::Client, &Version::new(1, 26, 30))
+            molang::stdlib::queries_at(Side::Client, &Version::new(1, 26, 30))
                 .contains(query::FUSE_TIME)
         );
         assert!(
-            !molangx::stdlib::queries_at(Side::Client, &Version::new(1, 26, 29))
+            !molang::stdlib::queries_at(Side::Client, &Version::new(1, 26, 29))
                 .contains(query::FUSE_TIME)
         );
         assert_eq!(
-            molangx::stdlib::queries_at(Side::Client, &Version::new(1, 26, 0)).len(),
+            molang::stdlib::queries_at(Side::Client, &Version::new(1, 26, 0)).len(),
             315
         );
         assert!(Version::new(1, 26, 9) < Version::new(1, 26, 30));
@@ -2583,12 +2581,12 @@ mod catalog_and_tables {
 }
 
 mod api_surface {
-    use molangx::catalog::{
+    use molang::catalog::{
         Arity, DefaultReturn, QueryCatalog, QueryDecl, QuerySetMask, QueryShape, QuerySide, Reads,
         ReturnType, Side, VersionRange,
     };
 
-    use molangx::version::{EngineVersion, MolangVersion};
+    use molang::version::{EngineVersion, MolangVersion};
 
     #[test]
     fn molang_version_enum() {
@@ -2630,15 +2628,15 @@ mod api_surface {
         assert_eq!(MolangVersion::from_i16(14), None);
         assert_eq!(MolangVersion::from_i16(-2), None);
         assert_eq!(
-            molangx::version::RawVersion(14).effective(),
+            molang::version::RawVersion(14).effective(),
             MolangVersion::LATEST
         );
         assert_eq!(
-            molangx::version::RawVersion(-9).effective(),
+            molang::version::RawVersion(-9).effective(),
             MolangVersion::Invalid
         );
         assert_eq!(
-            molangx::version::RawVersion(5).effective(),
+            molang::version::RawVersion(5).effective(),
             MolangVersion::V5
         );
     }
@@ -2663,7 +2661,7 @@ mod api_surface {
 
     #[test]
     fn query_decl_fields() {
-        let decl: &QueryDecl = molangx::stdlib::queries(Side::Client)
+        let decl: &QueryDecl = molang::stdlib::queries(Side::Client)
             .get("query.item_remaining_use_duration")
             .expect("a query");
         let name: &str = decl.name();
@@ -2688,7 +2686,7 @@ mod api_surface {
                 (2, 13, QuerySetMask::DEFAULT)
             ]
         );
-        assert!(decl.shape().experiments == molangx::version::ExperimentMask::empty());
+        assert!(decl.shape().experiments == molang::version::ExperimentMask::empty());
         assert!(reads.contains(Reads::ACTOR));
         assert_eq!(side, QuerySide::BOTH);
         assert_eq!(default, DefaultReturn::Float0);
@@ -2703,14 +2701,14 @@ mod api_surface {
     fn a_host_declares_queries_from_a_shape() {
         use std::ops::RangeInclusive;
 
-        use molangx::catalog::{CatalogError, DeclError, EmptyArity, VersionRanges};
+        use molang::catalog::{CatalogError, DeclError, EmptyArity, VersionRanges};
         let shape = QueryShape {
             args: Arity::between(0, 2),
             returns: ReturnType::BOOL,
             reads: Reads::ACTOR,
             ..QueryShape::DEFAULT
         };
-        let catalog = molangx::stdlib::queries(Side::Client)
+        let catalog = molang::stdlib::queries(Side::Client)
             .extended([QueryDecl::new("query.my_thing", shape.clone()).expect("well-formed")])
             .expect("a new name");
         let decl = catalog.get("query.my_thing").expect("declared");
@@ -2798,8 +2796,8 @@ mod api_surface {
     /// `difference`, `remove`, `&`, `&=`, `-` and `-=`.
     #[test]
     fn the_mask_types_share_one_vocabulary() {
-        use molangx::ops::{ExpressionOp, OpFlags, OpSet};
-        use molangx::version::{Experiment, ExperimentMask};
+        use molang::ops::{ExpressionOp, OpFlags, OpSet};
+        use molang::version::{Experiment, ExperimentMask};
         macro_rules! never_empty {
             ($t:ty, $a:expr, $b:expr) => {{
                 let (a, b): ($t, $t) = ($a, $b);
@@ -2856,9 +2854,9 @@ mod api_surface {
         mask!(Reads, Reads::ACTOR, Reads::ITEM);
         #[cfg(feature = "compiler")]
         mask!(
-            molangx::compile::ProgramFlags,
-            molangx::compile::ProgramFlags::FLOAT_ONLY,
-            molangx::compile::ProgramFlags::CONSTANT
+            molang::compile::ProgramFlags,
+            molang::compile::ProgramFlags::FLOAT_ONLY,
+            molang::compile::ProgramFlags::CONSTANT
         );
         never_empty!(ReturnType, ReturnType::FLOAT, ReturnType::STRING);
         assert!(
@@ -2885,23 +2883,23 @@ mod api_surface {
 
 #[cfg(feature = "compiler")]
 mod api_compiler {
-    use molangx::diag::DiagCode;
+    use molang::diag::DiagCode;
 
     /// The limits live with the code that enforces them.
     #[test]
     fn the_limit_paths() {
-        assert_eq!(molangx::compile::MAX_DEPTH, 255);
-        assert_eq!(molangx::compile::MAX_SOURCE_LEN, 65_536);
-        assert_eq!(molangx::compile::MAX_DIAGNOSTICS, 256);
+        assert_eq!(molang::compile::MAX_DEPTH, 255);
+        assert_eq!(molang::compile::MAX_SOURCE_LEN, 65_536);
+        assert_eq!(molang::compile::MAX_DIAGNOSTICS, 256);
         #[cfg(feature = "vm")]
-        assert_eq!(molangx::vm::EvalLimits::DEFAULT_LOOP_ITERATIONS, 1_024);
+        assert_eq!(molang::vm::EvalLimits::DEFAULT_LOOP_ITERATIONS, 1_024);
     }
 
     /// The float behaviour is the build's: `ARCH` names it, `arith` holds its primitives, and the
     /// scalar functions take no behaviour argument.
     #[test]
     fn the_numeric_paths() {
-        use molangx::numeric::{self, ARCH, Arch, PostOp, arith};
+        use molang::numeric::{self, ARCH, Arch, PostOp, arith};
         let arch: Arch = ARCH;
         assert_eq!(
             arch,
@@ -2961,7 +2959,7 @@ mod api_compiler {
             codes.iter().map(|c| format!("{c:?}")).collect();
         assert_eq!(distinct.len(), 13);
         // Every language message maps to one of them.
-        for message in molangx::diag::LanguageMessage::ALL {
+        for message in molang::diag::LanguageMessage::ALL {
             assert!(codes.contains(&message.code()), "{message:?}");
         }
     }
@@ -2973,7 +2971,7 @@ mod api_vm {
 
     use std::fmt::Debug;
 
-    use molangx::vm::{Host, HostAccess, NoHost, Subjects, Value, ValueKind};
+    use molang::vm::{Host, HostAccess, NoHost, Subjects, Value, ValueKind};
 
     #[test]
     fn value_arms() {
@@ -3038,13 +3036,13 @@ mod api_vm {
 }
 
 mod registry_conformance {
-    use molangx::catalog::{
+    use molang::catalog::{
         Arity, DefaultReturn, QueryDecl, QuerySetMask, QuerySide, Reads, ReturnType, Side,
     };
-    use molangx::stdlib::query;
+    use molang::stdlib::query;
 
     fn get(name: &str) -> &'static QueryDecl {
-        molangx::stdlib::queries(Side::Client).get(name).unwrap()
+        molang::stdlib::queries(Side::Client).get(name).unwrap()
     }
 
     #[test]
@@ -3067,7 +3065,7 @@ mod registry_conformance {
                 (8, 13, QuerySetMask::DEFAULT)
             ]
         );
-        assert!(decl.shape().experiments == molangx::version::ExperimentMask::empty());
+        assert!(decl.shape().experiments == molang::version::ExperimentMask::empty());
         assert!(decl.shape().reads.contains(Reads::ACTOR));
         assert_eq!(decl.shape().default_return, DefaultReturn::Float0);
         assert_eq!(decl.shape().side, QuerySide::BOTH);
@@ -3075,7 +3073,7 @@ mod registry_conformance {
             get(query::CLIENT_MEMORY_TIER).shape().side,
             QuerySide::CLIENT
         );
-        for decl in molangx::stdlib::queries(Side::Client) {
+        for decl in molang::stdlib::queries(Side::Client) {
             assert!(decl.name().starts_with("query."), "{}", decl.name());
             assert!(
                 !decl.shape().ranges.as_slice().is_empty(),
@@ -3099,7 +3097,7 @@ mod registry_conformance {
 
     #[test]
     fn the_catalogue_has_no_short_names() {
-        let catalog = molangx::stdlib::queries(Side::Client);
+        let catalog = molang::stdlib::queries(Side::Client);
         assert!(catalog.get("q.is_baby").is_none());
         assert!(catalog.iter().all(|decl| !decl.name().starts_with("q.")));
         assert_eq!(
@@ -3110,7 +3108,7 @@ mod registry_conformance {
 }
 
 mod opset_conformance {
-    use molangx::ops::ExpressionOp;
+    use molang::ops::ExpressionOp;
 
     #[test]
     fn resource_variable_ops() {

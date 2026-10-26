@@ -84,11 +84,11 @@ impl UnknownQuery {
 /// # {
 /// use std::collections::HashMap;
 ///
-/// use molangx::catalog::Side;
-/// use molangx::compile::{CompileOptions, compile};
-/// use molangx::stdlib::{self, query};
-/// use molangx::version::MolangVersion;
-/// use molangx::vm::{Host, HostAccess, HostEnv, QueryCx, QueryResult, QueryTable, Subjects, Value};
+/// use molang::catalog::Side;
+/// use molang::compile::{CompileOptions, compile};
+/// use molang::stdlib::{self, query};
+/// use molang::version::MolangVersion;
+/// use molang::vm::{Host, HostAccess, HostEnv, QueryCx, QueryResult, QueryTable, Subjects, Value};
 ///
 /// struct Game;
 /// impl Host for Game {
@@ -132,7 +132,7 @@ impl UnknownQuery {
 /// let mut view = WorldView(&world);
 /// assert_eq!(expr.eval_f32(&mut env.cx(&mut view, Subjects::actor(7))), 5.0);
 /// # }
-/// # Ok::<(), molangx::vm::UnknownQuery>(())
+/// # Ok::<(), molang::vm::UnknownQuery>(())
 /// ```
 pub struct QueryTable<H: Host> {
     catalog: QueryCatalog,

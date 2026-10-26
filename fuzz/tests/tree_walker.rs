@@ -16,12 +16,12 @@ mod differential {
         differential::{Tally, differential},
         host::{Actor, Env, LIVE_ACTOR, SECOND_ACTOR},
     };
-    use molangx::compile::{CompileOptions, compile};
-    use molangx::rng::Xorshift128;
-    use molangx::version::MolangVersion;
-    use molangx::vm::{ContextName, EvalLimits, Value, VariableName};
-    use molangx_fuzz::generator::env::FuzzRng;
-    use molangx_fuzz::tree_walker;
+    use molang::compile::{CompileOptions, compile};
+    use molang::rng::Xorshift128;
+    use molang::version::MolangVersion;
+    use molang::vm::{ContextName, EvalLimits, Value, VariableName};
+    use molang_fuzz::generator::env::FuzzRng;
+    use molang_fuzz::tree_walker;
 
     /// Every corpus pair, compiled for the client and evaluated with stub queries and a persistent
     /// temp map.
@@ -81,7 +81,7 @@ mod differential {
         .cloned()
         .expect("compiles");
         assert!(!tree_walker::models(&stale));
-        let mut env = molangx::vm::NoHostEnv::new();
+        let mut env = molang::vm::NoHostEnv::new();
         assert_eq!(stale.eval(&mut env.cx()), Value::ZERO);
         // The missing `v.never` jumped to the outer handler: `v.a = 2` ran after the loop.
         assert_eq!(
@@ -156,15 +156,15 @@ mod float_loop {
     //! hands a non-float query result over to the general loop. Either way the value, variables,
     //! messages and step accounting match the tree walker.
 
-    use molangx::catalog::Side;
-    use molangx::compile::{CompileOptions, ProgramFlags, compile};
-    use molangx::hash::HashedStr;
-    use molangx::stdlib::query;
-    use molangx::version::MolangVersion;
-    use molangx::vm::{
+    use molang::catalog::Side;
+    use molang::compile::{CompileOptions, ProgramFlags, compile};
+    use molang::hash::HashedStr;
+    use molang::stdlib::query;
+    use molang::version::MolangVersion;
+    use molang::vm::{
         EvalLimits, NoHost, NoHostEnv, QueryCx, QueryError, QueryTable, Value, VariableName,
     };
-    use molangx_fuzz::tree_walker;
+    use molang_fuzz::tree_walker;
 
     /// A string, which the float loop cannot hold.
     #[allow(
@@ -189,7 +189,7 @@ mod float_loop {
     }
 
     fn env(limits: EvalLimits) -> NoHostEnv {
-        let mut queries = QueryTable::new(molangx::stdlib::queries(Side::Server));
+        let mut queries = QueryTable::new(molang::stdlib::queries(Side::Server));
         queries.set(query::ANGER_LEVEL, hash_query).unwrap();
         queries.set(query::HEALTH, float_query).unwrap();
         queries.set(query::LIFE_TIME, failing_query).unwrap();
@@ -280,9 +280,9 @@ mod float_loop {
 }
 
 mod modelled_jumps {
-    use molangx::compile::{CompileOptions, compile};
-    use molangx::version::MolangVersion;
-    use molangx_fuzz::tree_walker;
+    use molang::compile::{CompileOptions, compile};
+    use molang::version::MolangVersion;
+    use molang_fuzz::tree_walker;
 
     /// A `break` / `continue` taken inside an operand ends the loop early, and inside an inner loop
     /// makes the enclosing loop run past its count; the VM gets that from its operand stack, which
@@ -322,10 +322,10 @@ mod modelled_jumps {
 }
 
 mod public_api {
-    use molangx::compile::{CompileOptions, compile};
-    use molangx::version::MolangVersion;
-    use molangx::vm::NoHostEnv;
-    use molangx_fuzz::tree_walker;
+    use molang::compile::{CompileOptions, compile};
+    use molang::version::MolangVersion;
+    use molang::vm::NoHostEnv;
+    use molang_fuzz::tree_walker;
 
     #[test]
     fn tree_walker_smoke() {

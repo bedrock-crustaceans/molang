@@ -12,8 +12,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use molangx::json::{MolangValueRepr, ReadField, SourceForm};
-use molangx_fuzz::generator::{READERS, ReprCase, normalised_bits};
+use molang::json::{MolangValueRepr, ReadField, SourceForm};
+use molang_fuzz::generator::{READERS, ReprCase, normalised_bits};
 
 fn same(a: &MolangValueRepr, b: &MolangValueRepr) -> bool {
     match (a, b) {

@@ -4,7 +4,7 @@
 
 mod common;
 
-use molangx::catalog::{QuerySetMask, Side};
+use molang::catalog::{QuerySetMask, Side};
 use proptest::prelude::*;
 
 /// `PROPTEST_CASES` cases, else `default_cases`. No failure file: an integration test has no
@@ -23,7 +23,7 @@ fn config(default_cases: u32) -> ProptestConfig {
 
 /// An index into the client's queries.
 fn query() -> impl Strategy<Value = usize> {
-    0..molangx::stdlib::queries(Side::Client).len()
+    0..molang::stdlib::queries(Side::Client).len()
 }
 
 fn raw_version() -> impl Strategy<Value = i16> {
@@ -48,10 +48,10 @@ mod division_guard {
     //! every version.
 
     use crate::common::{compile_support::compile_expr, nan_or_same_bits};
-    use molangx::compile::CompileOptions;
-    use molangx::numeric::{self, PostOp};
-    use molangx::version::{MolangVersion, RawVersion};
-    use molangx::vm::{NoHostEnv, Value, VariableName};
+    use molang::compile::CompileOptions;
+    use molang::numeric::{self, PostOp};
+    use molang::version::{MolangVersion, RawVersion};
+    use molang::vm::{NoHostEnv, Value, VariableName};
     use proptest::prelude::*;
 
     /// Floats with the guard's edges, signed zeros, NaN and infinities well represented.
@@ -196,11 +196,11 @@ mod folding {
     //! `PROPTEST_RNG_SEED` (printed at the start) and `PROPTEST_CASES` replay a failure.
 
     use crate::common::per_arch;
-    use molangx::compile::{CompileOptions, compile};
-    use molangx::numeric::{self, ARCH, Arch, PostOp, arith};
-    use molangx::stdlib::MATH_META;
-    use molangx::version::MolangVersion;
-    use molangx::vm::{NoHostEnv, Value, VariableName};
+    use molang::compile::{CompileOptions, compile};
+    use molang::numeric::{self, ARCH, Arch, PostOp, arith};
+    use molang::stdlib::MATH_META;
+    use molang::version::MolangVersion;
+    use molang::vm::{NoHostEnv, Value, VariableName};
     use proptest::prelude::*;
 
     #[derive(Clone, Debug)]
@@ -902,9 +902,9 @@ mod query_ranges {
     //! The compiler resolves `query.<name>` exactly when the declaration's `resolve` does.
 
     use super::{config, query, raw_version, sets};
-    use molangx::catalog::{QueryAdmission, Side};
-    use molangx::compile::{CompileOptions, compile};
-    use molangx::version::{ExperimentMask, RawVersion};
+    use molang::catalog::{QueryAdmission, Side};
+    use molang::compile::{CompileOptions, compile};
+    use molang::version::{ExperimentMask, RawVersion};
     use proptest::prelude::*;
 
     proptest! {
@@ -913,7 +913,7 @@ mod query_ranges {
         /// Client side, so that no name is withheld for the server.
         #[test]
         fn the_compiler_resolves_exactly_when_resolve_does(index in query(), raw in raw_version(), sets in sets()) {
-            let catalog = molangx::stdlib::queries(Side::Client);
+            let catalog = molang::stdlib::queries(Side::Client);
             let decl = catalog.iter().nth(index).expect("a declaration");
             let options = CompileOptions { admission: QueryAdmission::Sets(sets), ..CompileOptions::from_raw_version(catalog.clone(), RawVersion(raw)) };
             let resolves = decl.resolve(RawVersion(raw), &QueryAdmission::Sets(sets), ExperimentMask::empty()).is_some();
@@ -927,16 +927,16 @@ mod resolution_ranges {
     //! The catalogue's version ranges: each implementation serves one contiguous range, and the raw
     //! and `MolangVersion` paths agree.
 
-    use molangx::catalog::{QueryAdmission, QueryAllowList, QueryCatalog, QuerySetMask, Side};
-    use molangx::version::{Experiment, ExperimentMask, RawVersion};
+    use molang::catalog::{QueryAdmission, QueryAllowList, QueryCatalog, QuerySetMask, Side};
+    use molang::version::{Experiment, ExperimentMask, RawVersion};
 
-    use molangx::version::MolangVersion;
+    use molang::version::MolangVersion;
 
     use super::{config, query, raw_version, sets};
     use proptest::prelude::*;
 
     fn catalog() -> &'static QueryCatalog {
-        molangx::stdlib::queries(Side::Client)
+        molang::stdlib::queries(Side::Client)
     }
 
     /// Exhaustive over `i16`.

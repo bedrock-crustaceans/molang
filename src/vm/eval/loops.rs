@@ -314,7 +314,7 @@ mod tests {
         assert_eq!(run(escaping), (NV::Float(escaped), vec![]));
         // Without an escape the loop guard ends it on `X86_64`.
         let guard = if guarded > 0.0 {
-            vec!["molangx: loop stopped after its budget of 1024 iterations".to_owned()]
+            vec!["molang: loop stopped after its budget of 1024 iterations".to_owned()]
         } else {
             vec![]
         };
@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn the_re_check_of_a_nan_counter_follows_the_architectures_less_equal() {
         let src = "v.k = math.sqrt(-1); v.n = 0; loop(5, { v.n = v.n + 1; v.t = v.k * (v.n > 0 ? {continue;} : 0); }); return v.n;";
-        let budget = vec!["molangx: loop stopped after its budget of 1024 iterations".to_owned()];
+        let budget = vec!["molang: loop stopped after its budget of 1024 iterations".to_owned()];
         let expected = per_arch((NV::Float(1024.0), budget), (NV::Float(1.0), vec![]));
         let expr = compile(src, &CompileOptions::server(MolangVersion::LATEST))
             .expr()
@@ -419,7 +419,7 @@ mod tests {
         assert_eq!(r.value, NV::Float(1024.0));
         assert_eq!(
             r.msgs,
-            ["molangx: loop stopped after its budget of 1024 iterations"]
+            ["molang: loop stopped after its budget of 1024 iterations"]
         );
     }
 
@@ -437,7 +437,7 @@ mod tests {
         assert_eq!(past.value, NV::Float(4.0));
         assert_eq!(
             past.msgs,
-            ["molangx: loop stopped after its budget of 4 iterations"]
+            ["molang: loop stopped after its budget of 4 iterations"]
         );
         // The first iteration is always allowed.
         let r = ran(COUNT_LOOP, |env| {
@@ -447,7 +447,7 @@ mod tests {
         assert_eq!(r.value, NV::Float(1.0));
         assert_eq!(
             r.msgs,
-            ["molangx: loop stopped after its budget of 1 iterations"]
+            ["molang: loop stopped after its budget of 1 iterations"]
         );
     }
 
@@ -460,7 +460,7 @@ mod tests {
         assert_eq!(r.value, NV::Float(1.0));
         assert_eq!(
             r.msgs,
-            ["molangx: loop stopped after its budget of 0 iterations"]
+            ["molang: loop stopped after its budget of 0 iterations"]
         );
     }
 
@@ -486,7 +486,7 @@ mod tests {
         assert_eq!(r.value, NV::Float(6.0));
         assert_eq!(
             r.msgs,
-            ["molangx: loop stopped after its budget of 3 iterations"]
+            ["molang: loop stopped after its budget of 3 iterations"]
         );
         // Nested: the inner loop is left on every pass of the outer one.
         let r = ran(
@@ -499,7 +499,7 @@ mod tests {
         assert_eq!(r.value, NV::Float(6.0));
         assert_eq!(
             r.msgs,
-            ["molangx: loop stopped after its budget of 3 iterations"]
+            ["molang: loop stopped after its budget of 3 iterations"]
         );
         // Another evaluation logs it again.
         let expr = compile_ok("loop(10, { v.n = v.n + 1; });");
@@ -676,7 +676,7 @@ mod tests {
         assert_eq!(vm.stack[0], NV::Float(2.0));
         assert_eq!(
             env.sink.take(),
-            ["molangx: loop stopped after its budget of 5 iterations"]
+            ["molang: loop stopped after its budget of 5 iterations"]
         );
     }
 
@@ -706,7 +706,7 @@ mod tests {
         assert_eq!(
             env.sink.take(),
             [
-                "molangx: evaluation stopped: operands left behind by break / continue passed the cap of 65536"
+                "molang: evaluation stopped: operands left behind by break / continue passed the cap of 65536"
             ]
         );
         // Under the default guard the inner loop is left after 1024 passes instead.
@@ -714,7 +714,7 @@ mod tests {
         assert_eq!(expr.eval_f32(&mut env.cx()), 1.0);
         assert_eq!(
             env.sink.take(),
-            ["molangx: loop stopped after its budget of 1024 iterations"]
+            ["molang: loop stopped after its budget of 1024 iterations"]
         );
     }
 
@@ -747,7 +747,7 @@ mod tests {
         assert_eq!(
             env.sink.take(),
             [
-                "molangx: evaluation stopped: operands left behind by break / continue passed the cap of 65536"
+                "molang: evaluation stopped: operands left behind by break / continue passed the cap of 65536"
             ]
         );
     }
@@ -777,7 +777,7 @@ mod tests {
         assert_eq!(
             env.sink.take(),
             [
-                "molangx: evaluation stopped: operands left behind by break / continue passed the cap of 65536"
+                "molang: evaluation stopped: operands left behind by break / continue passed the cap of 65536"
             ]
         );
     }
@@ -898,7 +898,7 @@ mod tests {
         assert_eq!(r.value, HV::Float(2.0));
         assert_eq!(
             r.msgs,
-            ["molangx: loop stopped after its budget of 2 iterations"]
+            ["molang: loop stopped after its budget of 2 iterations"]
         );
         // Skipped entries do not count as iterations.
         let r = each(COUNT_EACH, herd(&[100, 1, 101, 2]), |env| {
@@ -949,7 +949,7 @@ mod tests {
                 !env.sink
                     .take()
                     .iter()
-                    .any(|m| m.starts_with("molangx: evaluation stopped after"))
+                    .any(|m| m.starts_with("molang: evaluation stopped after"))
             };
             (1..2000).find(|&steps| completes(steps)).unwrap()
         };

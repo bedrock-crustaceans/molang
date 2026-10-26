@@ -2,7 +2,7 @@
 //! messages it logs, in order, and the tree the front end builds.
 //!
 //! ```text
-//! {schema: "molangx/parse_vectors/1",
+//! {schema: "molang/parse_vectors/1",
 //!  groups{<group>: {tree_float_digits: 6 | 9, about}},
 //!  vectors[{group, expr, version, result: "OK" | "FAIL", outcome: "ok" | "ok_with_log" | "error", tree | null,
 //!           messages[{text, error_id, level}], input_bytes_hex?, note?, tree_value_unchecked?,
@@ -27,11 +27,11 @@ mod common;
 use std::collections::BTreeMap;
 
 use common::compile_support::client_at;
-use molangx::catalog::{QueryAdmission, QuerySetMask};
-use molangx::compile::{CompileFailure, CompileOptions, Deviations, compile};
-use molangx::diag::{Effect, LanguageMessage, Severity};
-use molangx::numeric::{ARCH, Arch};
-use molangx::ops::ExpressionOp;
+use molang::catalog::{QueryAdmission, QuerySetMask};
+use molang::compile::{CompileFailure, CompileOptions, Deviations, compile};
+use molang::diag::{Effect, LanguageMessage, Severity};
+use molang::numeric::{ARCH, Arch};
+use molang::ops::ExpressionOp;
 use serde_json::Value;
 
 const FILE: &str = "parse_vectors.json";

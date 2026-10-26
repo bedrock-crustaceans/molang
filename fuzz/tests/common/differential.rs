@@ -7,10 +7,10 @@
 //! compared too.
 
 use crate::common::host::{Env, TestHost, World};
-use molangx::compile::{Compiled, Expr};
-use molangx::vm::{CollectSink, EvalLimits, Value};
-use molangx_fuzz::generator::env::{FuzzRng, same_entries, same_temps, same_value};
-use molangx_fuzz::tree_walker;
+use molang::compile::{Compiled, Expr};
+use molang::vm::{CollectSink, EvalLimits, Value};
+use molang_fuzz::generator::env::{FuzzRng, same_entries, same_temps, same_value};
+use molang_fuzz::tree_walker;
 
 pub const BUDGET_SWEEP: &[u64] = &[0, 1, 2, 3, 5, 8, 13, 21, 34, 55];
 

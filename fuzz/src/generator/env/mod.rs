@@ -11,11 +11,11 @@ pub use differential::{Verdict, differential};
 pub use table::queries;
 
 use arbitrary::{Arbitrary, Unstructured};
-use molangx::rng::{
+use molang::rng::{
     FixedRng, Xorshift128,
     rand_core::{Infallible, TryRng},
 };
-use molangx::vm::{
+use molang::vm::{
     CollectSink, ContextMap, ContextName, EvalCx, EvalLimits, Host, HostAccess, QueryTable,
     StructValue, Subjects, TempMap, Temps, Value, VariableMap, VariableName, VariableStore,
 };
@@ -333,8 +333,8 @@ impl FuzzEnv {
 #[cfg(test)]
 pub(crate) mod test_support {
     use crate::generator::env::{FuzzEnv, FuzzHost, FuzzRng, Subject, TempLifetime};
-    use molangx::rng::{FixedRng, Xorshift128};
-    use molangx::vm::{EvalLimits, Value, VariableName};
+    use molang::rng::{FixedRng, Xorshift128};
+    use molang::vm::{EvalLimits, Value, VariableName};
 
     /// Always the sample 0.25.
     pub(crate) const QUARTER: FixedRng = FixedRng(1 << 29);
@@ -383,9 +383,9 @@ pub(crate) mod test_support {
 mod tests {
     use super::*;
     use crate::generator::env::test_support::{var, *};
-    use molangx::hash::HashedStr;
-    use molangx::rng::sample;
-    use molangx::vm::{Access, ContextProvider};
+    use molang::hash::HashedStr;
+    use molang::rng::sample;
+    use molang::vm::{Access, ContextProvider};
 
     #[test]
     fn an_actor_number_is_the_same_for_a_handle_and_an_id() {
@@ -623,7 +623,7 @@ mod tests {
 
     #[test]
     fn every_method_of_the_source_draws_from_its_generator() {
-        use molangx::rng::rand_core::Rng;
+        use molang::rng::rand_core::Rng;
         let mut rng = FuzzRng::Xorshift(Xorshift128::new());
         let mut reference = Xorshift128::new();
         assert_eq!(rng.next_u64(), reference.next_u64());

@@ -7,11 +7,11 @@ use std::cell::Cell;
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
-use molangx::catalog::{
+use molang::catalog::{
     QueryCatalog, QueryDecl, QuerySetMask, QueryShape, ReturnType, Side, VersionRange,
     VersionRanges,
 };
-use molangx::version::{Experiment, ExperimentMask, MolangVersion};
+use molang::version::{Experiment, ExperimentMask, MolangVersion};
 
 #[cfg(feature = "compiler")]
 pub mod compile_support;
@@ -63,7 +63,7 @@ pub fn reference_catalog() -> &'static QueryCatalog {
             ("query.valid_mid", shape(ReturnType::FLOAT, 4, 8)),
             ("query.valid_late", shape(ReturnType::FLOAT, 4, 13)),
         ];
-        molangx::stdlib::queries(Side::Client)
+        molang::stdlib::queries(Side::Client)
             .extended(decls.map(|(name, shape)| QueryDecl::new(name, shape).unwrap()))
             .unwrap()
     });
@@ -119,7 +119,7 @@ impl Drop for CheckGuard {
 /// The word whose sample is `sample`.
 #[cfg(feature = "compiler")]
 pub fn word(sample: f32) -> u32 {
-    molangx::rng::FixedRng::from_sample(sample)
+    molang::rng::FixedRng::from_sample(sample)
         .unwrap_or_else(|| panic!("{sample} is no word's sample"))
         .0
 }
@@ -155,7 +155,7 @@ impl<'a> Samples<'a> {
 }
 
 #[cfg(feature = "compiler")]
-impl molangx::rng::rand_core::TryRng for Samples<'_> {
+impl molang::rng::rand_core::TryRng for Samples<'_> {
     type Error = std::convert::Infallible;
 
     fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
@@ -178,7 +178,7 @@ impl molangx::rng::rand_core::TryRng for Samples<'_> {
 #[cfg(feature = "vm")]
 pub fn eval_with_samples(source: &str, samples: &[f32]) -> (f32, usize) {
     let expr = compile_support::server_expr(source);
-    let mut env = molangx::vm::NoHostEnv::new();
+    let mut env = molang::vm::NoHostEnv::new();
     let mut rng = Samples::new(samples);
     let mut cx = env.cx();
     cx.rng = &mut rng;
@@ -193,7 +193,7 @@ pub fn data_path(name: &str) -> PathBuf {
         .join(name)
 }
 
-/// Panics unless the file's `schema` starts with `molangx/`.
+/// Panics unless the file's `schema` starts with `molang/`.
 pub fn data_json(name: &str) -> serde_json::Value {
     let path = data_path(name);
     let text = std::fs::read_to_string(&path)
@@ -204,7 +204,7 @@ pub fn data_json(name: &str) -> serde_json::Value {
         .as_str()
         .unwrap_or_else(|| panic!("{} has no schema", path.display()));
     assert!(
-        schema.starts_with("molangx/"),
+        schema.starts_with("molang/"),
         "{}: schema {schema:?}",
         path.display()
     );
@@ -229,9 +229,9 @@ pub fn latin1_to_utf8(text: &str) -> String {
 /// `x86_64` on an `X86_64` build, `arm64` on an `Arm64` one.
 #[cfg(feature = "compiler")]
 pub fn per_arch<T>(x86_64: T, arm64: T) -> T {
-    match molangx::numeric::ARCH {
-        molangx::numeric::Arch::X86_64 => x86_64,
-        molangx::numeric::Arch::Arm64 => arm64,
+    match molang::numeric::ARCH {
+        molang::numeric::Arch::X86_64 => x86_64,
+        molang::numeric::Arch::Arm64 => arm64,
     }
 }
 

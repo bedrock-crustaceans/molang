@@ -1,12 +1,12 @@
 [package]
-name = "molangx"
+name = "molang"
 description = "A pure-Rust compiler and bytecode VM for Molang, the expression language of Minecraft: Bedrock Edition content"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 # The minimum of the `facet` crates.
 rust-version = "1.92"
 repository = "https://github.com/bedrock-crustaceans/molangx"
-documentation = "https://docs.rs/molangx"
+documentation = "https://docs.rs/molang"
 license = "Apache-2.0"
 readme = "README.md"
 keywords = ["molang", "minecraft", "bedrock"]

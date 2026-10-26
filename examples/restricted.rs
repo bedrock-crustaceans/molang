@@ -3,11 +3,11 @@
 //!
 //! Run with `cargo run --example restricted --features compiler`.
 
-use molangx::catalog::{QueryAdmission, QueryAllowList, QuerySetMask};
-use molangx::compile::{CompileOptions, compile};
-use molangx::ops::OpSet;
-use molangx::stdlib::query;
-use molangx::version::MolangVersion;
+use molang::catalog::{QueryAdmission, QueryAllowList, QuerySetMask};
+use molang::compile::{CompileOptions, compile};
+use molang::ops::OpSet;
+use molang::stdlib::query;
+use molang::version::MolangVersion;
 
 fn check(source: &str, options: &CompileOptions) {
     let compiled = compile(source, options);

@@ -3,10 +3,10 @@
 
 use super::walker::{Slot, child, with_post};
 use super::{Eval, Scope, Unwind, Walker};
-use molangx::internals::{Node, arrow_target};
-use molangx::numeric;
-use molangx::ops::ExpressionOp as Op;
-use molangx::vm::{EvalCx, Host, RuntimeMsg, Value};
+use molang::internals::{Node, arrow_target};
+use molang::numeric;
+use molang::ops::ExpressionOp as Op;
+use molang::vm::{EvalCx, Host, RuntimeMsg, Value};
 
 /// `&&` or `||`.
 #[derive(Copy, Clone)]
@@ -315,8 +315,8 @@ mod tests {
 
     #[test]
     fn a_nan_loop_count_follows_the_architectures_less_equal() {
-        use molangx::compile::compile;
-        use molangx::numeric::{ARCH, Arch};
+        use molang::compile::compile;
+        use molang::numeric::{ARCH, Arch};
         let src =
             "v.n = 0; loop(math.sqrt(-1), { v.n = v.n + 1; v.n > 8 ? {break;} : 0; }); return v.n;";
         let expr = compile(src, &options(13))
@@ -397,7 +397,7 @@ mod tests {
         assert_eq!(run.f(), 8.0);
         assert_eq!(
             run.env.messages(),
-            ["molangx: loop stopped after its budget of 4 iterations"]
+            ["molang: loop stopped after its budget of 4 iterations"]
         );
         // A loop that ends within its budget says nothing.
         let run = both_on("v.n = 0; loop(4, { v.n = v.n + 1; }); return v.n;", &start);
@@ -444,7 +444,7 @@ mod tests {
         assert_eq!(run.f(), 1.0);
         assert_eq!(
             run.env.messages(),
-            ["molangx: loop stopped after its budget of 1 iterations"]
+            ["molang: loop stopped after its budget of 1 iterations"]
         );
     }
 
@@ -630,7 +630,7 @@ mod tests {
         assert_eq!(run.f(), 2.0 + 20.0 + 200.0);
         assert_eq!(
             run.env.messages(),
-            ["molangx: loop stopped after its budget of 2 iterations"]
+            ["molang: loop stopped after its budget of 2 iterations"]
         );
         // A for_each whose array ends exactly at the budget does not speak.
         let run = both_on(
@@ -659,7 +659,7 @@ mod tests {
         assert_eq!(run.f(), 1.0, "a zero budget still runs the first pass");
         assert_eq!(
             run.env.messages(),
-            ["molangx: loop stopped after its budget of 0 iterations"]
+            ["molang: loop stopped after its budget of 0 iterations"]
         );
     }
 }

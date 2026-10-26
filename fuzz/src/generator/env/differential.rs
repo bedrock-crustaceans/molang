@@ -4,8 +4,8 @@ use super::FuzzEnv;
 use super::compare::{same_value, state_difference};
 use crate::generator::FuzzCase;
 use crate::tree_walker;
-use molangx::compile::compile;
-use molangx::internals::reference_catalog;
+use molang::compile::compile;
+use molang::internals::reference_catalog;
 
 /// What [`differential`] concluded about one case (when the VM and the tree walker do not simply
 /// disagree, which is an `Err`).
@@ -132,13 +132,13 @@ mod tests {
         BinOp, Ex, Ns, Program, Stmt, Style, Var,
         env::{FuzzActor, FuzzRng, Subject, TempLifetime, test_support::*},
     };
-    use molangx::catalog::Side;
-    use molangx::compile::{CompileOptions, compile};
-    use molangx::numeric::{ARCH, Arch};
-    use molangx::rng::Xorshift128;
-    use molangx::rng::{FixedRng, sample};
-    use molangx::version::RawVersion;
-    use molangx::vm::{Access, EvalLimits, TempName, Value, VariableName};
+    use molang::catalog::Side;
+    use molang::compile::{CompileOptions, compile};
+    use molang::numeric::{ARCH, Arch};
+    use molang::rng::Xorshift128;
+    use molang::rng::{FixedRng, sample};
+    use molang::version::RawVersion;
+    use molang::vm::{Access, EvalLimits, TempName, Value, VariableName};
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -305,7 +305,7 @@ mod tests {
         let compiled = compile(
             &case.source(),
             &CompileOptions::from_raw_version(
-                molangx::stdlib::queries(Side::Client).clone(),
+                molang::stdlib::queries(Side::Client).clone(),
                 RawVersion(13),
             ),
         );
@@ -681,7 +681,7 @@ mod tests {
         assert_eq!(env.limits.total_steps, Some(12));
         assert_eq!(
             env.sink.messages,
-            ["molangx: evaluation stopped after its budget of 12 steps"]
+            ["molang: evaluation stopped after its budget of 12 steps"]
         );
         let (_, value, env) = observe(&case(program));
         assert_eq!(env.limits.total_steps, Some(5000));
@@ -715,7 +715,7 @@ mod tests {
         assert_eq!(env.limits.loop_iterations, Some(3));
         assert_eq!(
             env.sink.messages,
-            ["molangx: loop stopped after its budget of 3 iterations"]
+            ["molang: loop stopped after its budget of 3 iterations"]
         );
         let (_, value, env) = observe(&FuzzCase {
             loop_iterations: 64,
@@ -778,7 +778,7 @@ mod tests {
         assert_eq!(
             env.sink.messages,
             [
-                "molangx: evaluation stopped: query arguments would nest deeper than their budget of 1 levels"
+                "molang: evaluation stopped: query arguments would nest deeper than their budget of 1 levels"
             ]
         );
         let (_, value, env) = observe(&FuzzCase {

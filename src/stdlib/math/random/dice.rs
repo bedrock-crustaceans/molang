@@ -17,9 +17,9 @@ pub fn die_roll_count(n: f32) -> u32 {
 /// A `math.die_roll` / `math.die_roll_integer` in progress, for a caller that must bound the work:
 ///
 /// ```
-/// use molangx::numeric::PostOp;
-/// use molangx::rng::{Xorshift128, sample};
-/// use molangx::stdlib::math::DieRoll;
+/// use molang::numeric::PostOp;
+/// use molang::rng::{Xorshift128, sample};
+/// use molang::stdlib::math::DieRoll;
 ///
 /// let mut rng = Xorshift128::new();
 /// let mut roll = DieRoll::new(3.0, 1.0, 6.0);

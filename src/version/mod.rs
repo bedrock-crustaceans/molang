@@ -5,7 +5,7 @@
 //! the enabled experiments ([`ExperimentMask`]).
 //!
 //! ```
-//! use molangx::version::{EngineVersion, MolangVersion};
+//! use molang::version::{EngineVersion, MolangVersion};
 //!
 //! assert_eq!(MolangVersion::from_engine_version_str("1.18.10"), MolangVersion::V5);
 //! // No engine version maps to 3: 1.17.40 maps to 4.
@@ -156,7 +156,7 @@ impl MolangVersion {
     /// gives [`MolangVersion::Invalid`].
     ///
     /// ```
-    /// use molangx::version::MolangVersion;
+    /// use molang::version::MolangVersion;
     ///
     /// assert_eq!(MolangVersion::from_engine_version_str("1.20.50"), MolangVersion::V11);
     /// assert_eq!(MolangVersion::from_engine_version_str("*"), MolangVersion::LATEST);
@@ -255,7 +255,7 @@ impl TryFrom<RawVersion> for MolangVersion {
 /// [`RawVersion::effective`] of it (`14` parses like 13).
 ///
 /// ```
-/// use molangx::version::{MolangVersion, RawVersion};
+/// use molang::version::{MolangVersion, RawVersion};
 ///
 /// assert_eq!(RawVersion::from(MolangVersion::V5), RawVersion(5));
 /// assert_eq!(RawVersion(99).effective(), MolangVersion::LATEST);

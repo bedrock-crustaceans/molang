@@ -4,10 +4,10 @@
 
 use std::sync::Arc;
 
-use molangx::cache::CompileCache;
-use molangx::compile::{CompileOptions, Expr};
-use molangx::json::MolangSource;
-use molangx::version::MolangVersion;
+use molang::cache::CompileCache;
+use molang::compile::{CompileOptions, Expr};
+use molang::json::MolangSource;
+use molang::version::MolangVersion;
 
 fn main() {
     // Below MolangVersion 5 the ternary is left-grouped, below 6 `||` binds tighter than `&&`,

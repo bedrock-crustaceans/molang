@@ -6,9 +6,9 @@
 //!
 //! Run with `cargo run --example diagnostics --features compiler`.
 
-use molangx::compile::{CompileOptions, CompileOutcome, Deviations, compile};
-use molangx::ops::OpSet;
-use molangx::version::MolangVersion;
+use molang::compile::{CompileOptions, CompileOutcome, Deviations, compile};
+use molang::ops::OpSet;
+use molang::version::MolangVersion;
 
 fn show(label: &str, source: &str, options: &CompileOptions) {
     let compiled = compile(source, options);

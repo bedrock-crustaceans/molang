@@ -2,14 +2,14 @@
 
 use super::walker::{child, moved_constant, with_post};
 use super::{Eval, Unwind, Walker};
-use molangx::catalog::{MAX_MATH_ARGS, MathImpl};
-use molangx::hash::HashedStr;
-use molangx::internals::{Node, Payload, math_decl};
-use molangx::numeric::{self, PostOp, arith};
-use molangx::ops::ExpressionOp as Op;
-use molangx::rng;
-use molangx::stdlib::math;
-use molangx::vm::{EvalCx, Host, Value};
+use molang::catalog::{MAX_MATH_ARGS, MathImpl};
+use molang::hash::HashedStr;
+use molang::internals::{Node, Payload, math_decl};
+use molang::numeric::{self, PostOp, arith};
+use molang::ops::ExpressionOp as Op;
+use molang::rng;
+use molang::stdlib::math;
+use molang::vm::{EvalCx, Host, Value};
 
 type Unary = fn(f32, PostOp) -> f32;
 
@@ -347,9 +347,9 @@ fn ternary(op: Op) -> Option<Ternary> {
 mod tests {
     use super::*;
     use crate::tree_walker::test_support::*;
-    use molangx::compile::compile;
-    use molangx::numeric::{ARCH, Arch};
-    use molangx::rng::{Xorshift128, sample};
+    use molang::compile::compile;
+    use molang::numeric::{ARCH, Arch};
+    use molang::rng::{Xorshift128, sample};
 
     #[test]
     fn arithmetic_with_post_ops() {
@@ -677,7 +677,7 @@ mod tests {
 
     #[test]
     fn the_ternary_table_has_exactly_the_thirty_four_ops_of_clamp_lerp_and_the_easings() {
-        let with: Vec<Op> = molangx::ops::OpSet::all()
+        let with: Vec<Op> = molang::ops::OpSet::all()
             .iter()
             .filter(|&op| ternary(op).is_some())
             .collect();

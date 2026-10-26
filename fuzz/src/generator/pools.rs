@@ -1,8 +1,8 @@
 //! The fixed pools the generator draws names, numbers, strings, functions and operators from, with
 //! its size limits.
 
-use molangx::catalog::MAX_MATH_ARGS;
-use molangx::internals::reference_catalog;
+use molang::catalog::MAX_MATH_ARGS;
+use molang::internals::reference_catalog;
 use std::ops::RangeInclusive;
 use std::sync::LazyLock;
 
@@ -209,11 +209,11 @@ mod tests {
                 .all(|(_, arity)| *arity == 3)
         );
         // The host functions follow the standard ones, each declared in the reference options.
-        let host = molangx::internals::reference_catalog::math();
+        let host = molang::internals::reference_catalog::math();
         for (index, (name, arity)) in MATH.iter().enumerate() {
             let full = format!("math.{name}");
             assert_eq!(
-                molangx::stdlib::MathFn::from_token(&full).is_some(),
+                molang::stdlib::MathFn::from_token(&full).is_some(),
                 index < HOST_MATH,
                 "{full}"
             );

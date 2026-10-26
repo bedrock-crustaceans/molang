@@ -154,8 +154,8 @@ impl<H: Host> StructValue<H> {
     /// with upper-case letters (`HashedStr::new("Speed")`) is unreachable from an expression.
     ///
     /// ```
-    /// use molangx::hash::HashedStr;
-    /// use molangx::vm::{StructValue, NoHost};
+    /// use molang::hash::HashedStr;
+    /// use molang::vm::{StructValue, NoHost};
     ///
     /// assert_eq!(StructValue::<NoHost>::key("Speed"), HashedStr::new("speed"));
     /// ```
@@ -400,7 +400,7 @@ mod tests {
         assert_eq!(err.name, h("x"));
         assert!(
             err.to_string()
-                .starts_with("molangx: a struct already has a member named '")
+                .starts_with("molang: a struct already has a member named '")
         );
         assert!(
             err.to_string()

@@ -10,9 +10,9 @@ use common::{
     EXPERIMENTAL_TEST, GET_NAME_TEST, HASH_OF_A, HASH_OF_MOO, HASH_OF_RABBIT, HELPER_SET,
     REFERENCE_SETS, SUM_TEST, reference_catalog, reference_experiments,
 };
-use molangx::catalog::{ParseQuerySetError, QueryAdmission, QuerySetMask, ReturnType, Side};
-use molangx::hash::HashedStr;
-use molangx::version::{ExperimentMask, MolangVersion, RawVersion};
+use molang::catalog::{ParseQuerySetError, QueryAdmission, QuerySetMask, ReturnType, Side};
+use molang::hash::HashedStr;
+use molang::version::{ExperimentMask, MolangVersion, RawVersion};
 
 #[test]
 fn an_allow_list_flags_only_queries_outside_it() {
@@ -169,7 +169,7 @@ fn a_query_parses_only_inside_its_version_window() {
 /// not below.
 #[test]
 fn the_helper_query_catalogue() {
-    let base = molangx::stdlib::queries(Side::Client);
+    let base = molang::stdlib::queries(Side::Client);
     assert_eq!(reference_catalog().len(), base.len() + 7);
     let sets = QueryAdmission::Sets(REFERENCE_SETS);
     for (name, returns) in [

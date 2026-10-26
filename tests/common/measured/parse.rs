@@ -2,10 +2,10 @@
 //! and `Deviations::NONE`.
 
 use crate::common::CheckGuard;
-use molangx::catalog::{QueryAdmission, QuerySetMask, Side};
-use molangx::compile::{CompileFailure, CompileOptions, Deviations, compile};
-use molangx::diag::LanguageMessage;
-use molangx::version::RawVersion;
+use molang::catalog::{QueryAdmission, QuerySetMask, Side};
+use molang::compile::{CompileFailure, CompileOptions, Deviations, compile};
+use molang::diag::LanguageMessage;
+use molang::version::RawVersion;
 
 #[derive(Clone, Debug)]
 pub struct ParseRow {
@@ -91,7 +91,7 @@ impl ParseGroup {
                     admission: QueryAdmission::Sets(QuerySetMask::empty()),
                     deviations,
                     ..CompileOptions::from_raw_version(
-                        molangx::stdlib::queries(Side::Client).clone(),
+                        molang::stdlib::queries(Side::Client).clone(),
                         RawVersion(row.version),
                     )
                 };

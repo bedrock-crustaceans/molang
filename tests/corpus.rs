@@ -11,13 +11,13 @@
 
 #![cfg(all(feature = "compiler", feature = "stdlib"))]
 
-use molangx::version::RawVersion;
+use molang::version::RawVersion;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use molangx::catalog::{QueryAdmission, QuerySetMask, Side};
-use molangx::compile::{CompileFailure, CompileOptions, compile};
-use molangx::diag::{LanguageMessage, Severity};
+use molang::catalog::{QueryAdmission, QuerySetMask, Side};
+use molang::compile::{CompileFailure, CompileOptions, compile};
+use molang::diag::{LanguageMessage, Severity};
 use serde_json::Value;
 
 /// `(language message row, count)` pairs the corpus may produce. Expected empty.
@@ -102,7 +102,7 @@ fn options(version: i16) -> CompileOptions {
     CompileOptions {
         admission: QueryAdmission::Sets(QuerySetMask::BUILTIN),
         ..CompileOptions::from_raw_version(
-            molangx::stdlib::queries(Side::Client).clone(),
+            molang::stdlib::queries(Side::Client).clone(),
             RawVersion(version),
         )
     }
@@ -190,7 +190,7 @@ fn corpus_compiles_without_rejections() {
                 .entry(
                     diagnostic
                         .language_message()
-                        .map_or(0, molangx::diag::LanguageMessage::row),
+                        .map_or(0, molang::diag::LanguageMessage::row),
                 )
                 .or_default() += 1;
             problems += 1;
@@ -263,7 +263,7 @@ fn corpus_on_the_server_rejects_only_queries_it_cannot_resolve() {
         eprintln!("MOLANG_CORPUS_DIR is not set; skipping");
         return;
     };
-    let server = molangx::stdlib::queries(Side::Server);
+    let server = molang::stdlib::queries(Side::Server);
     let mut misses = std::collections::BTreeMap::<ServerMiss, usize>::new();
     let mut rejected = 0usize;
     let mut problems = Vec::new();

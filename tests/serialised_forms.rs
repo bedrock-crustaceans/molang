@@ -2,11 +2,11 @@
 
 #![cfg(feature = "stdlib")]
 
-use molangx::json::{
+use molang::json::{
     JsonScalar, JsonType, MolangSource, MolangValueRepr, OtherJson, ReadField, ReaderKind,
     ReprError, SourceForm,
 };
-use molangx::version::RawVersion;
+use molang::version::RawVersion;
 
 const STRICT: ReaderKind = ReaderKind::StrictVersioned;
 const LENIENT: ReaderKind = ReaderKind::LenientVersioned;
@@ -375,7 +375,7 @@ mod readers {
 mod facet_json_forms {
     use super::{LENIENT, STRICT, read};
     use facet::Facet;
-    use molangx::json::{JsonScalar, MolangSource, MolangValueRepr, ReaderKind, SourceForm};
+    use molang::json::{JsonScalar, MolangSource, MolangValueRepr, ReaderKind, SourceForm};
 
     #[derive(Facet, Debug, PartialEq)]
     struct Field {
@@ -584,10 +584,10 @@ mod facet_json_forms {
 #[cfg(feature = "compiler")]
 mod compiled_sources {
     use super::*;
-    use molangx::catalog::Side;
-    use molangx::compile::{CompileFailure, CompileOptions, Deviations, compile};
-    use molangx::diag::{DiagCode, Severity};
-    use molangx::version::RawVersion;
+    use molang::catalog::Side;
+    use molang::compile::{CompileFailure, CompileOptions, Deviations, compile};
+    use molang::diag::{DiagCode, Severity};
+    use molang::version::RawVersion;
 
     #[test]
     fn invalid_expression_loads_and_logs_when_compiled() {
@@ -596,7 +596,7 @@ mod compiled_sources {
         let source = value.source().expect("an expression");
         let compiled = compile(
             source.as_str(),
-            &CompileOptions::for_source(molangx::stdlib::queries(Side::Server).clone(), source)
+            &CompileOptions::for_source(molang::stdlib::queries(Side::Server).clone(), source)
                 .expect("a source with a version"),
         );
         assert_eq!(compiled.failure(), Some(CompileFailure::Rejected));
@@ -622,7 +622,7 @@ mod compiled_sources {
         let value = read(json, STRICT, 13).expect("no range check on the version");
         let source = value.source().expect("an expression");
         let options =
-            CompileOptions::for_source(molangx::stdlib::queries(Side::Server).clone(), source)
+            CompileOptions::for_source(molang::stdlib::queries(Side::Server).clone(), source)
                 .expect("a source with a version");
         assert_eq!(options.raw_version, RawVersion(-1));
         let compiled = compile(source.as_str(), &options);
@@ -654,11 +654,11 @@ mod readers_matrix {
     use std::sync::Arc;
 
     use super::{LENIENT, STRICT, object, raw, read, string};
-    use molangx::json::{
+    use molang::json::{
         JsonScalar, JsonType, MolangSource, MolangValueRepr, OtherJson, ReadField, ReaderKind,
         ReprError, SourceForm,
     };
-    use molangx::version::{MolangVersion, RawVersion};
+    use molang::version::{MolangVersion, RawVersion};
 
     const ALL_READERS: [ReaderKind; 5] = [
         STRICT,

@@ -2,11 +2,11 @@
 
 use super::flow::{Jump, Logic};
 use super::{Eval, Scope, Unwind, Walker};
-use molangx::compile::Expr;
-use molangx::internals::{Node, Payload, storable};
-use molangx::numeric::PostOp;
-use molangx::ops::ExpressionOp as Op;
-use molangx::vm::{EvalCx, Host, RuntimeMsg, TempMap, TempName, Temps, Value, VariableName};
+use molang::compile::Expr;
+use molang::internals::{Node, Payload, storable};
+use molang::numeric::PostOp;
+use molang::ops::ExpressionOp as Op;
+use molang::vm::{EvalCx, Host, RuntimeMsg, TempMap, TempName, Temps, Value, VariableName};
 
 impl<H: Host> Walker<H> {
     pub(super) fn new(expr: &Expr) -> Self {
@@ -227,7 +227,7 @@ pub(super) fn moved_constant(n: &Node) -> f32 {
 mod tests {
     use super::*;
     use crate::tree_walker::test_support::*;
-    use molangx::vm::Subjects;
+    use molang::vm::Subjects;
 
     #[test]
     fn walker_new_takes_the_version_of_the_expression() {
@@ -256,7 +256,7 @@ mod tests {
         assert_eq!(walker.steps, 3);
         assert_eq!(
             env.messages(),
-            ["molangx: evaluation stopped after its budget of 2 steps"]
+            ["molang: evaluation stopped after its budget of 2 steps"]
         );
     }
 
@@ -320,7 +320,7 @@ mod tests {
         assert!(walker.stopped);
         assert_eq!(
             env.messages(),
-            ["molangx: evaluation stopped after its budget of 10 steps"]
+            ["molang: evaluation stopped after its budget of 10 steps"]
         );
     }
 
@@ -354,7 +354,7 @@ mod tests {
         assert!(walker.loop_guard_logged);
         assert_eq!(
             env.messages(),
-            ["molangx: loop stopped after its budget of 7 iterations"]
+            ["molang: loop stopped after its budget of 7 iterations"]
         );
     }
 

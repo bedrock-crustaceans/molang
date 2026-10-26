@@ -69,8 +69,8 @@ use namespace::{Context, Namespace, Temp, Variable};
 /// [`StructValue::key`](super::StructValue::key) does.
 ///
 /// ```
-/// use molangx::hash::HashedStr;
-/// use molangx::vm::{AnyName, ContextName, TempName, VariableName};
+/// use molang::hash::HashedStr;
+/// use molang::vm::{AnyName, ContextName, TempName, VariableName};
 ///
 /// const MOO: VariableName = VariableName::new("moo");
 /// assert_eq!(VariableName::new("Moo"), MOO);
@@ -87,14 +87,14 @@ use namespace::{Context, Namespace, Temp, Variable};
 /// A key of another namespace is another type, so this does not compile:
 ///
 /// ```compile_fail,E0308
-/// use molangx::vm::{ContextName, NoHostEnv, Value};
+/// use molang::vm::{ContextName, NoHostEnv, Value};
 ///
 /// let mut env = NoHostEnv::new();
 /// env.variables.set(ContextName::new("x"), Value::Float(1.0));
 /// ```
 ///
 /// ```compile_fail,E0308
-/// use molangx::vm::{NoHostEnv, Value, VariableName};
+/// use molang::vm::{NoHostEnv, Value, VariableName};
 ///
 /// let mut env = NoHostEnv::new();
 /// env.context.set(VariableName::new("z"), Value::Float(1.0));

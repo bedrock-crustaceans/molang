@@ -112,8 +112,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
-name = "molangx"
-version = "0.1.0"
+name = "molang"
+version = "1.0.0"
 dependencies = [
  "bitflags",
  "libm",
@@ -126,12 +126,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "molangx-fuzz"
+name = "molang-fuzz"
 version = "0.0.0"
 dependencies = [
  "arbitrary",
  "libfuzzer-sys",
- "molangx",
+ "molang",
  "proptest",
  "serde_json",
 ]

@@ -68,8 +68,8 @@ struct Inner {
 /// ```
 /// # #[cfg(feature = "stdlib")]
 /// # {
-/// use molangx::catalog::{Arity, QueryDecl, QueryShape, Side};
-/// use molangx::stdlib;
+/// use molang::catalog::{Arity, QueryDecl, QueryShape, Side};
+/// use molang::stdlib;
 ///
 /// let my_thing = QueryDecl::new(
 ///     "query.my_thing",
@@ -137,8 +137,8 @@ impl QueryCatalog {
     /// ```
     /// # #[cfg(feature = "stdlib")]
     /// # {
-    /// use molangx::catalog::{Arity, QueryDecl, QueryShape, ReturnType, Side};
-    /// use molangx::stdlib::{self, query};
+    /// use molang::catalog::{Arity, QueryDecl, QueryShape, ReturnType, Side};
+    /// use molang::stdlib::{self, query};
     ///
     /// let standard = stdlib::queries(Side::Server);
     /// let health = QueryDecl::new(

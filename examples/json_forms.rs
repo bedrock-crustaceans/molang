@@ -5,8 +5,8 @@
 //!
 //! Run with `cargo run --example json_forms`.
 
-use molangx::json::{JsonScalar, MolangValueRepr, OtherJson, ReadField, ReaderKind, SourceForm};
-use molangx::version::RawVersion;
+use molang::json::{JsonScalar, MolangValueRepr, OtherJson, ReadField, ReaderKind, SourceForm};
+use molang::version::RawVersion;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The load context's version, taken by a plain string (here 6: engine version 1.18.20).

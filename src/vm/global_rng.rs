@@ -16,8 +16,8 @@ static PROCESS_XORSHIFT: Mutex<Xorshift128> = Mutex::new(Xorshift128::new());
 /// state is never torn.
 ///
 /// ```
-/// use molangx::rng::{Xorshift128, sample};
-/// use molangx::vm::ProcessRng;
+/// use molang::rng::{Xorshift128, sample};
+/// use molang::vm::ProcessRng;
 ///
 /// ProcessRng::reset();
 /// let mut reference = Xorshift128::new();

@@ -3,9 +3,9 @@
 //!
 //! Run with `cargo run --example variables --features vm`.
 
-use molangx::compile::{CompileOptions, compile};
-use molangx::version::MolangVersion;
-use molangx::vm::{
+use molang::compile::{CompileOptions, compile};
+use molang::version::MolangVersion;
+use molang::vm::{
     ContextName, Host, HostAccess, HostEnv, NoHostEnv, Subjects, TempMap, Temps, Value,
     VariableName, VariableStorage,
 };

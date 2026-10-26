@@ -14,7 +14,7 @@ pub use rand_core;
 /// be exactly 1.0.
 ///
 /// ```
-/// use molangx::rng::{FixedRng, Xorshift128, sample};
+/// use molang::rng::{FixedRng, Xorshift128, sample};
 ///
 /// assert_eq!(sample(&mut FixedRng::HALF), 0.5);
 /// assert_eq!(sample(&mut Xorshift128::new()), sample(&mut Xorshift128::new()));
@@ -36,7 +36,7 @@ pub fn sample<R: rand_core::Rng + ?Sized>(rng: &mut R) -> f32 {
 /// one step per 4 bytes, little-endian, discarding the unused bytes of the last.
 ///
 /// ```
-/// use molangx::rng::{Xorshift128, rand_core::SeedableRng, sample};
+/// use molang::rng::{Xorshift128, rand_core::SeedableRng, sample};
 ///
 /// assert_eq!(sample(&mut Xorshift128::new()), sample(&mut Xorshift128::new()));
 /// assert_ne!(
@@ -165,7 +165,7 @@ const fn split_mix_64(state: u64) -> (u64, u64) {
 /// `next_u64` is the word in both halves; `fill_bytes` repeats its little-endian bytes.
 ///
 /// ```
-/// use molangx::rng::{FixedRng, sample};
+/// use molang::rng::{FixedRng, sample};
 ///
 /// assert_eq!(sample(&mut FixedRng::from_sample(0.25).unwrap()), 0.25);
 /// assert_eq!(FixedRng::from_sample(1e-10), None, "not k · 2^-31");

@@ -1,8 +1,8 @@
 //! Which expressions the tree walker models exactly.
 
-use molangx::compile::Expr;
-use molangx::internals::{Node, tree};
-use molangx::ops::ExpressionOp as Op;
+use molang::compile::Expr;
+use molang::internals::{Node, tree};
+use molang::ops::ExpressionOp as Op;
 
 /// Whether [`eval`](super::eval) models `expr` exactly. It does not when
 /// - a `break` / `continue` can leave a `??` left side inside the loop it belongs to: the VM then

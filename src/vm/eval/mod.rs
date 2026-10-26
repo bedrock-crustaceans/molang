@@ -236,7 +236,7 @@ pub(crate) mod test_support {
     pub(crate) type HV = Value<TestHost>;
 
     pub(crate) fn step_msg(steps: u64) -> String {
-        format!("molangx: evaluation stopped after its budget of {steps} steps")
+        format!("molang: evaluation stopped after its budget of {steps} steps")
     }
 
     pub(crate) fn unknown_msg(name: &str) -> String {
@@ -340,7 +340,7 @@ pub(crate) mod test_support {
 
     pub(crate) fn step_limit_hit(msgs: &[String]) -> bool {
         msgs.iter()
-            .any(|m| m.starts_with("molangx: evaluation stopped after its budget"))
+            .any(|m| m.starts_with("molang: evaluation stopped after its budget"))
     }
 
     /// The smallest `total_steps` with which `src` completes.
@@ -488,7 +488,7 @@ pub(crate) mod test_support {
     }
 
     pub(crate) const DEPTH_MSG: &str =
-        "molangx: evaluation stopped: a struct would nest deeper than its budget of 2 levels";
+        "molang: evaluation stopped: a struct would nest deeper than its budget of 2 levels";
 
     pub(crate) fn limited(depth: Option<u32>, members: Option<u32>) -> impl Fn(&mut NoHostEnv) {
         move |env| {
@@ -702,7 +702,7 @@ mod tests {
         assert_eq!(float, general);
         assert_eq!(
             float.msgs,
-            ["molangx: loop stopped after its budget of 1024 iterations"]
+            ["molang: loop stopped after its budget of 1024 iterations"]
         );
     }
 

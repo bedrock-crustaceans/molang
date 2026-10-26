@@ -2,8 +2,8 @@
 //! payload included.
 
 use super::{FuzzEnv, FuzzHost};
-use molangx::vm::namespace::Namespace;
-use molangx::vm::{Host, TempMap, Value, VariableMap};
+use molang::vm::namespace::Namespace;
+use molang::vm::{Host, TempMap, Value, VariableMap};
 use std::collections::HashSet;
 use std::iter;
 use std::sync::Arc;
@@ -140,9 +140,9 @@ mod tests {
     use crate::generator::env::{
         ACTORS, FuzzActor, FuzzRng, Subject, TempLifetime, test_support::*,
     };
-    use molangx::hash::HashedStr;
-    use molangx::rng::{FixedRng, Xorshift128, sample};
-    use molangx::vm::{Access, EvalLimits, StructValue, TempName};
+    use molang::hash::HashedStr;
+    use molang::rng::{FixedRng, Xorshift128, sample};
+    use molang::vm::{Access, EvalLimits, StructValue, TempName};
     use std::thread;
 
     fn chain(depth: usize, leaf: f32) -> V {

@@ -1,5 +1,5 @@
 {
-"schema": "molangx/numeric_bits/1",
+"schema": "molang/numeric_bits/1",
 "counts": {"X86_64": {"rows": 2616, "transcendental_rows": 620, "families": {"unary": 405, "arithmetic": 156, "comparison": 48, "binary": 162, "ternary": 88, "mod": 44, "sign": 27, "random": 320, "die_roll": 106, "ease": 1260}}, "Arm64": {"rows": 2604, "transcendental_rows": 620, "families": {"unary": 405, "arithmetic": 156, "comparison": 48, "binary": 162, "ternary": 88, "mod": 44, "sign": 27, "random": 320, "die_roll": 94, "ease": 1260}}},
 "profiles": {
 "X86_64": [

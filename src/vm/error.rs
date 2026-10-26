@@ -13,7 +13,7 @@ use crate::hash::HashedStr;
 /// [`QueryCx::error`](crate::vm::QueryCx::error), so it always names the reporting query.
 ///
 /// ```
-/// use molangx::vm::{NoHost, QueryCx, QueryResult};
+/// use molang::vm::{NoHost, QueryCx, QueryResult};
 ///
 /// fn has_any_family(cx: &mut QueryCx<'_, '_, NoHost>) -> QueryResult<NoHost> {
 ///     // ... argument 2 is not a string:
@@ -54,7 +54,7 @@ impl QueryError {
 /// Only the name's hash is known here, so the text prints it in hexadecimal; a host that has the
 /// name reports [`RuntimeMsg::DuplicateMember`](super::RuntimeMsg::DuplicateMember) instead.
 #[derive(Error, Copy, Clone, Debug, PartialEq, Eq)]
-#[error("molangx: a struct already has a member named '{:#018x}'", .name.as_u64())]
+#[error("molang: a struct already has a member named '{:#018x}'", .name.as_u64())]
 pub struct DuplicateMember {
     /// The hash of the duplicated member name.
     pub name: HashedStr,
@@ -116,15 +116,15 @@ mod tests {
         };
         assert_eq!(
             text(0xdead_beef),
-            "molangx: a struct already has a member named '0x00000000deadbeef'"
+            "molang: a struct already has a member named '0x00000000deadbeef'"
         );
         assert_eq!(
             text(0),
-            "molangx: a struct already has a member named '0x0000000000000000'"
+            "molang: a struct already has a member named '0x0000000000000000'"
         );
         assert_eq!(
             text(u64::MAX),
-            "molangx: a struct already has a member named '0xffffffffffffffff'"
+            "molang: a struct already has a member named '0xffffffffffffffff'"
         );
     }
 

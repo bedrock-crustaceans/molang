@@ -59,10 +59,10 @@ struct CacheKey {
 /// A concurrent compile cache for one pack load; see the [module documentation](self).
 ///
 /// ```
-/// use molangx::cache::CompileCache;
-/// use molangx::compile::CompileOptions;
-/// use molangx::json::MolangSource;
-/// use molangx::version::MolangVersion;
+/// use molang::cache::CompileCache;
+/// use molang::compile::CompileOptions;
+/// use molang::json::MolangSource;
+/// use molang::version::MolangVersion;
 ///
 /// let cache = CompileCache::new();
 /// let src = MolangSource::string("1 ? 0 : 1 ? 2 : 3", 4);

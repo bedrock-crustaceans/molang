@@ -4,9 +4,9 @@
 #[cfg(feature = "compiler")]
 use super::measured::{EvalCase, ParseFailure};
 use super::{CheckGuard, REFERENCE_SETS, reference_catalog};
-use molangx::catalog::{QueryAdmission, QueryAllowList, QueryDecl};
-use molangx::stdlib::query;
-use molangx::version::{ExperimentMask, RawVersion};
+use molang::catalog::{QueryAdmission, QueryAllowList, QueryDecl};
+use molang::stdlib::query;
+use molang::version::{ExperimentMask, RawVersion};
 
 /// The real queries that stand for the placeholder queries of the `has_disallowed_queries` rows.
 pub const PLACEHOLDERS: [(&str, &str); 4] = [

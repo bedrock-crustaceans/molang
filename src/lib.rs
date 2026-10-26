@@ -61,9 +61,9 @@
 //! ```
 //! # #[cfg(all(feature = "vm", feature = "stdlib"))]
 //! # {
-//! use molangx::compile::{CompileOptions, compile};
-//! use molangx::version::MolangVersion;
-//! use molangx::vm::{NoHostEnv, Value, VariableName};
+//! use molang::compile::{CompileOptions, compile};
+//! use molang::version::MolangVersion;
+//! use molang::vm::{NoHostEnv, Value, VariableName};
 //!
 //! let options = CompileOptions::server(MolangVersion::LATEST);
 //! // A success carries what the compile logged (warnings, notes) along with the expression.
@@ -118,16 +118,16 @@
 /// Every public item has its path in its module; none resolves at the crate root.
 ///
 /// ```compile_fail,E0432
-/// use molangx::CompileOptions;
+/// use molang::CompileOptions;
 /// ```
 /// ```compile_fail,E0423
-/// let _ = molangx::compile;
+/// let _ = molang::compile;
 /// ```
 /// ```compile_fail,E0432
-/// use molangx::EvalLimits;
+/// use molang::EvalLimits;
 /// ```
 /// ```compile_fail,E0432
-/// use molangx::Side;
+/// use molang::Side;
 /// ```
 #[cfg(doctest)]
 struct NoItemAtTheRoot;

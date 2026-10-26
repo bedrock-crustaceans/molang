@@ -1,13 +1,13 @@
-//! Evaluates an expression that is one bare `math.<fn>(…)` call through `molangx::stdlib::math`
+//! Evaluates an expression that is one bare `math.<fn>(…)` call through `molang::stdlib::math`
 //! directly, so the math library is checked without the parser. Arguments are literals or variables
 //! assigned literals by earlier statements; a post-op (`math.ceil(1.1f) + 1`), a nested call or
 //! `math.pi` is not a bare call.
 
 use std::collections::HashMap;
 
-use molangx::numeric::PostOp;
-use molangx::rng::{rand_core::Rng, sample};
-use molangx::stdlib::math;
+use molang::numeric::PostOp;
+use molang::rng::{rand_core::Rng, sample};
+use molang::stdlib::math;
 
 /// `literal` picks between the constant-operand and the run-time form of `mod`, `random` and
 /// `random_integer`.

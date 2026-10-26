@@ -3,8 +3,8 @@
 //!
 //! Run with `cargo run --example versions --features compiler`.
 
-use molangx::compile::{CompileOptions, Expr, compile};
-use molangx::version::MolangVersion;
+use molang::compile::{CompileOptions, Expr, compile};
+use molang::version::MolangVersion;
 
 fn main() {
     println!("engine version -> MolangVersion");

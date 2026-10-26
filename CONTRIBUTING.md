@@ -1,4 +1,4 @@
-# Contributing to molangx
+# Contributing to molang
 
 Fork the repository, branch from `main`, keep a branch to one change, and discuss larger changes in an issue first.
 
@@ -30,7 +30,7 @@ Hostile-input tests can allocate a lot; run them under a memory cap, for example
 
 ### The fuzz crate
 
-`fuzz/` (`molangx-fuzz`, not published) is a separate package with its own empty `[workspace]`. It depends on `molangx` with the features `vm`, `fuzz` and `stdlib` and reads crate-private items through the hidden `molangx::internals` module. Its library (`fuzz/src/`) holds `tree_walker`, a second evaluator that walks the optimised tree, and `generator`, the program generator. The library and its tests run on stable; running a fuzz target needs nightly and `cargo-fuzz`.
+`fuzz/` (`molang-fuzz`, not published) is a separate package with its own empty `[workspace]`. It depends on `molang` with the features `vm`, `fuzz` and `stdlib` and reads crate-private items through the hidden `molang::internals` module. Its library (`fuzz/src/`) holds `tree_walker`, a second evaluator that walks the optimised tree, and `generator`, the program generator. The library and its tests run on stable; running a fuzz target needs nightly and `cargo-fuzz`.
 
 ```bash
 cargo fmt --manifest-path fuzz/Cargo.toml --all
@@ -59,11 +59,11 @@ rustup target add aarch64-unknown-linux-gnu
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER="qemu-aarch64 -L /usr/aarch64-linux-gnu"
 export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
-export MOLANGX_TIME_SCALE=10
+export MOLANG_TIME_SCALE=10
 cargo test --locked --target aarch64-unknown-linux-gnu --all-features --no-fail-fast
 ```
 
-The all-features run takes several minutes, half of it `tests/limits.rs`. Everything is uniformly slower under the emulator: `MOLANGX_TIME_SCALE` multiplies every wall-clock bound in `tests/limits.rs`, and `MOLANGX_HOSTILE_STACK_KIB` the 512 KiB stack of `hostile_input_compiles_on_a_small_stack`. Doc tests and examples run under the emulator as well.
+The all-features run takes several minutes, half of it `tests/limits.rs`. Everything is uniformly slower under the emulator: `MOLANG_TIME_SCALE` multiplies every wall-clock bound in `tests/limits.rs`, and `MOLANG_HOSTILE_STACK_KIB` the 512 KiB stack of `hostile_input_compiles_on_a_small_stack`. Doc tests and examples run under the emulator as well.
 
 The fuzz crate's `libfuzzer-sys` builds C++, which needs an aarch64 C++ toolchain; its three `#![no_main]` targets only need to link, so a stub archive stands in for libFuzzer:
 

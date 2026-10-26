@@ -7,9 +7,9 @@
 
 mod common;
 
-/// A wall-clock bound of `millis`, times the whole-number `MOLANGX_TIME_SCALE` (for an emulator).
+/// A wall-clock bound of `millis`, times the whole-number `MOLANG_TIME_SCALE` (for an emulator).
 fn wall_clock(millis: u64) -> std::time::Duration {
-    let scale = std::env::var("MOLANGX_TIME_SCALE")
+    let scale = std::env::var("MOLANG_TIME_SCALE")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
         .unwrap_or(1);
@@ -18,10 +18,10 @@ fn wall_clock(millis: u64) -> std::time::Duration {
 
 mod hostile_input {
     use crate::common::compile_support::{at, client_at, messages};
-    use molangx::compile::{
+    use molang::compile::{
         CompileFailure, CompileOptions, Deviations, Expr, MAX_DEPTH, MAX_SOURCE_LEN, compile,
     };
-    use molangx::diag::{DiagCode, Severity};
+    use molang::diag::{DiagCode, Severity};
 
     const DEPTH: &str = "Error: Expression could not be parsed due to stack depth overflow (too many sub-expressions)";
 
@@ -306,7 +306,7 @@ mod hostile_input {
                     );
                     #[cfg(feature = "vm")]
                     if let Some(expr) = compiled.expr().filter(|_| compiled.is_success()) {
-                        std::hint::black_box(expr.eval(&mut molangx::vm::NoHostEnv::new().cx()));
+                        std::hint::black_box(expr.eval(&mut molang::vm::NoHostEnv::new().cx()));
                     }
                     let took = started.elapsed();
                     let label = &source[..source.len().min(24)];
@@ -348,10 +348,10 @@ mod hostile_input {
     }
 
     /// The whole hostile list compiles and evaluates on a 512 KiB thread in an unoptimised build;
-    /// `MOLANGX_HOSTILE_STACK_KIB` overrides the size.
+    /// `MOLANG_HOSTILE_STACK_KIB` overrides the size.
     #[test]
     fn hostile_input_compiles_on_a_small_stack() {
-        let kib = std::env::var("MOLANGX_HOSTILE_STACK_KIB")
+        let kib = std::env::var("MOLANG_HOSTILE_STACK_KIB")
             .ok()
             .and_then(|v| v.parse::<usize>().ok())
             .unwrap_or(512);
@@ -386,8 +386,8 @@ mod compile_stack {
 
     use std::thread;
 
-    use molangx::compile::{CompileFailure, CompileOptions, MAX_DEPTH, compile};
-    use molangx::version::MolangVersion;
+    use molang::compile::{CompileFailure, CompileOptions, MAX_DEPTH, compile};
+    use molang::version::MolangVersion;
 
     fn nested_calls(depth: usize) -> String {
         format!("{}1{}", "q.is_baby(".repeat(depth), ")".repeat(depth))
@@ -420,11 +420,11 @@ mod compile_stack {
             .expect("the compile thread")
     }
 
-    /// `MOLANGX_STACK_PROBE` (bytes) overrides the size: an optimised x86-64 build needs at most
+    /// `MOLANG_STACK_PROBE` (bytes) overrides the size: an optimised x86-64 build needs at most
     /// 128 KiB, an unoptimised one at most 384 KiB.
     #[test]
     fn the_deepest_accepted_nesting_fits_in_512_kib() {
-        let stack = std::env::var("MOLANGX_STACK_PROBE")
+        let stack = std::env::var("MOLANG_STACK_PROBE")
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(512 * 1024);
@@ -454,16 +454,16 @@ mod compile_stack {
 #[cfg(feature = "vm")]
 mod eval_budgets {
     use crate::common::compile_support::at;
-    use molangx::compile::CompileFailure;
-    use molangx::hash::HashedStr;
+    use molang::compile::CompileFailure;
+    use molang::hash::HashedStr;
 
     /// Structs an expression nests without bound: dropping, comparing and printing them must not
     /// recurse.
     mod deep_structs {
-        use molangx::compile::{CompileOptions, Expr, compile};
-        use molangx::hash::HashedStr;
-        use molangx::version::MolangVersion;
-        use molangx::vm::{
+        use molang::compile::{CompileOptions, Expr, compile};
+        use molang::hash::HashedStr;
+        use molang::version::MolangVersion;
+        use molang::vm::{
             EvalLimits, NoHostEnv, StructValue, TempMap, TempName, Temps, Value, VariableName,
         };
 
@@ -487,7 +487,7 @@ mod eval_budgets {
         }
 
         /// A struct `depth` levels deep, built through the API: `{b: {b: … {c: 1} …}}`.
-        fn deep(depth: usize, leaf: f32) -> Value<molangx::vm::NoHost> {
+        fn deep(depth: usize, leaf: f32) -> Value<molang::vm::NoHost> {
             let mut value = Value::structure(StructValue::from([("c", leaf)]));
             for _ in 1..depth {
                 value =
@@ -497,7 +497,7 @@ mod eval_budgets {
         }
 
         const DEPTH_LIMIT: &str =
-            "molangx: evaluation stopped: a struct would nest deeper than its budget of 32 levels";
+            "molang: evaluation stopped: a struct would nest deeper than its budget of 32 levels";
 
         /// With the default budgets the struct depth budget stops the loop at the store that would
         /// make the 33rd level. Without budgets the loop runs 100,000 times (100,001 levels, about
@@ -674,16 +674,16 @@ mod eval_budgets {
         use std::fmt::Write as _;
         use std::time::{Duration, Instant};
 
-        use molangx::compile::{CompileOptions, Deviations, Expr, compile};
-        use molangx::version::MolangVersion;
-        use molangx::vm::{
+        use molang::compile::{CompileOptions, Deviations, Expr, compile};
+        use molang::version::MolangVersion;
+        use molang::vm::{
             ContextName, EvalLimits, NoHost, NoHostEnv, StructValue, Value, VariableMap,
             VariableName,
         };
 
         const WIDTH_LIMIT: &str =
-            "molangx: evaluation stopped: a struct would hold more than its budget of 256 members";
-        const STEP_LIMIT: &str = "molangx: evaluation stopped after its budget of 1048576 steps";
+            "molang: evaluation stopped: a struct would hold more than its budget of 256 members";
+        const STEP_LIMIT: &str = "molang: evaluation stopped after its budget of 1048576 steps";
 
         /// Compiled without the source-length cap (one repro is longer than 64 KiB).
         fn expr(source: &str) -> Expr {
@@ -916,7 +916,7 @@ mod eval_budgets {
             assert_eq!(
                 env.sink.take(),
                 [
-                    "molangx: evaluation stopped: a struct would hold more than its budget of 0 members"
+                    "molang: evaluation stopped: a struct would hold more than its budget of 0 members"
                 ]
             );
         }
@@ -995,7 +995,7 @@ mod eval_budgets {
     /// (shared ones not at all) and `Debug` prints at most 4,096 members.
     #[test]
     fn shared_structs_compare_and_print_once() {
-        use molangx::vm::{DistinctStructs, NoHostEnv, StructValue, Value, VariableName};
+        use molang::vm::{DistinctStructs, NoHostEnv, StructValue, Value, VariableName};
         let source = "v.a.z=1; loop(31,{v.b=v.a; v.a.x=v.b; v.a.y=v.b;}); return 1;";
         let expr = at(source, 13).expr().cloned().expect("compiles");
         let run = || {
@@ -1054,7 +1054,7 @@ mod eval_budgets {
     /// at most `LogOnce::SEEN_CAP` texts.
     #[test]
     fn default_sink_is_bounded() {
-        use molangx::vm::{
+        use molang::vm::{
             BoundedSink, HostEnv, LogOnce, NoHost, NullSink, QueryError, RuntimeMsg, RuntimeSink,
             Subjects,
         };
@@ -1147,7 +1147,7 @@ mod eval_budgets {
     /// operand-stack cap ends the evaluation.
     #[test]
     fn runaway_outer_loop_is_bounded() {
-        use molangx::vm::{EvalLimits, NoHostEnv, Value, VariableName};
+        use molang::vm::{EvalLimits, NoHostEnv, Value, VariableName};
         for jump in ["continue", "break"] {
             let source = format!(
                 "v.zero = 0; v.i = 0; v.j = 0; loop(2, {{ v.i = v.i + 1; loop(3, {{ v.j = v.j + 1; v.t = v.zero * (v.j > 0 ? {{{jump};}} : 0); }}); }}); return 1;"
@@ -1181,7 +1181,7 @@ mod eval_budgets {
                     assert_eq!(result, 1.0, "{jump}");
                     assert_eq!(
                         messages,
-                        ["molangx: loop stopped after its budget of 1024 iterations"],
+                        ["molang: loop stopped after its budget of 1024 iterations"],
                         "{jump}"
                     );
                     assert_eq!(passes, Some(1024.0), "{jump}");
@@ -1190,7 +1190,7 @@ mod eval_budgets {
                     assert_eq!(
                         messages,
                         [
-                            "molangx: evaluation stopped: operands left behind by break / continue passed the cap of 65536"
+                            "molang: evaluation stopped: operands left behind by break / continue passed the cap of 65536"
                         ],
                         "{jump}"
                     );
@@ -1212,8 +1212,8 @@ mod eval_budgets {
     #[test]
     fn nested_query_arguments_at_the_limit() {
         use crate::common::host::Env;
-        use molangx::rng::Xorshift128;
-        use molangx::vm::CollectSink;
+        use molang::rng::Xorshift128;
+        use molang::vm::CollectSink;
         let nested = |depth: usize| format!("{}1{}", "query.log(".repeat(depth), ")".repeat(depth));
         assert_eq!(
             at(&nested(256), 13).failure(),
@@ -1241,8 +1241,8 @@ mod eval_budgets {
     #[test]
     fn query_depth_budget() {
         use crate::common::host::Env;
-        use molangx::rng::Xorshift128;
-        use molangx::vm::{CollectSink, EvalLimits};
+        use molang::rng::Xorshift128;
+        use molang::vm::{CollectSink, EvalLimits};
         assert_eq!(EvalLimits::DEFAULT.query_depth, None);
         assert_eq!(EvalLimits::NONE.query_depth, None);
         let nested = |depth: usize| format!("{}1{}", "query.log(".repeat(depth), ")".repeat(depth));
@@ -1264,7 +1264,7 @@ mod eval_budgets {
         };
         assert_eq!(
             run(255, 8),
-            (0.0, vec!["molangx: evaluation stopped: query arguments would nest deeper than their budget of 8 levels".to_owned()])
+            (0.0, vec!["molang: evaluation stopped: query arguments would nest deeper than their budget of 8 levels".to_owned()])
         );
         // Eight nested calls evaluate arguments at levels 1 … 8.
         assert_eq!(run(8, 8), (1.0, Vec::new()));
@@ -1273,7 +1273,7 @@ mod eval_budgets {
         assert_eq!(
             run(1, 0).1,
             [
-                "molangx: evaluation stopped: query arguments would nest deeper than their budget of 0 levels"
+                "molang: evaluation stopped: query arguments would nest deeper than their budget of 0 levels"
             ]
         );
     }
@@ -1282,8 +1282,8 @@ mod eval_budgets {
         use crate::common::compile_support::server_expr;
         use crate::common::host::Env;
 
-        use molangx::rng::Xorshift128;
-        use molangx::vm::{CollectSink, EvalLimits, NoHostEnv, Value, VariableName};
+        use molang::rng::Xorshift128;
+        use molang::vm::{CollectSink, EvalLimits, NoHostEnv, Value, VariableName};
 
         fn eval_in(env: &mut NoHostEnv, source: &str) -> f32 {
             server_expr(source).eval_f32(&mut env.cx())
@@ -1297,7 +1297,7 @@ mod eval_budgets {
             assert_eq!(expr.eval_f32(&mut env.cx()), 1024.0);
             assert_eq!(
                 env.sink.take(),
-                vec!["molangx: loop stopped after its budget of 1024 iterations".to_owned()]
+                vec!["molang: loop stopped after its budget of 1024 iterations".to_owned()]
             );
 
             env.limits = EvalLimits::NONE;
@@ -1320,7 +1320,7 @@ mod eval_budgets {
             // Eleven loops were left (ten inner, one outer): one message.
             assert_eq!(
                 env.sink.take(),
-                vec!["molangx: loop stopped after its budget of 10 iterations".to_owned()]
+                vec!["molang: loop stopped after its budget of 10 iterations".to_owned()]
             );
             // Each evaluation reports for itself.
             assert_eq!(
@@ -1342,8 +1342,8 @@ mod eval_budgets {
             assert_eq!(
                 messages,
                 vec![
-                    "molangx: loop stopped after its budget of 1024 iterations".to_owned(),
-                    "molangx: evaluation stopped after its budget of 1048576 steps".to_owned()
+                    "molang: loop stopped after its budget of 1024 iterations".to_owned(),
+                    "molang: evaluation stopped after its budget of 1048576 steps".to_owned()
                 ]
             );
         }
@@ -1368,7 +1368,7 @@ mod eval_budgets {
             );
             assert_eq!(
                 sink.take(),
-                vec!["molangx: evaluation stopped after its budget of 500 steps".to_owned()]
+                vec!["molang: evaluation stopped after its budget of 500 steps".to_owned()]
             );
         }
 
@@ -1379,7 +1379,7 @@ mod eval_budgets {
             let expr = server_expr("v.s");
             assert!(
                 expr.flags()
-                    .contains(molangx::compile::ProgramFlags::FLOAT_ONLY)
+                    .contains(molang::compile::ProgramFlags::FLOAT_ONLY)
             );
             let run = |steps: u64, as_f32: bool| {
                 let mut env = NoHostEnv::new();
@@ -1400,7 +1400,7 @@ mod eval_budgets {
             assert_eq!(
                 run(2, true),
                 (
-                    Value::Float(Value::<molangx::vm::NoHost>::string("moo").as_f32()),
+                    Value::Float(Value::<molang::vm::NoHost>::string("moo").as_f32()),
                     vec![]
                 )
             );
@@ -1408,7 +1408,7 @@ mod eval_budgets {
                 run(1, false),
                 (
                     Value::ZERO,
-                    vec!["molangx: evaluation stopped after its budget of 1 steps".to_owned()]
+                    vec!["molang: evaluation stopped after its budget of 1 steps".to_owned()]
                 )
             );
 
@@ -1451,7 +1451,7 @@ mod eval_budgets {
             );
             assert_eq!(
                 env.sink.take(),
-                vec!["molangx: evaluation stopped after its budget of 10000 steps".to_owned()]
+                vec!["molang: evaluation stopped after its budget of 10000 steps".to_owned()]
             );
             assert_eq!(eval_in(&mut env, "math.die_roll(1000000, 1, 6)"), 0.0);
             assert_eq!(env.sink.take().len(), 1);
@@ -1468,13 +1468,13 @@ mod eval_limit_fields {
     //! message it logs.
 
     use crate::common::compile_support::server_expr;
-    use molangx::catalog::Side;
+    use molang::catalog::Side;
 
-    use molangx::stdlib::query;
-    use molangx::vm::{EvalLimits, NoHost, NoHostEnv, QueryCx, QueryError, QueryTable, Value};
+    use molang::stdlib::query;
+    use molang::vm::{EvalLimits, NoHost, NoHostEnv, QueryCx, QueryError, QueryTable, Value};
 
     fn run(limits: EvalLimits, source: &str) -> (f32, Vec<String>) {
-        let mut queries = QueryTable::new(molangx::stdlib::queries(Side::Server));
+        let mut queries = QueryTable::new(molang::stdlib::queries(Side::Server));
         queries.set(query::IS_BABY, first_argument).unwrap();
         let mut env = NoHostEnv {
             queries: Some(queries),
@@ -1501,7 +1501,7 @@ mod eval_limit_fields {
             run(limits, source),
             (
                 3.0,
-                vec!["molangx: loop stopped after its budget of 3 iterations".to_owned()]
+                vec!["molang: loop stopped after its budget of 3 iterations".to_owned()]
             )
         );
         assert_eq!(
@@ -1520,7 +1520,7 @@ mod eval_limit_fields {
             run(limits, "t.n = 0; loop(100, {t.n = t.n + 1;}); return t.n;"),
             (
                 0.0,
-                vec!["molangx: evaluation stopped after its budget of 40 steps".to_owned()]
+                vec!["molang: evaluation stopped after its budget of 40 steps".to_owned()]
             )
         );
         assert_eq!(run(limits, "1 + v.a * 2 ?? 3"), (3.0, vec![]));
@@ -1535,7 +1535,7 @@ mod eval_limit_fields {
         assert_eq!(run(limits, "v.a.b = 1; return 5;"), (5.0, vec![]));
         assert_eq!(
             run(limits, "v.a.b.c = 1; return 5;"),
-            (0.0, vec!["molangx: evaluation stopped: a struct would nest deeper than its budget of 1 levels".to_owned()])
+            (0.0, vec!["molang: evaluation stopped: a struct would nest deeper than its budget of 1 levels".to_owned()])
         );
     }
 
@@ -1554,7 +1554,7 @@ mod eval_limit_fields {
         );
         assert_eq!(
             run(limits, "v.s.a = 1; v.s.b = 2; v.s.c = 3; return 9;"),
-            (0.0, vec!["molangx: evaluation stopped: a struct would hold more than its budget of 2 members".to_owned()])
+            (0.0, vec!["molang: evaluation stopped: a struct would hold more than its budget of 2 members".to_owned()])
         );
     }
 
@@ -1567,7 +1567,7 @@ mod eval_limit_fields {
         assert_eq!(run(limits, "q.is_baby(7)"), (7.0, vec![]));
         assert_eq!(
             run(limits, "q.is_baby(q.is_baby(7))"),
-            (0.0, vec!["molangx: evaluation stopped: query arguments would nest deeper than their budget of 1 levels".to_owned()])
+            (0.0, vec!["molang: evaluation stopped: query arguments would nest deeper than their budget of 1 levels".to_owned()])
         );
         // Zero lets no query evaluate an argument.
         let none = EvalLimits {
@@ -1577,7 +1577,7 @@ mod eval_limit_fields {
         assert_eq!(
             run(none, "q.is_baby(7)").1,
             [
-                "molangx: evaluation stopped: query arguments would nest deeper than their budget of 0 levels"
+                "molang: evaluation stopped: query arguments would nest deeper than their budget of 0 levels"
             ]
         );
     }
@@ -1593,7 +1593,7 @@ mod eval_limit_fields {
             run(loops, "t.n = 0; loop(2, {t.n = t.n + 1;}); return t.n + 5;"),
             (
                 6.0,
-                vec!["molangx: loop stopped after its budget of 0 iterations".to_owned()]
+                vec!["molang: loop stopped after its budget of 0 iterations".to_owned()]
             ),
             "a loop runs its first iteration"
         );
@@ -1608,7 +1608,7 @@ mod eval_limit_fields {
         );
         assert_eq!(
             run(steps, "v.a ?? 4").1,
-            ["molangx: evaluation stopped after its budget of 0 steps"]
+            ["molang: evaluation stopped after its budget of 0 steps"]
         );
         let depth = EvalLimits {
             struct_depth: Some(0),
@@ -1616,7 +1616,7 @@ mod eval_limit_fields {
         };
         assert_eq!(
             run(depth, "v.a.b = 1; return 5;"),
-            (0.0, vec!["molangx: evaluation stopped: a struct would nest deeper than its budget of 0 levels".to_owned()])
+            (0.0, vec!["molang: evaluation stopped: a struct would nest deeper than its budget of 0 levels".to_owned()])
         );
         assert_eq!(run(depth, "v.a = 1; return 5;"), (5.0, vec![]));
         let members = EvalLimits {
@@ -1625,7 +1625,7 @@ mod eval_limit_fields {
         };
         assert_eq!(
             run(members, "v.s.a = 1; return 9;"),
-            (0.0, vec!["molangx: evaluation stopped: a struct would hold more than its budget of 0 members".to_owned()])
+            (0.0, vec!["molang: evaluation stopped: a struct would hold more than its budget of 0 members".to_owned()])
         );
     }
 

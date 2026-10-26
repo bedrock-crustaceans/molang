@@ -2,15 +2,15 @@
 
 #![cfg(all(feature = "vm", feature = "stdlib"))]
 
-use molangx::catalog::Side;
+use molang::catalog::Side;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
-use molangx::compile::{CompileOptions, ProgramFlags, compile};
-use molangx::rng::{Xorshift128, sample};
-use molangx::stdlib::query;
-use molangx::version::MolangVersion;
-use molangx::vm::{
+use molang::compile::{CompileOptions, ProgramFlags, compile};
+use molang::rng::{Xorshift128, sample};
+use molang::stdlib::query;
+use molang::version::MolangVersion;
+use molang::vm::{
     ContextMap, ContextName, EvalCx, EvalLimits, NoContext, NoHost, NullSink, QueryCx, QueryResult,
     QueryTable, Subjects, Temps, Value, VariableMap, VariableName,
 };
@@ -116,7 +116,7 @@ fn float_only_evaluation_does_not_allocate() {
     }
 
     // Covers a call by position (same catalogue), by name (other catalogue) and no table.
-    let client = QueryTable::<NoHost>::new(molangx::stdlib::queries(Side::Client));
+    let client = QueryTable::<NoHost>::new(molang::stdlib::queries(Side::Client));
     for queries in [Some(&client), None] {
         for options in [
             CompileOptions::client(MolangVersion::LATEST),
@@ -151,7 +151,7 @@ fn float_only_evaluation_does_not_allocate() {
         }
     }
 
-    let mut implemented = QueryTable::<NoHost>::new(molangx::stdlib::queries(Side::Client));
+    let mut implemented = QueryTable::<NoHost>::new(molang::stdlib::queries(Side::Client));
     implemented
         .set(query::IS_BABY, one)
         .expect("a standard query name");
@@ -247,7 +247,7 @@ fn float_only_evaluation_does_not_allocate() {
 
 #[test]
 fn a_host_math_call_does_not_allocate() {
-    use molangx::catalog::{Arity, MathCatalog, MathDecl};
+    use molang::catalog::{Arity, MathCatalog, MathDecl};
     let math = MathCatalog::new([
         MathDecl::pure("math.span", Arity::between(1, 8), |a| a.iter().sum())
             .expect("a declaration"),

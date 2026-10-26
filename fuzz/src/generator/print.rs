@@ -1239,13 +1239,13 @@ mod tests {
 
     mod compiled {
         use super::*;
-        use molangx::compile::{CompileOptions, compile};
-        use molangx::hash::HashedStr;
-        use molangx::internals::{Payload, tokens};
-        use molangx::ops::ExpressionOp as Op;
+        use molang::compile::{CompileOptions, compile};
+        use molang::hash::HashedStr;
+        use molang::internals::{Payload, tokens};
+        use molang::ops::ExpressionOp as Op;
 
         fn options() -> CompileOptions {
-            molangx::internals::reference_catalog::options(13)
+            molang::internals::reference_catalog::options(13)
         }
 
         /// The tokens (op and payload) the lexer makes of `src`, or why it refused.
@@ -1410,7 +1410,7 @@ mod tests {
                     for version in 0..=13 {
                         let compiled = compile(
                             &program.canonical(),
-                            &molangx::internals::reference_catalog::options(version),
+                            &molang::internals::reference_catalog::options(version),
                         );
                         assert_eq!(
                             compiled.failure(),

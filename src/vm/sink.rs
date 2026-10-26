@@ -11,7 +11,7 @@ use crate::hash::{FNV1_OFFSET_BASIS, fnv1_step};
 /// The level of a run-time message, from less to more severe.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LogLevel {
-    /// A message of molangx itself (`molangx: …`).
+    /// A message of molang itself (`molang: …`).
     Warn,
     /// One of Molang's run-time errors.
     Error,
@@ -20,7 +20,7 @@ pub enum LogLevel {
 /// A message of the evaluator itself; `Display` gives its text, formatted only on demand.
 ///
 /// [`UnknownVariable`](Self::UnknownVariable) and [`MissingMember`](Self::MissingMember) are
-/// Molang's run-time errors; the other texts start with `molangx: `.
+/// Molang's run-time errors; the other texts start with `molang: `.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum RuntimeMsg<'a> {
@@ -89,7 +89,7 @@ pub enum RuntimeMsg<'a> {
 }
 
 impl RuntimeMsg<'_> {
-    /// [`LogLevel::Error`] for Molang's run-time errors, [`LogLevel::Warn`] for a `molangx: `
+    /// [`LogLevel::Error`] for Molang's run-time errors, [`LogLevel::Warn`] for a `molang: `
     /// message.
     pub const fn level(&self) -> LogLevel {
         match self {
@@ -117,40 +117,40 @@ impl fmt::Display for RuntimeMsg<'_> {
                 write!(f, "Error: unable to find member variable {name}")
             }
             Self::IncompatibleType { name: None } => {
-                f.write_str("molangx: a host value has an incompatible type")
+                f.write_str("molang: a host value has an incompatible type")
             }
             Self::IncompatibleType { name: Some(name) } => {
-                write!(f, "molangx: a host value has an incompatible type: {name}")
+                write!(f, "molang: a host value has an incompatible type: {name}")
             }
             Self::PublicAccessUnderflow => {
-                f.write_str("molangx: a public-access scope was closed while none was open")
+                f.write_str("molang: a public-access scope was closed while none was open")
             }
             Self::DuplicateMember { name } => {
-                write!(f, "molangx: a struct already has a member named '{name}'")
+                write!(f, "molang: a struct already has a member named '{name}'")
             }
             Self::LoopLimit { limit } => write!(
                 f,
-                "molangx: loop stopped after its budget of {limit} iterations"
+                "molang: loop stopped after its budget of {limit} iterations"
             ),
             Self::StepLimit { limit } => write!(
                 f,
-                "molangx: evaluation stopped after its budget of {limit} steps"
+                "molang: evaluation stopped after its budget of {limit} steps"
             ),
             Self::StructDepthLimit { limit } => write!(
                 f,
-                "molangx: evaluation stopped: a struct would nest deeper than its budget of {limit} levels"
+                "molang: evaluation stopped: a struct would nest deeper than its budget of {limit} levels"
             ),
             Self::OperandStackLimit { limit } => write!(
                 f,
-                "molangx: evaluation stopped: operands left behind by break / continue passed the cap of {limit}"
+                "molang: evaluation stopped: operands left behind by break / continue passed the cap of {limit}"
             ),
             Self::StructMemberLimit { limit } => write!(
                 f,
-                "molangx: evaluation stopped: a struct would hold more than its budget of {limit} members"
+                "molang: evaluation stopped: a struct would hold more than its budget of {limit} members"
             ),
             Self::QueryDepthLimit { limit } => write!(
                 f,
-                "molangx: evaluation stopped: query arguments would nest deeper than their budget of {limit} levels"
+                "molang: evaluation stopped: query arguments would nest deeper than their budget of {limit} levels"
             ),
         }
     }
@@ -192,7 +192,7 @@ impl RuntimeSink for NullSink {
 /// every evaluation. It keeps repeats; wrap it in [`LogOnce`] to drop them.
 ///
 /// ```
-/// use molangx::vm::{BoundedSink, RuntimeMsg, RuntimeSink};
+/// use molang::vm::{BoundedSink, RuntimeMsg, RuntimeSink};
 ///
 /// let mut sink = BoundedSink::with_capacity(2);
 /// for name in ["variable.a", "variable.b", "variable.c"] {
@@ -531,45 +531,45 @@ mod tests {
         let cases = [
             (
                 RuntimeMsg::IncompatibleType { name: None },
-                "molangx: a host value has an incompatible type",
+                "molang: a host value has an incompatible type",
             ),
             (
                 RuntimeMsg::IncompatibleType {
                     name: Some("texture.default"),
                 },
-                "molangx: a host value has an incompatible type: texture.default",
+                "molang: a host value has an incompatible type: texture.default",
             ),
             (
                 RuntimeMsg::PublicAccessUnderflow,
-                "molangx: a public-access scope was closed while none was open",
+                "molang: a public-access scope was closed while none was open",
             ),
             (
                 RuntimeMsg::DuplicateMember { name: "x" },
-                "molangx: a struct already has a member named 'x'",
+                "molang: a struct already has a member named 'x'",
             ),
             (
                 RuntimeMsg::LoopLimit { limit: 1024 },
-                "molangx: loop stopped after its budget of 1024 iterations",
+                "molang: loop stopped after its budget of 1024 iterations",
             ),
             (
                 RuntimeMsg::StepLimit { limit: 1_048_576 },
-                "molangx: evaluation stopped after its budget of 1048576 steps",
+                "molang: evaluation stopped after its budget of 1048576 steps",
             ),
             (
                 RuntimeMsg::StructDepthLimit { limit: 32 },
-                "molangx: evaluation stopped: a struct would nest deeper than its budget of 32 levels",
+                "molang: evaluation stopped: a struct would nest deeper than its budget of 32 levels",
             ),
             (
                 RuntimeMsg::OperandStackLimit { limit: 65_536 },
-                "molangx: evaluation stopped: operands left behind by break / continue passed the cap of 65536",
+                "molang: evaluation stopped: operands left behind by break / continue passed the cap of 65536",
             ),
             (
                 RuntimeMsg::StructMemberLimit { limit: 256 },
-                "molangx: evaluation stopped: a struct would hold more than its budget of 256 members",
+                "molang: evaluation stopped: a struct would hold more than its budget of 256 members",
             ),
             (
                 RuntimeMsg::QueryDepthLimit { limit: 8 },
-                "molangx: evaluation stopped: query arguments would nest deeper than their budget of 8 levels",
+                "molang: evaluation stopped: query arguments would nest deeper than their budget of 8 levels",
             ),
         ];
         for (msg, text) in cases {
@@ -582,11 +582,11 @@ mod tests {
     fn the_limits_in_the_messages_print_in_full() {
         assert_eq!(
             RuntimeMsg::StepLimit { limit: u64::MAX }.to_string(),
-            "molangx: evaluation stopped after its budget of 18446744073709551615 steps"
+            "molang: evaluation stopped after its budget of 18446744073709551615 steps"
         );
         assert_eq!(
             RuntimeMsg::LoopLimit { limit: 0 }.to_string(),
-            "molangx: loop stopped after its budget of 0 iterations"
+            "molang: loop stopped after its budget of 0 iterations"
         );
     }
 
@@ -633,7 +633,7 @@ mod tests {
         assert_eq!(
             collect.messages,
             [
-                "molangx: a public-access scope was closed while none was open",
+                "molang: a public-access scope was closed while none was open",
                 "query.max_durability has no item"
             ]
         );
@@ -683,11 +683,11 @@ mod tests {
         assert_eq!(sink.messages.len(), 5000);
         assert_eq!(
             sink.messages[0],
-            "molangx: loop stopped after its budget of 0 iterations"
+            "molang: loop stopped after its budget of 0 iterations"
         );
         assert_eq!(
             sink.messages[4999],
-            "molangx: loop stopped after its budget of 4999 iterations"
+            "molang: loop stopped after its budget of 4999 iterations"
         );
         let long = "a".repeat(65_536);
         let mut sink = CollectSink::default();
@@ -767,11 +767,11 @@ mod tests {
         assert_eq!(sink.dropped(), 36);
         assert_eq!(
             sink.messages().front().unwrap(),
-            "molangx: loop stopped after its budget of 36 iterations"
+            "molang: loop stopped after its budget of 36 iterations"
         );
         assert_eq!(
             sink.messages().back().unwrap(),
-            "molangx: loop stopped after its budget of 99 iterations"
+            "molang: loop stopped after its budget of 99 iterations"
         );
     }
 
@@ -973,7 +973,7 @@ mod tests {
         let mut sink = LogOnce::new(CollectSink::new());
         sink.runtime(RuntimeMsg::PublicAccessUnderflow);
         sink.query_error(error(
-            "molangx: a public-access scope was closed while none was open",
+            "molang: a public-access scope was closed while none was open",
         ));
         assert_eq!(sink.inner().messages.len(), 1);
         assert_eq!(sink.distinct(), 1);
@@ -992,7 +992,7 @@ mod tests {
         assert_eq!(sink.inner().messages.len(), 10);
         assert_eq!(
             sink.inner().messages[3],
-            "molangx: loop stopped after its budget of 3 iterations"
+            "molang: loop stopped after its budget of 3 iterations"
         );
     }
 

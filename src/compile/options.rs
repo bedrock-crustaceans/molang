@@ -89,11 +89,11 @@ impl Default for Deviations {
 /// ```
 /// # #[cfg(feature = "stdlib")]
 /// # {
-/// use molangx::catalog::{QueryAdmission, QueryAllowList, Side};
-/// use molangx::compile::{CompileFailure, CompileOptions, compile};
-/// use molangx::ops::OpSet;
-/// use molangx::stdlib::{self, query};
-/// use molangx::version::MolangVersion;
+/// use molang::catalog::{QueryAdmission, QueryAllowList, Side};
+/// use molang::compile::{CompileFailure, CompileOptions, compile};
+/// use molang::ops::OpSet;
+/// use molang::stdlib::{self, query};
+/// use molang::version::MolangVersion;
 ///
 /// let list = QueryAllowList::new(stdlib::queries(Side::Server), [query::BLOCK_STATE])?;
 /// let block = CompileOptions {
@@ -104,7 +104,7 @@ impl Default for Deviations {
 /// assert!(compile("q.block_state('facing') == 'west'", &block).is_success());
 /// assert_eq!(compile("q.is_baby", &block).failure(), Some(CompileFailure::Rejected));
 /// # }
-/// # Ok::<(), molangx::catalog::AllowListError>(())
+/// # Ok::<(), molang::catalog::AllowListError>(())
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CompileOptions {

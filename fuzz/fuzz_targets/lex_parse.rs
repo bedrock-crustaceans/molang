@@ -12,7 +12,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use molangx_fuzz::generator::front_end::check;
+use molang_fuzz::generator::front_end::check;
 
 const STACK: usize = 256 * 1024;
 

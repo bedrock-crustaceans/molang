@@ -11,12 +11,12 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use molangx::catalog::Side;
-use molangx::compile::{CompileOptions, Expr, ProgramFlags, compile};
-use molangx::hash::HashedStr;
-use molangx::stdlib::{queries, query};
-use molangx::version::MolangVersion;
-use molangx::vm::{
+use molang::catalog::Side;
+use molang::compile::{CompileOptions, Expr, ProgramFlags, compile};
+use molang::hash::HashedStr;
+use molang::stdlib::{queries, query};
+use molang::version::MolangVersion;
+use molang::vm::{
     Host, HostAccess, HostEnv, NoHostEnv, QueryCx, QueryError, QueryTable, Subjects, Value,
     VariableName, VariableStorage,
 };

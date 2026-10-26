@@ -3,12 +3,12 @@
 
 #![cfg(all(feature = "compiler", feature = "stdlib"))]
 
-use molangx::catalog::{Arity, MathCatalog, MathDecl, MathError};
-use molangx::compile::{CompileFailure, CompileOptions, Compiled, Expr, ProgramFlags, compile};
-use molangx::diag::{DiagCode, Severity};
-use molangx::ops::{ExpressionOp, OpSet};
-use molangx::rng::sample;
-use molangx::version::MolangVersion;
+use molang::catalog::{Arity, MathCatalog, MathDecl, MathError};
+use molang::compile::{CompileFailure, CompileOptions, Compiled, Expr, ProgramFlags, compile};
+use molang::diag::{DiagCode, Severity};
+use molang::ops::{ExpressionOp, OpSet};
+use molang::rng::sample;
+use molang::version::MolangVersion;
 
 /// `math.twice` (`2·x`), `math.tag` (`x + 0.25`), `math.neg_zero` (−0), `math.pair` (`a − b`),
 /// `math.span` (2 or 3 arguments, their sum), `math.sinh` (`x + 0.5`), `math.weigh3` (`a − 2b +
@@ -435,10 +435,10 @@ fn the_disassembly_and_the_tree_notation_name_the_function() {
 #[cfg(feature = "vm")]
 mod evaluation {
     use super::*;
-    use molangx::numeric::PostOp;
-    use molangx::rng::{Xorshift128, rand_core::SeedableRng, sample};
-    use molangx::stdlib::math;
-    use molangx::vm::{NoHostEnv, Value, VariableName};
+    use molang::numeric::PostOp;
+    use molang::rng::{Xorshift128, rand_core::SeedableRng, sample};
+    use molang::stdlib::math;
+    use molang::vm::{NoHostEnv, Value, VariableName};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -663,7 +663,7 @@ mod evaluation {
 #[cfg(feature = "cache")]
 #[test]
 fn the_compile_cache_keys_the_catalogue_by_identity() {
-    use molangx::cache::CompileCache;
+    use molang::cache::CompileCache;
     use std::sync::Arc;
     let (math, same_names) = (catalog(), catalog());
     let cache = CompileCache::new();
@@ -686,7 +686,7 @@ fn the_compile_cache_keys_the_catalogue_by_identity() {
 #[cfg(feature = "cache")]
 #[test]
 fn the_compile_cache_keeps_an_override_and_the_built_in_apart() {
-    use molangx::cache::CompileCache;
+    use molang::cache::CompileCache;
     let math = overrides();
     let cache = CompileCache::new();
     let overridden = cache.compile("math.sin(90)", &options(&math));

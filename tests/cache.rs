@@ -4,18 +4,18 @@
 
 mod common;
 
-use molangx::catalog::{QueryAllowList, Side};
+use molang::catalog::{QueryAllowList, Side};
 use std::sync::{Arc, Barrier};
 
 use common::compile_support::server_at;
-use molangx::cache::CompileCache;
-use molangx::catalog::{QueryAdmission, QuerySetMask};
-use molangx::compile::{CompileFailure, CompileOptions, Compiled, Deviations, Expr, compile};
-use molangx::diag::LanguageMessage;
-use molangx::json::MolangSource;
-use molangx::ops::OpSet;
-use molangx::stdlib::query;
-use molangx::version::{Experiment, ExperimentMask, MolangVersion};
+use molang::cache::CompileCache;
+use molang::catalog::{QueryAdmission, QuerySetMask};
+use molang::compile::{CompileFailure, CompileOptions, Compiled, Deviations, Expr, compile};
+use molang::diag::LanguageMessage;
+use molang::json::MolangSource;
+use molang::ops::OpSet;
+use molang::stdlib::query;
+use molang::version::{Experiment, ExperimentMask, MolangVersion};
 
 /// Groups differently at 4, 5 and 6: below 5 `a ? b : c ? d : e` is `(a ? b : c) ? d : e` (here 3,
 /// from 5 on 0); below 6 `||` binds tighter than `&&` (here 0, from 6 on 1).
@@ -68,7 +68,7 @@ fn hits_return_the_same_arc() {
         &first,
         &cache.compile_source(
             &src,
-            &CompileOptions::for_source(molangx::stdlib::queries(Side::Server).clone(), &src)
+            &CompileOptions::for_source(molang::stdlib::queries(Side::Server).clone(), &src)
                 .expect("a source with a version")
         )
     ));
@@ -88,7 +88,7 @@ fn same_text_at_different_versions_compiles_per_version() {
             let src = MolangSource::string(GROUPING, version);
             cache.compile_source(
                 &src,
-                &CompileOptions::for_source(molangx::stdlib::queries(Side::Server).clone(), &src)
+                &CompileOptions::for_source(molang::stdlib::queries(Side::Server).clone(), &src)
                     .expect("a source with a version"),
             )
         })
@@ -123,7 +123,7 @@ fn the_source_version_wins_over_the_field_options() {
     assert_eq!(cache.len(), 2);
     assert_eq!(
         constant(&a),
-        constant(&molangx::compile::compile_source(&old, &field))
+        constant(&molang::compile::compile_source(&old, &field))
     );
     assert!(Arc::ptr_eq(&a, &cache.compile_source(&old, &field)));
 }
@@ -139,7 +139,7 @@ fn the_options_version_wins_when_the_source_version_is_ignored() {
     assert_eq!(constant(&a), Some(1.0));
     let c = cache.compile_source_ignoring_version(
         &old,
-        &CompileOptions::for_source(molangx::stdlib::queries(Side::Server).clone(), &old)
+        &CompileOptions::for_source(molang::stdlib::queries(Side::Server).clone(), &old)
             .expect("a source with a version"),
     );
     assert_eq!(constant(&c), Some(3.0));
@@ -291,11 +291,11 @@ fn key_side() {
     let (x, y) = two(
         "query.is_on_screen",
         &CompileOptions {
-            catalog: molangx::stdlib::queries(Side::Server).clone(),
+            catalog: molang::stdlib::queries(Side::Server).clone(),
             ..server_at(13)
         },
         &CompileOptions {
-            catalog: molangx::stdlib::queries(Side::Client).clone(),
+            catalog: molang::stdlib::queries(Side::Client).clone(),
             ..server_at(13)
         },
     );

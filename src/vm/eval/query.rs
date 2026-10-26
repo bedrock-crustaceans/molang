@@ -155,7 +155,7 @@ mod tests {
     }
 
     const QUERY_DEPTH_MSG: &str =
-        "molangx: evaluation stopped: query arguments would nest deeper than their budget of";
+        "molang: evaluation stopped: query arguments would nest deeper than their budget of";
 
     #[test]
     fn an_argument_deeper_than_the_query_budget_ends_the_evaluation() {
@@ -432,7 +432,7 @@ mod tests {
             assert_eq!(value, NV::Float(expected), "{src}");
             assert_eq!(
                 env.sink.take(),
-                ["molangx: loop stopped after its budget of 7 iterations"],
+                ["molang: loop stopped after its budget of 7 iterations"],
                 "{src}"
             );
         }

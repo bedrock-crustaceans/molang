@@ -4,9 +4,9 @@
 #![allow(clippy::unnecessary_wraps)]
 
 use super::FuzzHost;
-use molangx::internals::reference_catalog;
-use molangx::stdlib::query;
-use molangx::vm::{QueryCx, QueryResult, QueryTable, Value};
+use molang::internals::reference_catalog;
+use molang::stdlib::query;
+use molang::vm::{QueryCx, QueryResult, QueryTable, Value};
 
 /// The query table of the fuzz world, over the reference catalogue: nine of the eleven queries
 /// `tests/common/host.rs` implements (not `query.client_memory_tier` and
@@ -120,8 +120,8 @@ fn log(cx: &mut Cx<'_, '_>) -> QueryResult<FuzzHost> {
 mod tests {
     use super::*;
     use crate::generator::env::{FuzzEnv, FuzzRng, Subject, TempLifetime, test_support::*};
-    use molangx::rng::{FixedRng, Xorshift128, sample};
-    use molangx::vm::EvalLimits;
+    use molang::rng::{FixedRng, Xorshift128, sample};
+    use molang::vm::EvalLimits;
 
     #[test]
     fn the_query_table_implements_the_fuzz_queries_and_the_test_ones() {
@@ -147,10 +147,10 @@ mod tests {
 
     mod queries_through_the_vm {
         use super::*;
-        use molangx::compile::{CompileOptions, compile};
+        use molang::compile::{CompileOptions, compile};
 
         fn options() -> CompileOptions {
-            molangx::internals::reference_catalog::options(13)
+            molang::internals::reference_catalog::options(13)
         }
 
         /// Runs `src` on `env`, which keeps what it left behind.

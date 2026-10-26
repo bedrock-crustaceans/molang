@@ -7,7 +7,7 @@
 //!                                               transcendental, transcendental_samples[]?}]}
 //! ```
 //!
-//! Every float is its bit pattern as eight hex digits. `function` names the molangx function and
+//! Every float is its bit pattern as eight hex digits. `function` names the molang function and
 //! `args` are its arguments in order (`div_guard_*`: `result_bits` null when the guard fired).
 //! `samples` are the random draws in order. `transcendental: true` marks a row that evaluates a
 //! transcendental function; `transcendental_samples` lists the `[function, [argument bits…], result
@@ -20,9 +20,9 @@ mod common;
 
 use common::{Samples, hex_f32, per_arch};
 
-use molangx::numeric::{self, ARCH, Arch, PostOp};
-use molangx::rng::FixedRng;
-use molangx::stdlib::math;
+use molang::numeric::{self, ARCH, Arch, PostOp};
+use molang::rng::FixedRng;
+use molang::stdlib::math;
 use serde_json::Value;
 
 const ID: PostOp = PostOp::IDENTITY;

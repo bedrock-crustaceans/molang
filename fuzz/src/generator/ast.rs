@@ -5,8 +5,8 @@ use super::pools::{
     STRINGS, TEMPS, VARIABLES, math_arguments,
 };
 use arbitrary::{Arbitrary, Result, Unstructured};
-use molangx::internals::reference_catalog;
-use molangx::version::RawVersion;
+use molang::internals::reference_catalog;
+use molang::version::RawVersion;
 use std::iter;
 
 /// A generated program: a single expression, or a statement list (`a; b; return c;`).

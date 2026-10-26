@@ -7,11 +7,11 @@ mod common;
 
 use common::differential::Tally;
 use common::host::Env;
-use molangx::catalog::{QueryAdmission, QuerySetMask};
-use molangx::compile::{CompileOptions, compile};
-use molangx::rng::Xorshift128;
-use molangx::vm::{EvalLimits, Value, VariableName};
-use molangx_fuzz::generator::env::FuzzRng;
+use molang::catalog::{QueryAdmission, QuerySetMask};
+use molang::compile::{CompileOptions, compile};
+use molang::rng::Xorshift128;
+use molang::vm::{EvalLimits, Value, VariableName};
+use molang_fuzz::generator::env::FuzzRng;
 use serde_json::Value as Json;
 
 fn version(record: &Json) -> i16 {

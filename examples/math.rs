@@ -6,13 +6,13 @@
 //!
 //! Run with `cargo run --example math --features vm`.
 
-use molangx::catalog::{Arity, MathCatalog, MathDecl};
-use molangx::compile::{CompileOptions, compile};
-use molangx::numeric::PostOp;
-use molangx::rng::sample;
-use molangx::stdlib::math;
-use molangx::version::MolangVersion;
-use molangx::vm::{NoHostEnv, Value, VariableName};
+use molang::catalog::{Arity, MathCatalog, MathDecl};
+use molang::compile::{CompileOptions, compile};
+use molang::numeric::PostOp;
+use molang::rng::sample;
+use molang::stdlib::math;
+use molang::version::MolangVersion;
+use molang::vm::{NoHostEnv, Value, VariableName};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let catalog = MathCatalog::new([

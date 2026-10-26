@@ -11,14 +11,14 @@
 
 #[cfg(feature = "vm")]
 use crate::common::host::{Env, LevelSink};
-use molangx::compile::{CompileFailure, CompileOptions, Deviations, compile};
+use molang::compile::{CompileFailure, CompileOptions, Deviations, compile};
 #[cfg(feature = "vm")]
-use molangx::numeric::{ARCH, Arch};
+use molang::numeric::{ARCH, Arch};
 #[cfg(feature = "vm")]
-use molangx::rng::Xorshift128;
-use molangx::version::MolangVersion;
+use molang::rng::Xorshift128;
+use molang::version::MolangVersion;
 #[cfg(feature = "vm")]
-use molangx::vm::{LogLevel, Value};
+use molang::vm::{LogLevel, Value};
 
 use crate::common::compile_support::messages;
 use crate::common::{CheckGuard, compile_support::server_at, data_path};

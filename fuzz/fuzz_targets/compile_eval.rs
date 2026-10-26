@@ -10,8 +10,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use molangx_fuzz::generator::FuzzCase;
-use molangx_fuzz::generator::env::differential;
+use molang_fuzz::generator::FuzzCase;
+use molang_fuzz::generator::env::differential;
 
 fuzz_target!(|case: FuzzCase| {
     let mut versions = vec![case.version, 6, 7, 13];

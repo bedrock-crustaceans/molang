@@ -60,8 +60,8 @@ pub enum AllowListError {
 /// ```
 /// # #[cfg(feature = "stdlib")]
 /// # {
-/// use molangx::catalog::{AllowListError, QueryAllowList, Side};
-/// use molangx::stdlib::{self, query};
+/// use molang::catalog::{AllowListError, QueryAllowList, Side};
+/// use molang::stdlib::{self, query};
 ///
 /// let catalog = stdlib::queries(Side::Server);
 /// let list = QueryAllowList::new(
@@ -80,7 +80,7 @@ pub enum AllowListError {
 /// );
 /// assert_eq!(QueryAllowList::new(catalog, [""; 0]), Err(AllowListError::Empty));
 /// # }
-/// # Ok::<(), molangx::catalog::AllowListError>(())
+/// # Ok::<(), molang::catalog::AllowListError>(())
 /// ```
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct QueryAllowList {

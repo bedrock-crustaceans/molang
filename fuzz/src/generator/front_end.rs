@@ -1,9 +1,9 @@
 //! The check the `lex_parse` fuzz target runs: arbitrary text through the whole compiler front
 //! end.
 
-use molangx::catalog::{QueryAdmission, QuerySetMask, Side};
-use molangx::compile::{CompileOptions, CompileOutcome, Deviations, compile};
-use molangx::version::RawVersion;
+use molang::catalog::{QueryAdmission, QuerySetMask, Side};
+use molang::compile::{CompileOptions, CompileOutcome, Deviations, compile};
+use molang::version::RawVersion;
 
 /// The check the `lex_parse` fuzz target runs on one input: `source` compiled under the options
 /// `version` and `flags` select must give a consistent result, and the same one twice.
@@ -58,8 +58,7 @@ fn options(version: u8, flags: u8) -> CompileOptions {
     } else {
         Side::Server
     };
-    let base =
-        CompileOptions::from_raw_version(molangx::stdlib::queries(side).clone(), raw_version);
+    let base = CompileOptions::from_raw_version(molang::stdlib::queries(side).clone(), raw_version);
     let allowed_ops = match (flags & 16 != 0, flags & 32 != 0) {
         (false, _) => base.allowed_ops,
         (true, false) => base.allowed_ops.without_assignments(),
@@ -84,10 +83,10 @@ fn options(version: u8, flags: u8) -> CompileOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use molangx::ops::OpSet;
+    use molang::ops::OpSet;
 
     fn base(raw: i16, side: Side) -> CompileOptions {
-        CompileOptions::from_raw_version(molangx::stdlib::queries(side).clone(), RawVersion(raw))
+        CompileOptions::from_raw_version(molang::stdlib::queries(side).clone(), RawVersion(raw))
     }
 
     #[test]
@@ -152,14 +151,14 @@ mod tests {
     fn every_compile_outcome_passes_the_check() {
         let cases = [
             ("1 + v.x", None),
-            ("1 +", Some(molangx::compile::CompileFailure::Rejected)),
+            ("1 +", Some(molang::compile::CompileFailure::Rejected)),
             (
                 "array.a[0]",
-                Some(molangx::compile::CompileFailure::UsesArrays),
+                Some(molang::compile::CompileFailure::UsesArrays),
             ),
             (
                 "geometry.default",
-                Some(molangx::compile::CompileFailure::UsesResources),
+                Some(molang::compile::CompileFailure::UsesResources),
             ),
         ];
         for (source, failure) in cases {

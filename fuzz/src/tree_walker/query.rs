@@ -2,9 +2,9 @@
 
 use super::walker::with_post;
 use super::{Eval, Unwind, Walker};
-use molangx::internals::{Node, Payload, query_cx};
-use molangx::rng::rand_core::Rng;
-use molangx::vm::{
+use molang::internals::{Node, Payload, query_cx};
+use molang::rng::rand_core::Rng;
+use molang::vm::{
     ContextName, EvalCx, Host, QueryBackend, RuntimeMsg, RuntimeSink, Subjects, Value, VariableName,
 };
 
@@ -107,8 +107,8 @@ impl<H: Host> Walker<H> {
 mod tests {
     use super::*;
     use crate::tree_walker::test_support::*;
-    use molangx::rng::{Xorshift128, sample};
-    use molangx::vm::QueryCx;
+    use molang::rng::{Xorshift128, sample};
+    use molang::vm::QueryCx;
 
     #[test]
     fn an_arrow_inside_a_query_argument_sees_the_target_and_leaves_the_caller_untouched() {
@@ -125,7 +125,7 @@ mod tests {
         clippy::unnecessary_wraps,
         reason = "a query returns a `QueryResult` even when it cannot fail"
     )]
-    fn beyond(cx: &mut QueryCx<'_, '_, World>) -> molangx::vm::QueryResult<World> {
+    fn beyond(cx: &mut QueryCx<'_, '_, World>) -> molang::vm::QueryResult<World> {
         let count = cx.arg_count();
         let missing = cx.arg(count).is_none() && cx.arg(usize::MAX).is_none();
         Ok(Value::Float(if missing { 1.0 } else { 2.0 }))
@@ -136,7 +136,7 @@ mod tests {
         let mut start = Env::new();
         start
             .queries
-            .set(molangx::internals::reference_catalog::SUM_TEST, beyond)
+            .set(molang::internals::reference_catalog::SUM_TEST, beyond)
             .unwrap();
         for src in ["q.sum_test", "q.sum_test(math.random(0, 1))"] {
             let run = both_on(src, &start);
@@ -210,7 +210,7 @@ mod tests {
         assert_eq!(
             run.env.messages(),
             [
-                "molangx: evaluation stopped: query arguments would nest deeper than their budget of 1 levels"
+                "molang: evaluation stopped: query arguments would nest deeper than their budget of 1 levels"
             ]
         );
         start.limits.query_depth = Some(0);

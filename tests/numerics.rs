@@ -10,12 +10,12 @@ mod math_functions {
     #![allow(clippy::excessive_precision)]
 
     use crate::common::{Samples, assert_bits, compile_support::server_at, per_arch};
-    use molangx::catalog::{QueryAdmission, QuerySetMask};
-    use molangx::compile::{CompileFailure, CompileOptions, compile};
-    use molangx::numeric::{ARCH, Arch, PostOp};
-    use molangx::ops::OpSet;
-    use molangx::stdlib::{MathFn, math};
-    use molangx::vm::{NoHostEnv, Value, VariableName};
+    use molang::catalog::{QueryAdmission, QuerySetMask};
+    use molang::compile::{CompileFailure, CompileOptions, compile};
+    use molang::numeric::{ARCH, Arch, PostOp};
+    use molang::ops::OpSet;
+    use molang::stdlib::{MathFn, math};
+    use molang::vm::{NoHostEnv, Value, VariableName};
 
     const NAN: f32 = f32::NAN;
 
@@ -1526,9 +1526,9 @@ mod architectures {
     #![allow(clippy::excessive_precision)]
 
     use crate::common::{assert_bits, compile_support::server_at, per_arch};
-    use molangx::compile::compile;
-    use molangx::numeric::{ARCH, Arch};
-    use molangx::vm::{NoHostEnv, Value, VariableName};
+    use molang::compile::compile;
+    use molang::numeric::{ARCH, Arch};
+    use molang::vm::{NoHostEnv, Value, VariableName};
 
     const NAN: f32 = f32::NAN;
 
@@ -2170,12 +2170,12 @@ mod operators {
         compile_support::{server_at, server_expr, server_expr_at},
         eval_with_samples, per_arch,
     };
-    use molangx::compile::{CompileFailure, CompileOptions, compile};
-    use molangx::numeric::{self, ARCH, Arch, PostOp};
-    use molangx::rng::FixedRng;
-    use molangx::stdlib::math;
-    use molangx::version::MolangVersion;
-    use molangx::vm::NoHostEnv;
+    use molang::compile::{CompileFailure, CompileOptions, compile};
+    use molang::numeric::{self, ARCH, Arch, PostOp};
+    use molang::rng::FixedRng;
+    use molang::stdlib::math;
+    use molang::version::MolangVersion;
+    use molang::vm::NoHostEnv;
 
     fn eval(source: &str) -> f32 {
         server_expr(source).eval_f32(&mut NoHostEnv::new().cx())
@@ -2376,7 +2376,7 @@ mod operators {
 
 mod division_per_version {
     use crate::common::compile_support::server_expr_at;
-    use molangx::vm::{NoHostEnv, Value, VariableName};
+    use molang::vm::{NoHostEnv, Value, VariableName};
 
     fn divide(version: i16, a: f32, d: f32) -> f32 {
         let expr = server_expr_at("v.a / v.d", version);
@@ -2414,8 +2414,8 @@ mod division_per_version {
 
 mod fixed_generator {
     use crate::common::compile_support::server_expr;
-    use molangx::rng::FixedRng;
-    use molangx::vm::NoHostEnv;
+    use molang::rng::FixedRng;
+    use molang::vm::NoHostEnv;
 
     fn draw(source: &str, sample: f32) -> f32 {
         let expr = server_expr(source);
@@ -2458,7 +2458,7 @@ mod fixed_generator {
 }
 
 mod generator {
-    use molangx::rng::{
+    use molang::rng::{
         FixedRng, Xorshift128,
         rand_core::{Rng, SeedableRng},
         sample,
@@ -2578,19 +2578,19 @@ mod generator {
 }
 
 mod math_library {
-    //! The functions of `molangx::stdlib::math` called directly, on this build's architecture.
+    //! The functions of `molang::stdlib::math` called directly, on this build's architecture.
 
     // Expected values are written with nine significant digits.
     #![allow(clippy::excessive_precision)]
 
     use crate::common::per_arch;
-    use molangx::numeric::{ARCH, Arch, arith};
-    use molangx::stdlib::math;
+    use molang::numeric::{ARCH, Arch, arith};
+    use molang::stdlib::math;
 
-    use molangx::numeric::PostOp;
+    use molang::numeric::PostOp;
 
     use crate::common::word;
-    use molangx::rng::rand_core::{Infallible, TryRng};
+    use molang::rng::rand_core::{Infallible, TryRng};
 
     /// `|actual − expected| <= tolerance`; non-finite expectations must match to the bit.
     fn within(actual: f32, expected: f32, tolerance: f32) -> bool {
@@ -3180,8 +3180,8 @@ mod architecture_primitives {
     #![allow(clippy::excessive_precision)]
 
     use crate::common::per_arch;
-    use molangx::numeric::{self, ARCH, Arch, PostOp, arith};
-    use molangx::stdlib::math;
+    use molang::numeric::{self, ARCH, Arch, PostOp, arith};
+    use molang::stdlib::math;
 
     const ID: PostOp = PostOp::IDENTITY;
 
@@ -3391,13 +3391,13 @@ mod architecture_primitives {
         // The architectures return different integers here: 6 − 2ε rounds to 6 under Arm64 and −3 +
         // 6·0.5 is 0, while the x86-64 form, 0.5·(−3) + 0.5·2.9999998, is just below 0.
         assert_eq!(math::random_integer(lo, hi, r, ID), per_arch(-1.0, 0.0));
-        let mut half = molangx::rng::FixedRng::HALF;
+        let mut half = molang::rng::FixedRng::HALF;
         assert_eq!(
             math::die_roll_integer(1.0, lo, hi, 1, &mut half, ID),
             per_arch(Some(-1.0), Some(0.0))
         );
         // One roll of a die is one such draw.
-        let mut rng = molangx::rng::FixedRng(crate::common::word(third()));
+        let mut rng = molang::rng::FixedRng(crate::common::word(third()));
         assert_eq!(
             math::die_roll(1.0, 1.1, 7.3, 1, &mut rng, ID),
             per_arch(
@@ -3494,9 +3494,9 @@ mod nan_signs {
     //! `math.copy_sign` shows of a NaN.
 
     use crate::common::per_arch;
-    use molangx::compile::{CompileOptions, compile};
-    use molangx::version::MolangVersion;
-    use molangx::vm::{NoHostEnv, Value, VariableName};
+    use molang::compile::{CompileOptions, compile};
+    use molang::version::MolangVersion;
+    use molang::vm::{NoHostEnv, Value, VariableName};
 
     /// The default NaN with its sign bit set.
     const NEG: u32 = 0xffc0_0000;

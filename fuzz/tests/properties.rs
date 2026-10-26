@@ -3,7 +3,7 @@
 mod common;
 
 use arbitrary::{Arbitrary, Unstructured};
-use molangx_fuzz::generator::FuzzCase;
+use molang_fuzz::generator::FuzzCase;
 use proptest::prelude::*;
 
 /// `default_cases` cases, or `PROPTEST_CASES`.
@@ -35,13 +35,13 @@ mod lowering {
     use super::config;
     use crate::common::client_at;
     use arbitrary::{Arbitrary, Unstructured};
-    use molangx::compile::{Compiled, Expr, compile};
-    use molangx::rng::Xorshift128;
-    use molangx::vm::EvalLimits;
-    use molangx_fuzz::generator::env::{
+    use molang::compile::{Compiled, Expr, compile};
+    use molang::rng::Xorshift128;
+    use molang::vm::EvalLimits;
+    use molang_fuzz::generator::env::{
         FuzzEnv, FuzzRng, Subject, TempLifetime, same_value, state_difference,
     };
-    use molangx_fuzz::generator::{Program, Style};
+    use molang_fuzz::generator::{Program, Style};
     use proptest::prelude::*;
 
     fn program() -> impl Strategy<Value = (Program, Style)> {
@@ -160,13 +160,13 @@ mod vm_host {
     //! the added assignment costs steps of its own.
 
     use super::{config, fuzz_case};
-    use molangx::catalog::QueryAdmission;
-    use molangx::compile::{CompileOptions, ProgramFlags, compile};
-    use molangx::internals::reference_catalog;
-    use molangx::version::RawVersion;
-    use molangx::vm::{EvalLimits, TempName};
-    use molangx_fuzz::generator::env::{FuzzEnv, state_difference};
-    use molangx_fuzz::generator::{FuzzCase, Program};
+    use molang::catalog::QueryAdmission;
+    use molang::compile::{CompileOptions, ProgramFlags, compile};
+    use molang::internals::reference_catalog;
+    use molang::version::RawVersion;
+    use molang::vm::{EvalLimits, TempName};
+    use molang_fuzz::generator::env::{FuzzEnv, state_difference};
+    use molang_fuzz::generator::{FuzzCase, Program};
     use proptest::prelude::*;
 
     const FORCING_TEMP: &str = "zz_general";
@@ -262,8 +262,8 @@ mod vm_tree_walker {
     //! The property-test twin of the `compile_eval` fuzz target.
 
     use super::{config, fuzz_case};
-    use molangx_fuzz::generator::FuzzCase;
-    use molangx_fuzz::generator::env::{Verdict, differential};
+    use molang_fuzz::generator::FuzzCase;
+    use molang_fuzz::generator::env::{Verdict, differential};
     use proptest::prelude::*;
 
     fn check(case: &FuzzCase) -> Result<(), TestCaseError> {

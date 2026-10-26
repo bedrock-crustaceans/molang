@@ -192,7 +192,7 @@ mod tests {
     use crate::vm::{EvalLimits, NoHost, NoHostEnv, StructValue};
 
     const WIDTH_MSG: &str =
-        "molangx: evaluation stopped: a struct would hold more than its budget of 2 members";
+        "molang: evaluation stopped: a struct would hold more than its budget of 2 members";
 
     #[test]
     fn a_store_that_nests_past_the_depth_budget_ends_the_evaluation() {
@@ -251,9 +251,7 @@ mod tests {
         assert_eq!(r.value, NV::Float(0.0));
         assert_eq!(
             r.msgs,
-            [
-                "molangx: evaluation stopped: a struct would nest deeper than its budget of 32 levels"
-            ]
+            ["molang: evaluation stopped: a struct would nest deeper than its budget of 32 levels"]
         );
     }
 
@@ -338,9 +336,7 @@ mod tests {
         assert_eq!(r.value, NV::Float(0.0));
         assert_eq!(
             r.msgs,
-            [
-                "molangx: evaluation stopped: a struct would hold more than its budget of 256 members"
-            ]
+            ["molang: evaluation stopped: a struct would hold more than its budget of 256 members"]
         );
     }
 
@@ -669,7 +665,7 @@ mod tests {
         assert_eq!(vm.steps_left, 100 - 6);
         assert_eq!(
             env.sink.take(),
-            ["molangx: evaluation stopped: a struct would hold more than its budget of 2 members"]
+            ["molang: evaluation stopped: a struct would hold more than its budget of 2 members"]
         );
 
         // An existing member is never refused.
@@ -703,7 +699,7 @@ mod tests {
         assert_eq!(ok.struct_depth(), 2);
         assert_eq!(
             env.sink.take(),
-            ["molangx: evaluation stopped: a struct would nest deeper than its budget of 2 levels"]
+            ["molang: evaluation stopped: a struct would nest deeper than its budget of 2 levels"]
         );
     }
 

@@ -5,32 +5,32 @@
 
 use std::path::PathBuf;
 
-use molangx::catalog::{QueryCatalog, Side};
-use molangx::compile::CompileOptions;
-use molangx::version::RawVersion;
+use molang::catalog::{QueryCatalog, Side};
+use molang::compile::CompileOptions;
+use molang::version::RawVersion;
 use serde_json::Value;
 
 pub mod differential;
 #[path = "../../../tests/common/host.rs"]
 pub mod host;
 
-pub use molangx::internals::reference_catalog::{EXPERIMENTAL_TEST, GET_NAME_TEST, SUM_TEST};
+pub use molang::internals::reference_catalog::{EXPERIMENTAL_TEST, GET_NAME_TEST, SUM_TEST};
 
 /// The client's built-in queries plus the seven helper queries.
 pub fn reference_catalog() -> &'static QueryCatalog {
-    molangx::internals::reference_catalog::catalog()
+    molang::internals::reference_catalog::catalog()
 }
 
 pub fn client_at(version: i16) -> CompileOptions {
     CompileOptions::from_raw_version(
-        molangx::stdlib::queries(Side::Client).clone(),
+        molang::stdlib::queries(Side::Client).clone(),
         RawVersion(version),
     )
 }
 
 pub fn server_at(version: i16) -> CompileOptions {
     CompileOptions::from_raw_version(
-        molangx::stdlib::queries(Side::Server).clone(),
+        molang::stdlib::queries(Side::Server).clone(),
         RawVersion(version),
     )
 }
@@ -49,7 +49,7 @@ pub fn data_json(name: &str) -> Value {
         .as_str()
         .unwrap_or_else(|| panic!("{} has no schema", path.display()));
     assert!(
-        schema.starts_with("molangx/"),
+        schema.starts_with("molang/"),
         "{}: schema {schema:?}",
         path.display()
     );

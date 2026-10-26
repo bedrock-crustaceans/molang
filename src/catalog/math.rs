@@ -58,7 +58,7 @@ impl fmt::Debug for MathImpl {
 ///   forbids the standard function. Without the catalogue the standard function is used.
 ///
 /// ```
-/// use molangx::catalog::{Arity, MathDecl};
+/// use molang::catalog::{Arity, MathDecl};
 ///
 /// let twice = MathDecl::pure("math.twice", Arity::exactly(1), |a| a[0] * 2.0)?;
 /// assert_eq!(
@@ -67,7 +67,7 @@ impl fmt::Debug for MathImpl {
 /// );
 /// assert!(MathDecl::pure("math.sin", Arity::exactly(1), |a| a[0] * 2.0).is_ok(), "an override");
 /// assert!(MathDecl::pure("math.pi", Arity::exactly(1), |a| a[0]).is_err(), "a constant");
-/// # Ok::<(), molangx::catalog::MathError>(())
+/// # Ok::<(), molang::catalog::MathError>(())
 /// ```
 #[derive(Clone, Debug)]
 pub struct MathDecl {
@@ -137,7 +137,7 @@ impl MathDecl {
 }
 
 /// A host math function of one catalogue: its position there. Public only through
-/// `molangx::internals`.
+/// `molang::internals`.
 ///
 /// Only a lookup in a catalogue makes one, and a compiled expression keeps the catalogue it was
 /// compiled with.
@@ -163,8 +163,8 @@ struct Inner {
 /// catalogues with equal declarations are not. A compiled expression keeps its catalogue.
 ///
 /// ```
-/// use molangx::catalog::{Arity, MathCatalog, MathDecl};
-/// use molangx::rng::sample;
+/// use molang::catalog::{Arity, MathCatalog, MathDecl};
+/// use molang::rng::sample;
 ///
 /// let math = MathCatalog::new([
 ///     MathDecl::pure("math.twice", Arity::exactly(1), |a| a[0] * 2.0)?,
@@ -176,7 +176,7 @@ struct Inner {
 ///     math,
 ///     MathCatalog::new([MathDecl::pure("math.twice", Arity::exactly(1), |a| a[0] * 2.0)?])?
 /// );
-/// # Ok::<(), molangx::catalog::MathError>(())
+/// # Ok::<(), molang::catalog::MathError>(())
 /// ```
 #[derive(Clone)]
 pub struct MathCatalog {

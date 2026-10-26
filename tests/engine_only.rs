@@ -2,10 +2,10 @@
 
 #![cfg(feature = "compiler")]
 
-use molangx::catalog::{Arity, QueryCatalog, QueryDecl, QueryShape, ReturnType, Side};
-use molangx::compile::{CompileFailure, CompileOptions, compile};
-use molangx::ops::{ExpressionOp, OpSet};
-use molangx::version::MolangVersion;
+use molang::catalog::{Arity, QueryCatalog, QueryDecl, QueryShape, ReturnType, Side};
+use molang::compile::{CompileFailure, CompileOptions, compile};
+use molang::ops::{ExpressionOp, OpSet};
+use molang::version::MolangVersion;
 
 /// `query.double(x)` and `query.actors`.
 fn catalog() -> QueryCatalog {
@@ -98,7 +98,7 @@ fn the_standard_names_are_known_only_with_the_feature() {
     let constant = |src: &str| {
         compile(src, &options)
             .expr()
-            .and_then(molangx::compile::Expr::as_constant)
+            .and_then(molang::compile::Expr::as_constant)
     };
     if cfg!(feature = "stdlib") {
         assert!((constant("math.sin(90)").expect("folded") - 1.0).abs() < 1e-6);
@@ -108,11 +108,11 @@ fn the_standard_names_are_known_only_with_the_feature() {
 
 #[cfg(feature = "vm")]
 mod evaluation {
-    use molangx::catalog::{Arity, MathCatalog, MathDecl, QueryCatalog};
-    use molangx::compile::{CompileOptions, compile};
-    use molangx::rng::{FixedRng, sample};
-    use molangx::version::MolangVersion;
-    use molangx::vm::{NoHost, NoHostEnv, QueryCx, QueryResult, QueryTable, Value, VariableName};
+    use molang::catalog::{Arity, MathCatalog, MathDecl, QueryCatalog};
+    use molang::compile::{CompileOptions, compile};
+    use molang::rng::{FixedRng, sample};
+    use molang::version::MolangVersion;
+    use molang::vm::{NoHost, NoHostEnv, QueryCx, QueryResult, QueryTable, Value, VariableName};
 
     fn double(cx: &mut QueryCx<'_, '_, NoHost>) -> QueryResult<NoHost> {
         Ok(Value::Float(cx.arg_f32(0).unwrap_or(0.0) * 2.0))

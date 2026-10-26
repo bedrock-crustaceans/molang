@@ -2,7 +2,7 @@
 //! same names and signatures, and `native` is the one of this build. The unit tests compile both.
 
 #[cfg(all(target_arch = "x86", not(target_feature = "sse2")))]
-compile_error!("molangx needs SSE2 on 32-bit x86: x87 rounds f32 operations in extended precision");
+compile_error!("molang needs SSE2 on 32-bit x86: x87 rounds f32 operations in extended precision");
 
 #[cfg(any(target_arch = "aarch64", test))]
 #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]

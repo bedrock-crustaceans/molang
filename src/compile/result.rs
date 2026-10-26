@@ -60,8 +60,8 @@ pub enum CompileFailure {
 /// ```
 /// # #[cfg(feature = "stdlib")]
 /// # {
-/// use molangx::compile::{CompileOptions, CompileOutcome, compile};
-/// use molangx::version::MolangVersion;
+/// use molang::compile::{CompileOptions, CompileOutcome, compile};
+/// use molang::version::MolangVersion;
 ///
 /// let options = CompileOptions::server(MolangVersion::LATEST);
 /// let compiled = compile("1 +", &options);
@@ -162,9 +162,9 @@ impl Compiled {
     /// ```
     /// # #[cfg(feature = "stdlib")]
     /// # {
-    /// use molangx::compile::{CompileOptions, compile};
-    /// use molangx::diag::Severity;
-    /// use molangx::version::MolangVersion;
+    /// use molang::compile::{CompileOptions, compile};
+    /// use molang::diag::Severity;
+    /// use molang::version::MolangVersion;
     ///
     /// let (expr, diagnostics) =
     ///     compile("1e;", &CompileOptions::server(MolangVersion::LATEST)).into_result()?;
@@ -172,7 +172,7 @@ impl Compiled {
     /// assert_eq!(diagnostics.len(), 1);
     /// assert_eq!(diagnostics[0].severity(), Severity::Warning);
     /// # }
-    /// # Ok::<(), molangx::compile::CompileError>(())
+    /// # Ok::<(), molang::compile::CompileError>(())
     /// ```
     pub fn into_result(self) -> Result<(Expr, Vec<Diagnostic>), CompileError> {
         let failure = match self.outcome {

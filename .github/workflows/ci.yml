@@ -226,8 +226,8 @@ jobs:
       - name: Build and test the unpacked crate
         run: |
           mkdir -p target/pkgcheck
-          tar xzf target/package/molangx-*.crate -C target/pkgcheck
-          cd target/pkgcheck/molangx-*/
+          tar xzf target/package/molang-*.crate -C target/pkgcheck
+          cd target/pkgcheck/molang-*/
           cargo build --all-features --examples
           cargo test --doc --all-features
 

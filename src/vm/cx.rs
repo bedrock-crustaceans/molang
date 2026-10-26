@@ -158,9 +158,9 @@ impl<H: Host> EvalCx<'_, '_, H> {
 /// ```
 /// # #[cfg(feature = "stdlib")]
 /// # {
-/// use molangx::compile::{CompileOptions, compile};
-/// use molangx::version::MolangVersion;
-/// use molangx::vm::NoHostEnv;
+/// use molang::compile::{CompileOptions, compile};
+/// use molang::version::MolangVersion;
+/// use molang::vm::NoHostEnv;
 ///
 /// let (expr, _) = compile(
 ///     "math.clamp(1 + 2 * 3, 0, 5)",
@@ -174,7 +174,7 @@ impl<H: Host> EvalCx<'_, '_, H> {
 /// ```
 ///
 /// ```
-/// use molangx::vm::{NoHostEnv, Value, VariableName};
+/// use molang::vm::{NoHostEnv, Value, VariableName};
 ///
 /// let mut env = NoHostEnv { this: 2.34, ..NoHostEnv::new() };
 /// env.variables.set(VariableName::new("x"), Value::Float(3.0));
@@ -254,11 +254,11 @@ impl Default for NoHostEnv {
 /// ```
 /// # #[cfg(feature = "stdlib")]
 /// # {
-/// use molangx::catalog::Side;
-/// use molangx::compile::{CompileOptions, compile};
-/// use molangx::stdlib::{self, query};
-/// use molangx::version::MolangVersion;
-/// use molangx::vm::{
+/// use molang::catalog::Side;
+/// use molang::compile::{CompileOptions, compile};
+/// use molang::stdlib::{self, query};
+/// use molang::version::MolangVersion;
+/// use molang::vm::{
 ///     ContextName, Host, HostAccess, HostEnv, QueryCx, QueryResult, QueryTable, Subjects, Value,
 /// };
 ///
@@ -296,7 +296,7 @@ impl Default for NoHostEnv {
 /// .unwrap();
 /// assert_eq!(expr.eval_f32(&mut env.cx(&mut world, Subjects::actor(1))), 1.0);
 /// # }
-/// # Ok::<(), molangx::vm::UnknownQuery>(())
+/// # Ok::<(), molang::vm::UnknownQuery>(())
 /// ```
 pub struct HostEnv<H: Host, V = VariableMap<H>, C = ContextMap<H>, R = Xorshift128, S = BoundedSink>
 {
@@ -1015,7 +1015,7 @@ mod tests {
         assert_eq!(
             env.sink.take(),
             [
-                "molangx: a public-access scope was closed while none was open",
+                "molang: a public-access scope was closed while none was open",
                 "Error: query.is_baby"
             ]
         );

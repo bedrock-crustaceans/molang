@@ -647,7 +647,7 @@ mod tests {
         assert_eq!(run_general(&p, &mut env, 100).0, NV::Float(0.0));
         assert_eq!(
             env.sink.take(),
-            ["molangx: a public-access scope was closed while none was open"]
+            ["molang: a public-access scope was closed while none was open"]
         );
     }
 

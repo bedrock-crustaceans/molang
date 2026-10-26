@@ -18,10 +18,10 @@ pub use style::Style;
 
 use arbitrary::{Arbitrary, Result, Unstructured};
 use env::{FuzzRng, Subject, TempLifetime};
-use molangx::json::{JsonScalar, MolangSource, MolangValueRepr, OtherJson, ReaderKind, SourceForm};
-use molangx::rng::{FixedRng, Xorshift128};
-use molangx::version::RawVersion;
-use molangx::vm::EvalLimits;
+use molang::json::{JsonScalar, MolangSource, MolangValueRepr, OtherJson, ReaderKind, SourceForm};
+use molang::rng::{FixedRng, Xorshift128};
+use molang::version::RawVersion;
+use molang::vm::EvalLimits;
 use std::sync::Arc;
 
 /// The struct width budget of a case that does not draw a small one.
@@ -547,9 +547,9 @@ mod tests {
     /// others, and how many of those it accepts fold to a constant.
     mod acceptance {
         use super::*;
-        use molangx::compile::{CompileFailure, compile};
+        use molang::compile::{CompileFailure, compile};
 
-        use molangx::diag::Severity;
+        use molang::diag::Severity;
 
         use std::collections::BTreeMap;
         use std::sync::OnceLock;
@@ -589,7 +589,7 @@ mod tests {
             let mut by_version: BTreeMap<i16, Tally> = BTreeMap::new();
             for seed in 0..SEEDS {
                 let case = case_of(&buffer(seed, 32 + (seed.wrapping_mul(7919) % 568) as usize));
-                let options = molangx::internals::reference_catalog::options(case.version);
+                let options = molang::internals::reference_catalog::options(case.version);
                 let compiled = compile(&case.source(), &options);
                 let tally = by_version.entry(case.version).or_default();
                 if compiled.failure() == Some(CompileFailure::Rejected) {
@@ -610,17 +610,17 @@ mod tests {
                     tally.constant += u32::from(
                         compiled
                             .expr()
-                            .is_some_and(molangx::compile::Expr::is_constant),
+                            .is_some_and(molang::compile::Expr::is_constant),
                     );
                     let calls = |op| {
                         compiled
                             .expr()
-                            .and_then(molangx::internals::tree)
+                            .and_then(molang::internals::tree)
                             .is_some_and(|tree| contains(tree, op))
                     };
-                    tally.host_calls[0] += u32::from(calls(molangx::ops::ExpressionOp::HostMath));
+                    tally.host_calls[0] += u32::from(calls(molang::ops::ExpressionOp::HostMath));
                     tally.host_calls[1] +=
-                        u32::from(calls(molangx::ops::ExpressionOp::HostMathVolatile));
+                        u32::from(calls(molang::ops::ExpressionOp::HostMathVolatile));
                 }
             }
             by_version
@@ -692,7 +692,7 @@ mod tests {
             assert!(all.why.len() >= 8, "{:?}", all.why);
         }
 
-        fn contains(node: &molangx::internals::Node, op: molangx::ops::ExpressionOp) -> bool {
+        fn contains(node: &molang::internals::Node, op: molang::ops::ExpressionOp) -> bool {
             node.op() == op || node.children().iter().any(|child| contains(child, op))
         }
 

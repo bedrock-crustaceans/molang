@@ -3,22 +3,22 @@
 //! and [`SmokeGroup`] rows each run on a fresh one. On `Arm64` every row holds; on `X86_64` a
 //! [`RunGroup`]'s rows on [`RunGroup::x86_64_differs`] differ and the rest hold.
 
-use molangx::compile::{CompileOptions, Deviations, compile};
-use molangx::rng::FixedRng;
+use molang::compile::{CompileOptions, Deviations, compile};
+use molang::rng::FixedRng;
 
 use super::math_call::{evaluate_call, parse_call, uses_random};
 #[cfg(feature = "vm")]
 use crate::common::compile_support::messages;
 use crate::common::{CheckGuard, compile_support::server_at, nan_or_same_bits};
 #[cfg(feature = "vm")]
-use molangx::numeric::{ARCH, Arch};
+use molang::numeric::{ARCH, Arch};
 
 #[cfg(feature = "vm")]
 use crate::common::host::{Env, LevelSink};
 #[cfg(feature = "vm")]
-use molangx::rng::Xorshift128;
+use molang::rng::Xorshift128;
 #[cfg(feature = "vm")]
-use molangx::vm::{EvalLimits, LogLevel, Value, VariableName};
+use molang::vm::{EvalLimits, LogLevel, Value, VariableName};
 
 #[cfg(feature = "vm")]
 const PASSES: &str = "v.loop_cap_passes";
@@ -298,7 +298,7 @@ impl LoopCapRow {
             let value = env.eval(&compiled, &mut Xorshift128::new(), &mut sink);
             if self.x86_64_runs_away && ARCH == Arch::X86_64 {
                 let budget =
-                    format!("molangx: evaluation stopped after its budget of {STEP_BUDGET} steps");
+                    format!("molang: evaluation stopped after its budget of {STEP_BUDGET} steps");
                 let as_described = value == Value::ZERO && sink.lines == [(LogLevel::Warn, budget)];
                 assert!(
                     as_described,

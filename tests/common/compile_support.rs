@@ -1,19 +1,19 @@
 //! Compile helpers. Versions are raw: a test may compile at a version outside −1..=13.
 
-use molangx::catalog::Side;
-use molangx::compile::{CompileOptions, Compiled, Expr, compile};
-use molangx::version::RawVersion;
+use molang::catalog::Side;
+use molang::compile::{CompileOptions, Compiled, Expr, compile};
+use molang::version::RawVersion;
 
 pub fn client_at(version: i16) -> CompileOptions {
     CompileOptions::from_raw_version(
-        molangx::stdlib::queries(Side::Client).clone(),
+        molang::stdlib::queries(Side::Client).clone(),
         RawVersion(version),
     )
 }
 
 pub fn server_at(version: i16) -> CompileOptions {
     CompileOptions::from_raw_version(
-        molangx::stdlib::queries(Side::Server).clone(),
+        molang::stdlib::queries(Side::Server).clone(),
         RawVersion(version),
     )
 }
