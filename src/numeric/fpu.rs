@@ -35,17 +35,15 @@ pub(crate) const fn default_nan(p: Platform) -> f32 {
 }
 
 /// The NaN result of an operation on `a` and `b`, `a` the left operand.
-#[cold]
-#[inline(never)]
+#[inline]
 fn nan_of(p: Platform, a: f32, b: f32) -> f32 {
-    let chosen = match p.fpu() {
-        Fpu::X86_64 => [a, b].into_iter().find(|x| x.is_nan()),
-        Fpu::Arm64 => [a, b]
-            .into_iter()
-            .find(|&x| is_signalling(x))
-            .or_else(|| [a, b].into_iter().find(|x| x.is_nan())),
+    let kept = match p.fpu() {
+        Fpu::X86_64 if a.is_nan() => a,
+        Fpu::Arm64 if is_signalling(a) || (a.is_nan() && !is_signalling(b)) => a,
+        Fpu::X86_64 | Fpu::Arm64 if b.is_nan() => b,
+        Fpu::X86_64 | Fpu::Arm64 => return default_nan(p),
     };
-    chosen.map_or(default_nan(p), quiet)
+    quiet(kept)
 }
 
 /// `r`, or the platform's NaN of `a` and `b` when `r` is NaN.
