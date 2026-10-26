@@ -28,20 +28,26 @@ fn is_signalling(x: f32) -> bool {
 /// The NaN of an invalid operation on numbers.
 #[inline]
 pub(crate) const fn default_nan(p: Platform) -> f32 {
-    match p.fpu() {
-        Fpu::X86_64 => X86_64_DEFAULT_NAN,
-        Fpu::Arm64 => ARM64_DEFAULT_NAN,
+    p.fpu().default_nan()
+}
+
+impl Fpu {
+    const fn default_nan(self) -> f32 {
+        match self {
+            Self::X86_64 => X86_64_DEFAULT_NAN,
+            Self::Arm64 => ARM64_DEFAULT_NAN,
+        }
     }
 }
 
 /// The NaN result of an operation on `a` and `b`, `a` the left operand.
 #[inline]
-fn nan_of(p: Platform, a: f32, b: f32) -> f32 {
-    let kept = match p.fpu() {
+pub(crate) fn nan_of(fpu: Fpu, a: f32, b: f32) -> f32 {
+    let kept = match fpu {
         Fpu::X86_64 if a.is_nan() => a,
         Fpu::Arm64 if is_signalling(a) || (a.is_nan() && !is_signalling(b)) => a,
         Fpu::X86_64 | Fpu::Arm64 if b.is_nan() => b,
-        Fpu::X86_64 | Fpu::Arm64 => return default_nan(p),
+        Fpu::X86_64 | Fpu::Arm64 => return fpu.default_nan(),
     };
     quiet(kept)
 }
@@ -49,7 +55,7 @@ fn nan_of(p: Platform, a: f32, b: f32) -> f32 {
 /// `r`, or the platform's NaN of `a` and `b` when `r` is NaN.
 #[inline]
 fn chosen(p: Platform, r: f32, a: f32, b: f32) -> f32 {
-    if r.is_nan() { nan_of(p, a, b) } else { r }
+    if r.is_nan() { nan_of(p.fpu(), a, b) } else { r }
 }
 
 /// `a + b`.
@@ -100,6 +106,7 @@ pub(crate) fn min(a: f32, b: f32) -> f32 {
 pub(crate) fn to_int(p: Platform, v: f32) -> i32 {
     match p.fpu() {
         Fpu::X86_64 if !(-2_147_483_648.0..2_147_483_648.0).contains(&v) => i32::MIN,
+        // `as` saturates and turns NaN into 0, as arm64's conversion does.
         Fpu::X86_64 | Fpu::Arm64 => v as i32,
     }
 }

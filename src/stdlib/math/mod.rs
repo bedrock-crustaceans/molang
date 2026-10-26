@@ -44,11 +44,10 @@ pub fn pi(platform: Platform, post: PostOp) -> f32 {
 /// choice between two NaNs differs.
 #[inline]
 fn offset_first(platform: Platform, raw: f32, post: PostOp) -> f32 {
-    match platform {
-        Platform::BdsWindows if !post.is_identity() => {
-            arith::add(platform, post.offset, arith::mul(platform, post.scale, raw))
-        }
-        _ => post.apply(platform, raw),
+    if platform.reorders_operands() && !post.is_identity() {
+        arith::add(platform, post.offset, arith::mul(platform, post.scale, raw))
+    } else {
+        post.apply(platform, raw)
     }
 }
 

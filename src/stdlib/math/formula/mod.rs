@@ -229,7 +229,7 @@ mod tests {
     use super::test_support::easing_bodies;
     use super::*;
     use crate::numeric::test_support::*;
-    use crate::stdlib::math::{PI, transcendental};
+    use crate::stdlib::math::PI;
 
     #[test]
     fn a_nan_bound_survives_the_sort() {
@@ -416,9 +416,20 @@ mod tests {
             for p in PLATFORMS {
                 assert_bits(
                     sin_table_entry(p, index),
-                    transcendental::sin(i / SIN_INDEX_SCALE, NAN),
+                    cmath::sin(p, i / SIN_INDEX_SCALE),
                 );
             }
+        }
+    }
+
+    #[test]
+    fn the_glibc_sine_table_differs_from_the_rounded_one_in_893_entries() {
+        let differing = (0..=0xffff)
+            .filter(|&i| sin_table_entry(LINUX, i) != sin_table_entry(WINDOWS, i))
+            .count();
+        assert_eq!(differing, 893);
+        for i in [1, 0x1234, 0xfffe] {
+            assert_bits(sin_table_entry(ANDROID, i), sin_table_entry(LINUX, i));
         }
     }
 

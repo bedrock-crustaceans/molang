@@ -27,7 +27,7 @@ fn plus_zero(p: Platform, x: f32) -> f32 {
 /// `x + start`; on [`Platform::BdsWindows`] `start + x`, which differs only in the NaN of two.
 #[inline]
 fn plus_start(p: Platform, x: f32, start: f32) -> f32 {
-    if p == Platform::BdsWindows {
+    if p.reorders_operands() {
         add(p, start, x)
     } else {
         add(p, x, start)
@@ -37,7 +37,7 @@ fn plus_start(p: Platform, x: f32, start: f32) -> f32 {
 /// `x·h`; on [`Platform::BdsWindows`] `h·x`, which differs only in the NaN of two.
 #[inline]
 fn times_half_range(p: Platform, x: f32, h: f32) -> f32 {
-    if p == Platform::BdsWindows {
+    if p.reorders_operands() {
         mul(p, h, x)
     } else {
         mul(p, x, h)
@@ -268,7 +268,7 @@ pub(crate) fn in_out_expo(p: Platform, start: f32, end: f32, t: f32) -> f32 {
 pub(crate) fn in_circ(p: Platform, start: f32, end: f32, t: f32) -> f32 {
     let d = sub(p, end, start);
     let q = add(p, cmath::sqrt(p, sub(p, 1.0, mul(p, t, t))), -1.0);
-    if p == Platform::BdsWindows {
+    if p.reorders_operands() {
         sub(p, start, mul(p, d, q))
     } else {
         add(p, mul(p, q, -d), start)
@@ -348,7 +348,7 @@ pub(crate) fn in_out_bounce(p: Platform, start: f32, end: f32, t: f32) -> f32 {
     } else {
         let x = plus_zero(p, mul(p, bounce(p, add(p, add(p, t, t), -1.0)), d));
         let (x, d) = (mul(p, x, 0.5), mul(p, d, 0.5));
-        let half = if p == Platform::BdsWindows {
+        let half = if p.reorders_operands() {
             add(p, d, x)
         } else {
             add(p, x, d)
@@ -541,15 +541,19 @@ mod tests {
         }
     }
 
-    /// Of the platforms' NaN rules only the order of the operands differs on Windows.
+    /// Of the platforms' NaN rules only the order of the operands differs on Windows; the bodies
+    /// that call no C library function give the same values as on Linux.
     #[test]
     fn windows_swaps_operands_without_changing_a_value() {
-        for (name, body, _) in easing_bodies() {
-            assert_eq!(
-                sweep_hash(|s, e, t| body(WINDOWS, s, e, t)),
-                sweep_hash(|s, e, t| body(LINUX, s, e, t)),
-                "{name}"
-            );
+        for ((name, body, _), (_, glibc, rounded)) in easing_bodies().into_iter().zip(SWEEP_HASHES)
+        {
+            if glibc == rounded {
+                assert_eq!(
+                    sweep_hash(|s, e, t| body(WINDOWS, s, e, t)),
+                    sweep_hash(|s, e, t| body(LINUX, s, e, t)),
+                    "{name}"
+                );
+            }
         }
     }
 
@@ -621,48 +625,52 @@ mod tests {
         }
     }
 
-    /// [`sweep_hash`] of each body.
+    /// [`sweep_hash`] of each body, with glibc's functions and with the `f64`-rounded ones.
     #[rustfmt::skip]
-    const SWEEP_HASHES: [(&str, u64); 30] = [
-        ("in_quad", 0xa740_e060_0249_41dc),
-        ("out_quad", 0x6e0c_6154_a7e9_c7a7),
-        ("in_out_quad", 0x909d_b438_fa55_cc6e),
-        ("in_cubic", 0x2675_f5d3_048b_14b3),
-        ("out_cubic", 0xe72e_5c82_74e7_6e21),
-        ("in_out_cubic", 0x6efe_e071_ff47_524f),
-        ("in_quart", 0x5263_6d29_b0e0_43ea),
-        ("out_quart", 0x0d5e_0527_cbcf_b19c),
-        ("in_out_quart", 0x5daa_5531_b8de_0d2a),
-        ("in_quint", 0xde79_6eb2_6dc0_3eee),
-        ("out_quint", 0x0ee9_154b_f207_c53f),
-        ("in_out_quint", 0x5850_494c_7ea1_be3a),
-        ("in_sine", 0x29f9_cdc7_1100_00d5),
-        ("out_sine", 0x41a7_84c6_6dac_2635),
-        ("in_out_sine", 0x837e_f434_6ff7_7055),
-        ("in_expo", 0xd0ae_d93f_7426_7609),
-        ("out_expo", 0xf1b2_7628_cfa0_2f92),
-        ("in_out_expo", 0x0921_0b7b_a41f_2b8a),
-        ("in_circ", 0xc1a7_1232_d230_380f),
-        ("out_circ", 0xc0d4_b980_a419_ea7c),
-        ("in_out_circ", 0x99f6_d001_0c7e_a0cb),
-        ("in_bounce", 0x516e_7ceb_aeba_2db8),
-        ("out_bounce", 0x1647_68d2_6ac7_8d43),
-        ("in_out_bounce", 0x8950_180f_031f_c6dc),
-        ("in_back", 0x6352_1748_d047_74d5),
-        ("out_back", 0x4f45_06bc_aced_9fb8),
-        ("in_out_back", 0x5529_758c_e25a_e093),
-        ("in_elastic", 0x4766_1d3b_cf39_170c),
-        ("out_elastic", 0xa8e2_087c_0c08_285d),
-        ("in_out_elastic", 0xb7bc_19af_bdc4_b912),
+    const SWEEP_HASHES: [(&str, u64, u64); 30] = [
+        ("in_quad", 0xa740_e060_0249_41dc, 0xa740_e060_0249_41dc),
+        ("out_quad", 0x6e0c_6154_a7e9_c7a7, 0x6e0c_6154_a7e9_c7a7),
+        ("in_out_quad", 0x909d_b438_fa55_cc6e, 0x909d_b438_fa55_cc6e),
+        ("in_cubic", 0x2675_f5d3_048b_14b3, 0x2675_f5d3_048b_14b3),
+        ("out_cubic", 0xe72e_5c82_74e7_6e21, 0xe72e_5c82_74e7_6e21),
+        ("in_out_cubic", 0x6efe_e071_ff47_524f, 0x6efe_e071_ff47_524f),
+        ("in_quart", 0x5263_6d29_b0e0_43ea, 0x5263_6d29_b0e0_43ea),
+        ("out_quart", 0x0d5e_0527_cbcf_b19c, 0x0d5e_0527_cbcf_b19c),
+        ("in_out_quart", 0x5daa_5531_b8de_0d2a, 0x5daa_5531_b8de_0d2a),
+        ("in_quint", 0xde79_6eb2_6dc0_3eee, 0xde79_6eb2_6dc0_3eee),
+        ("out_quint", 0x0ee9_154b_f207_c53f, 0x0ee9_154b_f207_c53f),
+        ("in_out_quint", 0x5850_494c_7ea1_be3a, 0x5850_494c_7ea1_be3a),
+        ("in_sine", 0xa1c0_60e3_fc6f_370e, 0x29f9_cdc7_1100_00d5),
+        ("out_sine", 0x1fba_dd33_ce09_11f3, 0x41a7_84c6_6dac_2635),
+        ("in_out_sine", 0xd621_6435_2549_411f, 0x837e_f434_6ff7_7055),
+        ("in_expo", 0x72ab_13a4_6ebb_c56c, 0xd0ae_d93f_7426_7609),
+        ("out_expo", 0x9fe0_608b_55e9_89e1, 0xf1b2_7628_cfa0_2f92),
+        ("in_out_expo", 0xb407_0512_2d45_c6e9, 0x0921_0b7b_a41f_2b8a),
+        ("in_circ", 0xc1a7_1232_d230_380f, 0xc1a7_1232_d230_380f),
+        ("out_circ", 0xc0d4_b980_a419_ea7c, 0xc0d4_b980_a419_ea7c),
+        ("in_out_circ", 0x99f6_d001_0c7e_a0cb, 0x99f6_d001_0c7e_a0cb),
+        ("in_bounce", 0x516e_7ceb_aeba_2db8, 0x516e_7ceb_aeba_2db8),
+        ("out_bounce", 0x1647_68d2_6ac7_8d43, 0x1647_68d2_6ac7_8d43),
+        ("in_out_bounce", 0x8950_180f_031f_c6dc, 0x8950_180f_031f_c6dc),
+        ("in_back", 0x6352_1748_d047_74d5, 0x6352_1748_d047_74d5),
+        ("out_back", 0x4f45_06bc_aced_9fb8, 0x4f45_06bc_aced_9fb8),
+        ("in_out_back", 0x5529_758c_e25a_e093, 0x5529_758c_e25a_e093),
+        ("in_elastic", 0x8ea3_02c2_d532_4677, 0x4766_1d3b_cf39_170c),
+        ("out_elastic", 0x85be_744f_a197_60e3, 0xa8e2_087c_0c08_285d),
+        ("in_out_elastic", 0x231c_c666_067f_f300, 0xb7bc_19af_bdc4_b912),
     ];
 
     #[test]
     fn every_easing_keeps_the_bits_of_its_sweep_on_every_platform() {
         for p in PLATFORMS {
-            for ((name, body, _), (hashed, expected)) in
+            for ((name, body, _), (hashed, glibc, rounded)) in
                 easing_bodies().into_iter().zip(SWEEP_HASHES)
             {
                 assert_eq!(name, hashed);
+                let expected = match cmath::libm(p) {
+                    cmath::Libm::RoundedF64 => rounded,
+                    cmath::Libm::Glibc(_) | cmath::Libm::GlibcArm64 => glibc,
+                };
                 assert_eq!(
                     sweep_hash(|s, e, t| body(p, s, e, t)),
                     expected,

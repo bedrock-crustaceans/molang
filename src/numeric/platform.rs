@@ -29,6 +29,11 @@
 /// | `math.ln` of a negative number | per [`LinuxRelease`] | `0xffc00000` | `0x7fc00000` |
 /// | `math.asin`, `math.acos` beyond the tolerance | `0x7fc00000` | `0xffc00000` | `0x7fc00000` |
 ///
+/// The transcendental functions and the easings' sine table are glibc's single-precision functions
+/// on `BdsLinux`. `AndroidArm64` takes the same functions as the closest match to its C library,
+/// which shares most of their algorithms: a best effort that can miss its last bit. `BdsWindows`
+/// evaluates them in `f64` and rounds once, which can miss the last bit of its C library too.
+///
 /// On `BdsWindows`, ten easings (`in_out_quad`, `in_out_cubic`, `in_out_quart`, `in_out_quint`,
 /// `in_out_expo`, `in_circ`, `out_circ`, `in_out_circ`, `in_out_bounce`, `in_out_back`) add the
 /// start first and so return the start's NaN of two, and `math.floor`, `math.ceil`, `math.round`,
@@ -76,17 +81,20 @@ impl Default for Platform {
 }
 
 /// A release of the Linux dedicated server, where its float behaviour depends on it.
+///
+/// The behaviour changed between 1.26.36 and 1.26.52; the releases in between were not analysed.
+/// A host on one of them that needs `math.ln(-1)`'s sign exact must check which variant it matches.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum LinuxRelease {
-    /// 1.26.36: `math.ln` of a negative number gives `0xffc00000`.
+    /// 1.26.36 and earlier: `math.ln` of a negative number gives `0xffc00000`.
     V1_26_36,
-    /// 1.26.52: `math.ln` of a negative number gives `0x7fc00000`.
+    /// 1.26.52 and later: `math.ln` of a negative number gives `0x7fc00000`.
     V1_26_52,
 }
 
 impl LinuxRelease {
-    /// The newest release this crate reproduces: [`LinuxRelease::V1_26_52`].
+    /// The newest release analysed: [`LinuxRelease::V1_26_52`].
     pub const LATEST: Self = Self::V1_26_52;
 }
 
@@ -98,17 +106,6 @@ pub(crate) enum Fpu {
     /// arm64: the first signalling NaN operand, else the first quiet one, `0x7fc00000` for an
     /// invalid operation, saturating conversions.
     Arm64,
-}
-
-/// The C library behind the transcendental functions.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Libm {
-    /// glibc, as a Linux server release binds it.
-    Glibc(LinuxRelease),
-    /// The Windows universal C runtime.
-    Ucrt,
-    /// Android's bionic.
-    Bionic,
 }
 
 impl Platform {
@@ -124,14 +121,11 @@ impl Platform {
         }
     }
 
-    /// The C library of this platform.
+    /// Whether some easings and the rounding post-ops take their operands in the other order:
+    /// the same values, another NaN of two.
     #[inline]
-    pub(crate) const fn libm(self) -> Libm {
-        match self {
-            Self::BdsLinux(release) => Libm::Glibc(release),
-            Self::BdsWindows => Libm::Ucrt,
-            Self::AndroidArm64 => Libm::Bionic,
-        }
+    pub(crate) const fn reorders_operands(self) -> bool {
+        matches!(self, Self::BdsWindows)
     }
 }
 
