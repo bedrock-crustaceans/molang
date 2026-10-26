@@ -175,6 +175,14 @@ impl Libm {
         }
     }
 
+    pub(crate) fn ln(self, x: f32, invalid: f32) -> f32 {
+        match self {
+            Self::RoundedF64 => ln(x, invalid),
+            Self::Glibc(LogfSymbol::Compat) => glibc::logf_compat(x),
+            Self::Glibc(LogfSymbol::Current) => glibc::logf(x),
+        }
+    }
+
     /// Entry `index` of the easings' sine table, `sin(index / SIN_INDEX_SCALE)` with the quotient
     /// in `f32`. glibc's table is filled on first use.
     pub(crate) fn sin_table_entry(self, index: u16) -> f32 {

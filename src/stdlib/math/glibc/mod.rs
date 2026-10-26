@@ -12,9 +12,13 @@
 //! `GLIBC_2.2.5` wrapper where its results differ from the current symbol's.
 
 mod exp;
+mod log;
 mod sincos;
 
 pub use exp::{exp2f, expf};
+#[allow(unused_imports, reason = "only the oracle test takes `log2`")]
+pub use log::log2f;
+pub use log::{logf, logf_compat};
 pub use sincos::{cosf, sinf};
 
 const QUIET_BIT: u32 = 0x0040_0000;
