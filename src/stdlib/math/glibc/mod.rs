@@ -12,12 +12,14 @@
 //! `GLIBC_2.2.5` wrapper where its results differ from the current symbol's.
 
 mod asin_acos;
+mod atan;
 mod exp;
 mod log;
 mod pow;
 mod sincos;
 
 pub use asin_acos::{acosf, asinf};
+pub use atan::{atan2f, atanf};
 pub use exp::{exp2f, expf};
 #[allow(unused_imports, reason = "only the oracle test takes `log2`")]
 pub use log::log2f;

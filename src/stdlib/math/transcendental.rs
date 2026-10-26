@@ -177,6 +177,20 @@ impl Libm {
         }
     }
 
+    pub(crate) fn atan(self, x: f32) -> f32 {
+        match self {
+            Self::RoundedF64 => atan(x),
+            Self::Glibc(_) => glibc::atanf(x),
+        }
+    }
+
+    pub(crate) fn atan2(self, y: f32, x: f32) -> f32 {
+        match self {
+            Self::RoundedF64 => atan2(y, x),
+            Self::Glibc(_) => glibc::atan2f(y, x),
+        }
+    }
+
     pub(crate) fn exp(self, x: f32) -> f32 {
         match self {
             Self::RoundedF64 => exp(x),
