@@ -142,7 +142,7 @@ fn main() -> Result<(), molang::compile::CompileError> {
 
 ## Math functions of your own
 
-Declare them in a `MathCatalog` and pass it in `CompileOptions::math`; `math.<name>(…)` then calls them like the standard functions, with float arguments (at most `MAX_MATH_ARGS`) and the argument count checked at compile time. A pure function must be deterministic: a call of constants is folded at compile time and equal calls are merged. A volatile function gets the evaluation's random source (`&mut dyn rand_core::Rng`; `rng::sample` draws a sample as the standard functions do), is never folded or merged, and is forbidden by `OpSet::without_assignments_or_random`. A function must not panic. A function may take a standard function's name (all but the constant `math.pi`) and then replaces the standard function while the catalogue is in the options, as an ordinary host call.
+Declare them in a `MathCatalog` and pass it in `CompileOptions::math`; `math.<name>(…)` then calls them like the standard functions, with float arguments (at most `MAX_MATH_ARGS`) and the argument count checked at compile time. A pure function must be deterministic: a call of constants is folded at compile time and equal calls are merged. A volatile function gets the evaluation's random source (`&mut dyn RandomSource`; its `sample()` draws a sample as the standard functions do), is never folded or merged, and is forbidden by `OpSet::without_assignments_or_random`. A function must not panic. A function may take a standard function's name (all but the constant `math.pi`) and then replaces the standard function while the catalogue is in the options, as an ordinary host call.
 
 ```rust
 use molang::catalog::{Arity, MathCatalog, MathDecl};
@@ -268,7 +268,16 @@ assert!(!limits.is_unlimited());
 
 `temp.*` starts empty in every evaluation; `temps: Temps::Kept(TempMap::new())` on a `HostEnv` or `NoHostEnv` keeps them in a map nothing clears.
 
-The random source is any `rand_core` 0.10 `Rng`, re-exported as `molang::rng::rand_core` (a new major version of `rand_core` is a breaking change of this crate). Each sample is one `next_u32` `u` mapped to `(u & 0x7fff_ffff) · 2^-31` (`rng::sample`), which can be exactly 1. Each environment has its own `Xorshift128` started from the same standard seeds, so give each one `Xorshift128::seed_from_u64(...)` (`SeedableRng`) unless identical sequences are wanted; `HostEnv::with_rng(ProcessRng)` gives one process-wide generator, `HostEnv::with_rng(generator)` a generator of your own, and `FixedRng` the same sample on every draw.
+The random source is any `rng::RandomSource`: each draw of `math.random*` and `math.die_roll*` is one `sample()`, and the source decides how its generator's output becomes the sample. Which source to use depends on where the expression runs:
+
+| Where | Generator | Sample from one 32-bit output `u` | Source |
+|---|---|---|---|
+| Entities, items, blocks, commands, scripting, UI, camera, and `math.random` in particles | one xorshift128 for the whole process, from the standard seeds | `(u & 0x7fff_ffff) · 2^-31` in `f32` | `ProcessRng`, or a `Xorshift128` per environment |
+| A feature rule's expressions | MT19937 seeded per chunk | `u · 2^-32` in `f64`, then rounded to `f32` | `MersenneTwister::for_chunk_decoration(level_seed, chunk_x, chunk_z)` |
+| A scatter feature placed by a feature rule | MT19937 seeded per rule, shared with the scatter's own placement draws | as above | `chunk.for_feature_rule(identifier_hash)` |
+| Saplings, `/place feature`, other helper-placed features | MT19937 seeded from the system's random device | as above | `MersenneTwister::new(seed)` |
+
+Both mappings can give exactly 1. Each environment has its own `Xorshift128` started from the same standard seeds, so give each one `Xorshift128::seed_from_u64(...)` (`SeedableRng`) unless identical sequences are wanted; `HostEnv::with_rng(ProcessRng)` gives one process-wide generator, `HostEnv::with_rng(Bits31(generator))` a `rand_core` 0.10 generator of your own under the 31-bit mapping, and `FixedRng` the same sample on every draw. `rand_core` is re-exported as `molang::rng::rand_core` (a new major version of it is a breaking change of this crate).
 
 The default message sink, `BoundedSink`, keeps the last 64 messages, each cut to 1 KiB; `LogOnce` drops repeats.
 

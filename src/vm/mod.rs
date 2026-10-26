@@ -59,7 +59,7 @@
 //! | Struct depth budget | [`EvalLimits::DEFAULT`]: a member store nesting structs deeper than 32 ends the evaluation with 0 | `struct_depth: None` |
 //! | Struct member budget | [`EvalLimits::DEFAULT`]: a member store adding a 257th member ends the evaluation with 0 | `struct_members: None` |
 //! | Operand-stack cap | operands left behind by `break` / `continue` past [`EvalLimits::OPERAND_STACK_CAP`] slots end the evaluation | none |
-//! | Random source | a generator per evaluator ([`Xorshift128`](crate::rng::Xorshift128)) | [`ProcessRng`]: one generator for the whole process |
+//! | Random source | a generator per evaluator ([`Xorshift128`](crate::rng::Xorshift128)) | [`ProcessRng`]: one generator for the whole process; [`MersenneTwister`](crate::rng::MersenneTwister) for world generation |
 
 mod cx;
 mod error;
