@@ -737,6 +737,55 @@ mod vm {
         assert_eq!(sink.messages.len(), 1, "the loop guard reported once");
     }
 
+    /// `array.<name>[index]`: the compile option, the name key, the providers and the messages.
+    #[test]
+    fn render_controller_arrays() {
+        use molang::compile::ArrayAccess;
+        use molang::vm::{
+            ArrayName, ArrayProvider, ArrayTable, NoArrays, ResourceRef, RuntimeMsg, namespace,
+        };
+        assert_eq!(
+            CompileOptions::server(MolangVersion::LATEST).arrays,
+            ArrayAccess::Unresolved
+        );
+        assert_eq!(ArrayAccess::default(), ArrayAccess::Unresolved);
+        let options = CompileOptions {
+            arrays: ArrayAccess::FromHost,
+            ..CompileOptions::server(MolangVersion::LATEST)
+        };
+        assert_eq!(
+            options.arrays,
+            CompileOptions::client(MolangVersion::LATEST).arrays
+        );
+        let skins: molang::vm::Name<namespace::Array> = ArrayName::new("skins");
+        assert_eq!(ArrayName::parse("array.skins"), Some(skins));
+        let texture = ResourceRef::new("texture.a");
+        let table = ArrayTable::from([(skins, [texture])]);
+        assert_eq!(ArrayProvider::array(&table, skins), Some(&[texture][..]));
+        assert_eq!(NoArrays.array(skins), None);
+        let mut env = HostEnv::<Farm>::default().with_arrays(table);
+        let mut world = World {
+            resolved: Cell::new(0),
+            subjects_of: Cell::new(0),
+        };
+        let expr = compile("array.skins[7]", &options)
+            .expr()
+            .cloned()
+            .expect("expr");
+        assert_eq!(
+            expr.eval(&mut env.cx(&mut world, Subjects::none())),
+            Value::Resource(texture)
+        );
+        assert_eq!(
+            RuntimeMsg::UnknownArray { name: "array.x" }.to_string(),
+            "molang: unknown array 'array.x'"
+        );
+        assert_eq!(
+            RuntimeMsg::EmptyArray { name: "array.x" }.to_string(),
+            "molang: array 'array.x' has no elements"
+        );
+    }
+
     /// An unhandled missing read ends the evaluation with 0.0; a `??` handler catches it.
     #[test]
     fn missing_reads_and_handlers() {

@@ -3127,3 +3127,144 @@ mod message_texts {
         assert_eq!(msg.level(), LogLevel::Warn);
     }
 }
+
+/// `array.<name>[index]` in client rendering: the host supplies the arrays at evaluation.
+mod render_controller_arrays {
+    use molang::compile::{CompileFailure, CompileOptions, Expr, compile};
+    use molang::numeric::Platform;
+    use molang::version::MolangVersion;
+    use molang::vm::{
+        ArrayName, ArrayProvider, ArrayTable, Host, HostAccess, HostEnv, ResourceRef, Subjects,
+        Value,
+    };
+
+    struct Skins;
+    impl Host for Skins {
+        type ActorRef = u32;
+        type ItemRef = ();
+        type BlockRef = ();
+        type Access<'w> = World;
+    }
+
+    struct World;
+    impl HostAccess<Skins> for World {
+        fn resolve_actor(&self, _from: &Subjects<Skins>, actor: u32) -> Option<u32> {
+            Some(actor)
+        }
+    }
+
+    fn texture(name: &str) -> ResourceRef {
+        ResourceRef::new(name)
+    }
+
+    fn client(src: &str, platform: Platform) -> Expr {
+        let options = CompileOptions {
+            platform,
+            ..CompileOptions::client(MolangVersion::LATEST)
+        };
+        compile(src, &options).expr().cloned().expect("compiles")
+    }
+
+    fn skins() -> ArrayTable {
+        ArrayTable::from([(
+            ArrayName::new("skins"),
+            [
+                texture("texture.default"),
+                texture("texture.red"),
+                texture("texture.blue"),
+            ],
+        )])
+    }
+
+    #[test]
+    fn the_element_comes_from_the_environment_table() {
+        let mut env = HostEnv::<Skins>::default().with_arrays(skins());
+        let expr = client("array.skins[q.variant]", Platform::default());
+        // Without a query table `q.variant` is 0.
+        assert_eq!(
+            expr.eval(&mut env.cx(&mut World, Subjects::actor(1))),
+            Value::Resource(texture("texture.default"))
+        );
+        let expr = client("array.skins[v.i]", Platform::default());
+        for (i, name) in [
+            (1.9, "texture.red"),
+            (-3.0, "texture.default"),
+            (5.0, "texture.blue"),
+        ] {
+            env.variables
+                .set(molang::vm::VariableName::new("i"), Value::Float(i));
+            assert_eq!(
+                expr.eval(&mut env.cx(&mut World, Subjects::none())),
+                Value::Resource(texture(name)),
+                "{i}"
+            );
+        }
+        assert!(env.sink.is_empty());
+    }
+
+    /// A host's own provider: every name has the same two elements.
+    struct TwoOfEverything([ResourceRef; 2]);
+    impl ArrayProvider for TwoOfEverything {
+        fn array(&self, _name: ArrayName) -> Option<&[ResourceRef]> {
+            Some(&self.0)
+        }
+    }
+
+    #[test]
+    fn a_host_provider_and_the_platform_conversion() {
+        let mut env = HostEnv::<Skins>::default().with_arrays(TwoOfEverything([
+            texture("geometry.a"),
+            texture("geometry.b"),
+        ]));
+        for (platform, name) in [
+            (Platform::default(), "geometry.a"),
+            (Platform::BdsWindows, "geometry.a"),
+            // Saturated to `i32::MAX`, odd.
+            (Platform::AndroidArm64, "geometry.b"),
+        ] {
+            let expr = client("array.any[1e10]", platform);
+            assert_eq!(
+                expr.eval(&mut env.cx(&mut World, Subjects::none())),
+                Value::Resource(texture(name)),
+                "{platform:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_and_empty_arrays_read_zero_and_log() {
+        let mut env = HostEnv::<Skins>::default();
+        env.arrays.set(ArrayName::new("empty"), []);
+        let expr = client("array.missing[0]", Platform::default());
+        assert_eq!(
+            expr.eval(&mut env.cx(&mut World, Subjects::none())),
+            Value::ZERO
+        );
+        let expr = client("array.empty[0]", Platform::default());
+        assert_eq!(
+            expr.eval(&mut env.cx(&mut World, Subjects::none())),
+            Value::ZERO
+        );
+        assert_eq!(
+            env.sink.take(),
+            [
+                "molang: unknown array 'array.missing'",
+                "molang: array 'array.empty' has no elements",
+            ]
+        );
+    }
+
+    #[test]
+    fn the_server_options_leave_arrays_unresolved() {
+        let c = compile(
+            "array.skins[0]",
+            &CompileOptions::server(MolangVersion::LATEST),
+        );
+        assert_eq!(c.failure(), Some(CompileFailure::UsesArrays));
+        let c = compile(
+            "array.skins",
+            &CompileOptions::client(MolangVersion::LATEST),
+        );
+        assert_eq!(c.failure(), Some(CompileFailure::UsesArrays));
+    }
+}
