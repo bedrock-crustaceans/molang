@@ -12,7 +12,7 @@ use crate::catalog::{
 #[cfg(feature = "compiler")]
 use crate::compile::CompileOptions;
 #[cfg(feature = "compiler")]
-use crate::numeric::PostOp;
+use crate::numeric::{Platform, PostOp};
 #[cfg(feature = "compiler")]
 use crate::stdlib::math::max;
 use crate::stdlib::queries;
@@ -70,7 +70,7 @@ pub fn math() -> &'static MathCatalog {
         };
         let decls = [
             MathDecl::pure("math.helper_mix", Arity::exactly(2), |a| {
-                max(a[0], a[1], PostOp::IDENTITY) * 0.5 - a[1] * 0.25
+                max(Platform::default(), a[0], a[1], PostOp::IDENTITY) * 0.5 - a[1] * 0.25
             }),
             MathDecl::pure("math.helper_sum", Arity::between(1, 8), weighted),
             MathDecl::volatile("math.helper_noise", Arity::exactly(1), |rng, a| {

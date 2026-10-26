@@ -1,25 +1,23 @@
 //! The 30 `math.ease_*(start, end, t)` functions: `start + (end − start)·f(t)`, `t` not clamped.
 //!
-//! Each architecture has its own formulas. `Arm64` fuses products into multiply-adds, folds the
-//! bounce centres into the mirrored subtractions and computes the elastic angle as `t·20.943951 −
-//! 22.514748` rounded once. `X86_64` rounds every operation in order (`c·t·t·t + b` chains, `(1 −
-//! t) − centre`, the elastic angle `((x − 0.075)·2π)/0.3`) and returns `start + (end − start)`, not
-//! `end`, at the elastic end point.
+//! Every operation is rounded in formula order (`c·t·t·t + b` chains, `(1 − t) − centre`, the
+//! elastic angle `((x − 0.075)·2π)/0.3`), and the elastic end point is `start + (end − start)`,
+//! not `end`.
 //!
 //! The sine and elastic easings read a 65,536-entry sine table with a truncated index, so their
 //! angle is quantised to 1/65536 of a turn. A NaN `t` gives NaN, except in the sine easings, which
 //! read entry 0.
 
-use super::arch;
-use crate::numeric::PostOp;
+use super::formula;
+use crate::numeric::{Platform, PostOp};
 
 macro_rules! easings {
     ($($(#[$doc:meta])* $name:ident => $raw:ident;)*) => {
         $(
             $(#[$doc])*
             #[inline]
-            pub fn $name(start: f32, end: f32, t: f32, post: PostOp) -> f32 {
-                post.apply(arch::$raw(start, end, t))
+            pub fn $name(platform: Platform, start: f32, end: f32, t: f32, post: PostOp) -> f32 {
+                post.apply(platform, formula::$raw(platform, start, end, t))
             }
         )*
     };
@@ -85,15 +83,15 @@ easings! {
     /// `math.ease_in_out_back`: with `u = 2t` and `c2 = 2.5949094`, `u < 1 ? u²·((c2 + 1)·u − c2)/2
     /// : ((u − 2)²·((c2 + 1)(u − 2) + c2) + 2)/2`.
     ease_in_out_back => in_out_back;
-    /// `math.ease_in_elastic`: `t == 0` → start, `t == 1` → end (on `X86_64`, `start + (end −
-    /// start)`), otherwise `−2^(10t − 10)·sin((10t − 10.75)·2π/3)` with the sine from the table.
+    /// `math.ease_in_elastic`: `t == 0` → start, `t == 1` → `start + (end − start)`, otherwise
+    /// `−2^(10t − 10)·sin((10t − 10.75)·2π/3)` with the sine from the table.
     ease_in_elastic => in_elastic;
-    /// `math.ease_out_elastic`: `t == 0` → start, `t == 1` → end (on `X86_64`, `start + (end −
-    /// start)`), otherwise `2^(−10t)·sin((10t − 0.75)·2π/3) + 1` with the sine from the table.
+    /// `math.ease_out_elastic`: `t == 0` → start, `t == 1` → `start + (end − start)`, otherwise
+    /// `2^(−10t)·sin((10t − 0.75)·2π/3) + 1` with the sine from the table.
     ease_out_elastic => out_elastic;
-    /// `math.ease_in_out_elastic`: `t == 0` → start, `2t == 2` → end (on `X86_64`, `start + (end −
-    /// start)`); with `s = sin((20t − 10.75)·2π/3)` from the table, `2t < 1 ? −2^(20t − 10)·s/2 :
-    /// 2^(10 − 20t)·s/2 + 1`.
+    /// `math.ease_in_out_elastic`: `t == 0` → start, `2t == 2` → `start + (end − start)`; with
+    /// `s = sin((20t − 10.75)·2π/3)` from the table, `2t < 1 ? −2^(20t − 10)·s/2 : 2^(10 −
+    /// 20t)·s/2 + 1`.
     ease_in_out_elastic => in_out_elastic;
 }
 
@@ -106,12 +104,14 @@ mod tests {
         clippy::approx_constant
     )]
     use super::*;
-    use crate::numeric::{ARCH, Arch, test_support::*};
+    use crate::numeric::test_support::*;
     use crate::stdlib::math::transcendental;
+
+    const P: Platform = LINUX;
 
     const T: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
 
-    type Ease = fn(f32, f32, f32, PostOp) -> f32;
+    type Ease = fn(Platform, f32, f32, f32, PostOp) -> f32;
 
     /// All 30 easings with their curve `f` at [`T`].
     #[rustfmt::skip]
@@ -156,7 +156,7 @@ mod tests {
         for (index, (name, ease, curve)) in CURVES.iter().enumerate() {
             let table_based = name.contains("sine") || name.contains("elastic");
             for (t, f) in T.iter().zip(curve) {
-                let actual = ease(1.0, 5.0, *t, ID);
+                let actual = ease(P, 1.0, 5.0, *t, ID);
                 let expected = 1.0 + 4.0 * f;
                 if index < EXACT_CURVES {
                     assert_eq!(actual, expected, "ease_{name}(1, 5, {t})");
@@ -176,7 +176,7 @@ mod tests {
         for (index, (name, ease, curve)) in CURVES.iter().enumerate() {
             let table_based = name.contains("sine") || name.contains("elastic");
             for (t, f) in T.iter().zip(curve) {
-                let actual = ease(0.0, 1.0, *t, ID);
+                let actual = ease(P, 0.0, 1.0, *t, ID);
                 if index < EXACT_CURVES {
                     assert_eq!(actual, *f, "ease_{name}(0, 1, {t})");
                 } else {
@@ -195,7 +195,7 @@ mod tests {
         for (index, (name, ease, curve)) in CURVES.iter().enumerate() {
             let table_based = name.contains("sine") || name.contains("elastic");
             for (t, f) in T.iter().zip(curve) {
-                let actual = ease(10.0, -6.0, *t, ID);
+                let actual = ease(P, 10.0, -6.0, *t, ID);
                 let expected = 10.0 - 16.0 * f;
                 let tolerance = if table_based {
                     2e-3
@@ -216,7 +216,7 @@ mod tests {
     fn an_empty_range_returns_the_start_for_every_easing_and_t() {
         for (_, ease, _) in CURVES {
             for t in [0.0, 0.1, 0.25, 0.5, 0.9, 1.0] {
-                assert_bits(ease(2.5, 2.5, t, ID), 2.5);
+                assert_bits(ease(P, 2.5, 2.5, t, ID), 2.5);
             }
         }
     }
@@ -225,14 +225,14 @@ mod tests {
     fn every_easing_applies_the_post_op_to_the_eased_value() {
         for (_, ease, _) in CURVES {
             for t in T {
-                let raw = ease(1.0, 5.0, t, ID);
+                let raw = ease(P, 1.0, 5.0, t, ID);
                 assert_bits(
-                    ease(1.0, 5.0, t, AFFINE),
-                    crate::numeric::arith::mul_add(raw, 2.0, 1.0),
+                    ease(P, 1.0, 5.0, t, AFFINE),
+                    crate::numeric::arith::mul_add(P, raw, 2.0, 1.0),
                 );
                 assert_bits(
-                    ease(1.0, 5.0, t, PostOp::new(0.5, -3.0)),
-                    crate::numeric::arith::mul_add(raw, 0.5, -3.0),
+                    ease(P, 1.0, 5.0, t, PostOp::new(0.5, -3.0)),
+                    crate::numeric::arith::mul_add(P, raw, 0.5, -3.0),
                 );
             }
         }
@@ -241,14 +241,14 @@ mod tests {
     #[test]
     fn a_post_op_of_scale_zero_gives_the_offset_for_every_easing() {
         for (_, ease, _) in CURVES {
-            assert_bits(ease(1.0, 5.0, 0.4, PostOp::new(0.0, 7.0)), 7.0);
+            assert_bits(ease(P, 1.0, 5.0, 0.4, PostOp::new(0.0, 7.0)), 7.0);
         }
     }
 
     #[test]
     fn a_nan_t_gives_nan_except_for_the_sine_easings_which_read_table_entry_zero() {
         for (name, ease, _) in CURVES {
-            let result = ease(1.0, 5.0, NAN, ID);
+            let result = ease(P, 1.0, 5.0, NAN, ID);
             if name.ends_with("sine") {
                 assert!(!result.is_nan(), "ease_{name}(NaN)");
             } else {
@@ -260,44 +260,44 @@ mod tests {
     #[test]
     fn the_sine_easings_of_nan_read_table_entry_zero() {
         // A NaN index truncates to entry 0, which is 0.
-        assert_eq!(ease_out_sine(1.0, 5.0, NAN, ID), 1.0);
-        assert_eq!(ease_in_sine(1.0, 5.0, NAN, ID), 5.0);
-        assert_eq!(ease_in_out_sine(1.0, 5.0, NAN, ID), 3.0);
+        assert_eq!(ease_out_sine(P, 1.0, 5.0, NAN, ID), 1.0);
+        assert_eq!(ease_in_sine(P, 1.0, 5.0, NAN, ID), 5.0);
+        assert_eq!(ease_in_out_sine(P, 1.0, 5.0, NAN, ID), 3.0);
     }
 
     #[test]
     fn easings_do_not_clamp_t() {
-        assert_eq!(ease_in_quad(0.0, 1.0, 2.0, ID), 4.0);
-        assert_eq!(ease_in_quad(0.0, 1.0, -2.0, ID), 4.0);
-        assert_eq!(ease_in_cubic(0.0, 1.0, 2.0, ID), 8.0);
-        assert_eq!(ease_in_cubic(0.0, 1.0, -2.0, ID), -8.0);
-        assert_eq!(ease_out_cubic(0.0, 1.0, 2.0, ID), 2.0);
-        assert_eq!(ease_in_quart(0.0, 1.0, 2.0, ID), 16.0);
-        assert_eq!(ease_in_quint(0.0, 1.0, -2.0, ID), -32.0);
-        assert_eq!(ease_out_quad(0.0, 1.0, 2.0, ID), 0.0);
-        assert_eq!(ease_in_expo(0.0, 1.0, 2.0, ID), 1024.0);
-        assert!(ease_in_circ(0.0, 1.0, 2.0, ID).is_nan());
-        assert!(ease_out_circ(0.0, 1.0, -1.0, ID).is_nan());
+        assert_eq!(ease_in_quad(P, 0.0, 1.0, 2.0, ID), 4.0);
+        assert_eq!(ease_in_quad(P, 0.0, 1.0, -2.0, ID), 4.0);
+        assert_eq!(ease_in_cubic(P, 0.0, 1.0, 2.0, ID), 8.0);
+        assert_eq!(ease_in_cubic(P, 0.0, 1.0, -2.0, ID), -8.0);
+        assert_eq!(ease_out_cubic(P, 0.0, 1.0, 2.0, ID), 2.0);
+        assert_eq!(ease_in_quart(P, 0.0, 1.0, 2.0, ID), 16.0);
+        assert_eq!(ease_in_quint(P, 0.0, 1.0, -2.0, ID), -32.0);
+        assert_eq!(ease_out_quad(P, 0.0, 1.0, 2.0, ID), 0.0);
+        assert_eq!(ease_in_expo(P, 0.0, 1.0, 2.0, ID), 1024.0);
+        assert!(ease_in_circ(P, 0.0, 1.0, 2.0, ID).is_nan());
+        assert!(ease_out_circ(P, 0.0, 1.0, -1.0, ID).is_nan());
     }
 
     #[test]
     fn easings_of_infinite_t() {
-        assert_eq!(ease_in_quad(0.0, 1.0, INF, ID), INF);
-        assert_eq!(ease_in_quad(0.0, 1.0, -INF, ID), INF);
-        assert_eq!(ease_in_cubic(0.0, 1.0, INF, ID), INF);
-        assert_eq!(ease_in_cubic(0.0, 1.0, -INF, ID), -INF);
-        assert_eq!(ease_in_expo(0.0, 1.0, INF, ID), INF);
-        assert_bits(ease_in_expo(0.0, 1.0, -INF, ID), 0.0);
-        assert_eq!(ease_out_expo(0.0, 1.0, INF, ID), 1.0);
-        assert_eq!(ease_out_expo(0.0, 1.0, -INF, ID), -INF);
-        assert!(ease_in_circ(0.0, 1.0, INF, ID).is_nan());
+        assert_eq!(ease_in_quad(P, 0.0, 1.0, INF, ID), INF);
+        assert_eq!(ease_in_quad(P, 0.0, 1.0, -INF, ID), INF);
+        assert_eq!(ease_in_cubic(P, 0.0, 1.0, INF, ID), INF);
+        assert_eq!(ease_in_cubic(P, 0.0, 1.0, -INF, ID), -INF);
+        assert_eq!(ease_in_expo(P, 0.0, 1.0, INF, ID), INF);
+        assert_bits(ease_in_expo(P, 0.0, 1.0, -INF, ID), 0.0);
+        assert_eq!(ease_out_expo(P, 0.0, 1.0, INF, ID), 1.0);
+        assert_eq!(ease_out_expo(P, 0.0, 1.0, -INF, ID), -INF);
+        assert!(ease_in_circ(P, 0.0, 1.0, INF, ID).is_nan());
     }
 
     #[test]
     fn zero_and_negative_zero_t_give_the_start() {
         for (name, ease, _) in CURVES {
             for t in [0.0_f32, -0.0] {
-                let result = ease(1.0, 5.0, t, ID);
+                let result = ease(P, 1.0, 5.0, t, ID);
                 let tolerance =
                     if name.contains("expo") || name.contains("back") || name.contains("sine") {
                         5e-3
@@ -315,7 +315,7 @@ mod tests {
     #[test]
     fn t_equal_to_one_gives_the_end_for_every_easing() {
         for (name, ease, _) in CURVES {
-            let result = ease(1.0, 5.0, 1.0, ID);
+            let result = ease(P, 1.0, 5.0, 1.0, ID);
             let tolerance =
                 if name.contains("expo") || name.contains("back") || name.contains("sine") {
                     5e-3
@@ -332,41 +332,43 @@ mod tests {
     #[test]
     fn elastic_endpoints_return_start_and_end_without_evaluating_the_curve() {
         for ease in [ease_in_elastic, ease_out_elastic, ease_in_out_elastic] {
-            assert_bits(ease(1.0, 5.0, 0.0, ID), 1.0);
-            assert_bits(ease(1.0, 5.0, -0.0, ID), 1.0);
-            assert_bits(ease(1.0, 5.0, 1.0, ID), 5.0);
-            assert_bits(ease(-0.0, 5.0, 0.0, ID), -0.0);
-            assert_bits(ease(1.0, 5.0, 1.0, AFFINE), 11.0);
-            assert_bits(ease(1.0, 5.0, 0.0, AFFINE), 3.0);
+            assert_bits(ease(P, 1.0, 5.0, 0.0, ID), 1.0);
+            assert_bits(ease(P, 1.0, 5.0, -0.0, ID), 1.0);
+            assert_bits(ease(P, 1.0, 5.0, 1.0, ID), 5.0);
+            assert_bits(ease(P, -0.0, 5.0, 0.0, ID), -0.0);
+            assert_bits(ease(P, 1.0, 5.0, 1.0, AFFINE), 11.0);
+            assert_bits(ease(P, 1.0, 5.0, 0.0, AFFINE), 3.0);
         }
     }
 
     #[test]
-    fn elastic_end_point_is_computed_on_x86_64_and_exact_on_arm64() {
+    fn elastic_end_point_is_computed() {
         let (start, end) = (0.3_f32, 0.1_f32);
         let computed = start + (end - start);
         assert_ne!(computed, end);
-        for ease in [ease_in_elastic, ease_out_elastic, ease_in_out_elastic] {
-            assert_bits(ease(start, end, 1.0, ID), per_arch(computed, end));
-            assert_bits(ease(start, end, 0.0, ID), start);
+        for p in PLATFORMS {
+            for ease in [ease_in_elastic, ease_out_elastic, ease_in_out_elastic] {
+                assert_bits(ease(p, start, end, 1.0, ID), computed);
+                assert_bits(ease(p, start, end, 0.0, ID), start);
+            }
         }
     }
 
     #[test]
     fn expo_easings_have_no_endpoint_special_cases() {
-        assert_eq!(ease_in_expo(1.0, 5.0, 0.0, ID), 1.003_906_25);
-        assert_eq!(ease_out_expo(1.0, 5.0, 1.0, ID), 4.996_093_75);
-        assert_eq!(ease_in_out_expo(1.0, 5.0, 0.0, ID), 1.001_953_12);
-        assert_eq!(ease_in_out_expo(1.0, 5.0, 1.0, ID), 4.998_046_9);
-        assert_eq!(ease_out_expo(1.0, 5.0, 0.0, ID), 1.0);
-        assert_eq!(ease_in_expo(1.0, 5.0, 1.0, ID), 5.0);
+        assert_eq!(ease_in_expo(P, 1.0, 5.0, 0.0, ID), 1.003_906_25);
+        assert_eq!(ease_out_expo(P, 1.0, 5.0, 1.0, ID), 4.996_093_75);
+        assert_eq!(ease_in_out_expo(P, 1.0, 5.0, 0.0, ID), 1.001_953_12);
+        assert_eq!(ease_in_out_expo(P, 1.0, 5.0, 1.0, ID), 4.998_046_9);
+        assert_eq!(ease_out_expo(P, 1.0, 5.0, 0.0, ID), 1.0);
+        assert_eq!(ease_in_expo(P, 1.0, 5.0, 1.0, ID), 5.0);
     }
 
     #[test]
     fn every_in_out_curve_passes_through_the_midpoint_exactly_or_closely() {
         for (name, ease, _) in CURVES {
             if name.starts_with("in_out") {
-                close(ease(1.0, 5.0, 0.5, ID), 3.0, 1e-3);
+                close(ease(P, 1.0, 5.0, 0.5, ID), 3.0, 1e-3);
             }
         }
     }
@@ -375,20 +377,20 @@ mod tests {
     fn in_and_out_variants_mirror_each_other_for_the_polynomial_curves() {
         for t in [0.0_f32, 0.25, 0.5, 0.75, 1.0] {
             assert_eq!(
-                ease_out_quad(0.0, 1.0, t, ID),
-                1.0 - ease_in_quad(0.0, 1.0, 1.0 - t, ID)
+                ease_out_quad(P, 0.0, 1.0, t, ID),
+                1.0 - ease_in_quad(P, 0.0, 1.0, 1.0 - t, ID)
             );
             assert_eq!(
-                ease_out_cubic(0.0, 1.0, t, ID),
-                1.0 - ease_in_cubic(0.0, 1.0, 1.0 - t, ID)
+                ease_out_cubic(P, 0.0, 1.0, t, ID),
+                1.0 - ease_in_cubic(P, 0.0, 1.0, 1.0 - t, ID)
             );
             assert_eq!(
-                ease_out_quart(0.0, 1.0, t, ID),
-                1.0 - ease_in_quart(0.0, 1.0, 1.0 - t, ID)
+                ease_out_quart(P, 0.0, 1.0, t, ID),
+                1.0 - ease_in_quart(P, 0.0, 1.0, 1.0 - t, ID)
             );
             assert_eq!(
-                ease_out_quint(0.0, 1.0, t, ID),
-                1.0 - ease_in_quint(0.0, 1.0, 1.0 - t, ID)
+                ease_out_quint(P, 0.0, 1.0, t, ID),
+                1.0 - ease_in_quint(P, 0.0, 1.0, 1.0 - t, ID)
             );
         }
     }
@@ -396,15 +398,15 @@ mod tests {
     #[test]
     fn bounce_segments_are_continuous_at_their_thresholds() {
         for threshold in [1.0_f32 / 2.75, 2.0 / 2.75, 2.5 / 2.75] {
-            let below = ease_out_bounce(0.0, 1.0, f32::from_bits(threshold.to_bits() - 4), ID);
-            let above = ease_out_bounce(0.0, 1.0, f32::from_bits(threshold.to_bits() + 4), ID);
+            let below = ease_out_bounce(P, 0.0, 1.0, f32::from_bits(threshold.to_bits() - 4), ID);
+            let above = ease_out_bounce(P, 0.0, 1.0, f32::from_bits(threshold.to_bits() + 4), ID);
             close(below, above, 1e-4);
         }
-        close(ease_out_bounce(0.0, 1.0, 1.0, ID), 1.0, 1e-6);
+        close(ease_out_bounce(P, 0.0, 1.0, 1.0, ID), 1.0, 1e-6);
         for t in T {
             close(
-                ease_in_bounce(0.0, 1.0, t, ID),
-                1.0 - ease_out_bounce(0.0, 1.0, 1.0 - t, ID),
+                ease_in_bounce(P, 0.0, 1.0, t, ID),
+                1.0 - ease_out_bounce(P, 0.0, 1.0, 1.0 - t, ID),
                 1e-6,
             );
         }
@@ -412,74 +414,59 @@ mod tests {
 
     #[test]
     fn back_easings_overshoot_their_range() {
-        assert!(ease_in_back(0.0, 1.0, 0.25, ID) < 0.0);
-        assert!(ease_out_back(0.0, 1.0, 0.75, ID) > 1.0);
-        assert!(ease_in_out_back(0.0, 1.0, 0.25, ID) < 0.0);
-        assert!(ease_in_out_back(0.0, 1.0, 0.75, ID) > 1.0);
+        assert!(ease_in_back(P, 0.0, 1.0, 0.25, ID) < 0.0);
+        assert!(ease_out_back(P, 0.0, 1.0, 0.75, ID) > 1.0);
+        assert!(ease_in_out_back(P, 0.0, 1.0, 0.25, ID) < 0.0);
+        assert!(ease_in_out_back(P, 0.0, 1.0, 0.75, ID) > 1.0);
     }
 
     #[test]
     fn the_in_out_elastic_curve_is_not_the_common_formula() {
-        close(ease_in_out_elastic(1.0, 5.0, 0.3, ID), 0.937_503_457, 1e-6);
-        assert!((ease_in_out_elastic(1.0, 5.0, 0.3, ID) - 1.095_753_8).abs() > 0.1);
+        close(
+            ease_in_out_elastic(P, 1.0, 5.0, 0.3, ID),
+            0.937_503_457,
+            1e-6,
+        );
+        assert!((ease_in_out_elastic(P, 1.0, 5.0, 0.3, ID) - 1.095_753_8).abs() > 0.1);
     }
 
     #[test]
     fn easing_endpoints_and_special_cases() {
-        assert_eq!(ease_in_expo(1.0, 5.0, 0.0, ID), 1.003_906_25);
-        assert_eq!(ease_out_expo(1.0, 5.0, 1.0, ID), 4.996_093_75);
-        assert_eq!(ease_in_out_expo(1.0, 5.0, 0.0, ID), 1.001_953_12);
+        assert_eq!(ease_in_expo(P, 1.0, 5.0, 0.0, ID), 1.003_906_25);
+        assert_eq!(ease_out_expo(P, 1.0, 5.0, 1.0, ID), 4.996_093_75);
+        assert_eq!(ease_in_out_expo(P, 1.0, 5.0, 0.0, ID), 1.001_953_12);
         for ease in [ease_in_elastic, ease_out_elastic, ease_in_out_elastic] {
-            assert_eq!(ease(1.0, 5.0, 0.0, ID), 1.0);
-            assert_eq!(ease(1.0, 5.0, 1.0, ID), 5.0);
-            assert_eq!(ease(1.0, 5.0, -0.0, ID), 1.0);
+            assert_eq!(ease(P, 1.0, 5.0, 0.0, ID), 1.0);
+            assert_eq!(ease(P, 1.0, 5.0, 1.0, ID), 5.0);
+            assert_eq!(ease(P, 1.0, 5.0, -0.0, ID), 1.0);
         }
-        close(ease_in_out_elastic(1.0, 5.0, 0.3, ID), 0.937_503_457, 1e-6);
-        assert_eq!(ease_in_quad(0.0, 1.0, 2.0, ID), 4.0);
-        assert_eq!(ease_in_cubic(0.0, 1.0, -2.0, ID), -8.0);
-        assert_eq!(ease_out_quad(0.0, 1.0, 2.0, ID), 0.0);
-        assert_eq!(ease_in_quad(0.0, 1.0, 2.0, PostOp::new(2.0, 1.0)), 9.0);
-        assert_eq!(ease_in_elastic(1.0, 5.0, 1.0, PostOp::new(2.0, 1.0)), 11.0);
+        close(
+            ease_in_out_elastic(P, 1.0, 5.0, 0.3, ID),
+            0.937_503_457,
+            1e-6,
+        );
+        assert_eq!(ease_in_quad(P, 0.0, 1.0, 2.0, ID), 4.0);
+        assert_eq!(ease_in_cubic(P, 0.0, 1.0, -2.0, ID), -8.0);
+        assert_eq!(ease_out_quad(P, 0.0, 1.0, 2.0, ID), 0.0);
+        assert_eq!(ease_in_quad(P, 0.0, 1.0, 2.0, PostOp::new(2.0, 1.0)), 9.0);
+        assert_eq!(
+            ease_in_elastic(P, 1.0, 5.0, 1.0, PostOp::new(2.0, 1.0)),
+            11.0
+        );
     }
 
     #[test]
-    fn the_two_architectures_use_different_easing_formulas() {
-        // x86-64 rounds c·t·t·t·t in order; arm64 squares t² with the last step rounded once.
-        assert_eq!(
-            ease_in_quart(0.0, 1.0, 0.1, ID).to_bits(),
-            per_arch(0x38d1_b718, 0x38d1_b719)
-        );
-        if ARCH == Arch::X86_64 {
+    fn every_platform_rounds_each_easing_operation_in_order() {
+        for p in PLATFORMS {
+            assert_eq!(ease_in_quart(p, 0.0, 1.0, 0.1, ID).to_bits(), 0x38d1_b718);
             assert_eq!(
-                ease_in_quart(0.0, 1.0, 0.1, ID),
+                ease_in_quart(p, 0.0, 1.0, 0.1, ID),
                 (((1.0_f32 * 0.1) * 0.1) * 0.1) * 0.1
             );
-        }
-        // The two elastic angle formulas can pick neighbouring table entries.
-        if ARCH == Arch::X86_64 {
-            assert_eq!(ease_in_elastic(1.0, 5.0, 0.9, ID).to_bits(), 0x386a_4000);
-        }
-        if ARCH == Arch::Arm64 {
-            assert_ne!(ease_in_elastic(1.0, 5.0, 0.9, ID).to_bits(), 0x386a_4000);
-        }
-        let (start, end) = (0.3_f32, 0.1_f32);
-        assert_ne!(start + (end - start), end);
-        for ease in [ease_in_elastic, ease_out_elastic, ease_in_out_elastic] {
+            assert_eq!(ease_in_elastic(p, 1.0, 5.0, 0.9, ID).to_bits(), 0x386a_4000);
+            assert_eq!(ease_in_quad(p, -0.0, 0.0, -1.0e38, ID), 0.0);
             assert_eq!(
-                ease(start, end, 1.0, ID),
-                per_arch(start + (end - start), end)
-            );
-        }
-        // Rounding in formula order keeps what the reassociated form loses.
-        if ARCH == Arch::X86_64 {
-            assert_eq!(ease_in_quad(-0.0, 0.0, -1.0e38, ID), 0.0);
-        }
-        if ARCH == Arch::Arm64 {
-            assert!(ease_in_quad(-0.0, 0.0, -1.0e38, ID).is_nan());
-        }
-        if ARCH == Arch::X86_64 {
-            assert_eq!(
-                ease_in_out_quad(1.0, 5.0, f32::INFINITY, ID),
+                ease_in_out_quad(p, 1.0, 5.0, f32::INFINITY, ID),
                 f32::NEG_INFINITY
             );
         }
@@ -524,13 +511,13 @@ mod tests {
             ("in_out_back", ease_in_out_back),
         ];
         for (name, ease) in exact {
-            assert!(within(ease(1.0, 5.0, 0.0, ID), 1.0, 1e-6), "{name} at 0");
-            assert!(within(ease(1.0, 5.0, 1.0, ID), 5.0, 1e-6), "{name} at 1");
-            assert!(ease(1.0, 5.0, NAN, ID).is_nan(), "{name} of NaN");
+            assert!(within(ease(P, 1.0, 5.0, 0.0, ID), 1.0, 1e-6), "{name} at 0");
+            assert!(within(ease(P, 1.0, 5.0, 1.0, ID), 5.0, 1e-6), "{name} at 1");
+            assert!(ease(P, 1.0, 5.0, NAN, ID).is_nan(), "{name} of NaN");
         }
         for (name, ease) in approximate {
-            assert!(within(ease(1.0, 5.0, 0.0, ID), 1.0, 5e-3), "{name} at 0");
-            assert!(within(ease(1.0, 5.0, 1.0, ID), 5.0, 5e-3), "{name} at 1");
+            assert!(within(ease(P, 1.0, 5.0, 0.0, ID), 1.0, 5e-3), "{name} at 0");
+            assert!(within(ease(P, 1.0, 5.0, 1.0, ID), 5.0, 5e-3), "{name} at 1");
         }
         let in_out: [(&str, Ease); 9] = [
             ("quad", ease_in_out_quad),
@@ -545,7 +532,7 @@ mod tests {
         ];
         for (name, ease) in in_out {
             assert!(
-                within(ease(1.0, 5.0, 0.5, ID), 3.0, 1e-3),
+                within(ease(P, 1.0, 5.0, 0.5, ID), 3.0, 1e-3),
                 "in_out_{name} at 0.5"
             );
         }
@@ -554,7 +541,6 @@ mod tests {
     #[test]
     fn sine_easings_are_quantised_by_the_sine_table() {
         let scale = f32::from_bits(0x4622_f983);
-        let step_angle = f32::from_bits(0x38c9_0fdb);
         let half_pi = f32::from_bits(0x3fc9_0fdb);
         let mut differs_from_plain_sine = false;
         for step in 1..100_u8 {
@@ -562,13 +548,10 @@ mod tests {
             let radians = t * half_pi;
             let index = ((radians * scale) as i32 & 0xffff) as f32;
             assert_eq!(
-                ease_out_sine(0.0, 1.0, t, ID),
-                per_arch(
-                    transcendental::sin(index / scale, NAN),
-                    transcendental::sin(index * step_angle, NAN)
-                )
+                ease_out_sine(P, 0.0, 1.0, t, ID),
+                transcendental::sin(index / scale, NAN)
             );
-            let eased = ease_out_sine(0.0, 1.0, t, ID);
+            let eased = ease_out_sine(P, 0.0, 1.0, t, ID);
             close(eased, transcendental::sin(radians, NAN), 1e-4);
             differs_from_plain_sine |= eased != transcendental::sin(radians, NAN);
         }

@@ -43,7 +43,9 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
         if p == PostIdx::PLAIN {
             R::from_ref(value)
         } else {
-            Some(R::float(program.post(p).apply(value.as_f32())))
+            Some(R::float(
+                program.post(p).apply(program.platform, value.as_f32()),
+            ))
         }
     }
 

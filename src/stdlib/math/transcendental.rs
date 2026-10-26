@@ -3,13 +3,13 @@
 //! The free functions evaluate in `f64` with the `libm` crate and round once; every NaN they
 //! return is chosen here. A NaN argument comes back with its quiet bit set (of two, `atan2`'s `y`,
 //! `pow`'s base and the dividend win). An invalid operation on other arguments gives the `invalid`
-//! NaN the caller passes, or `0xffc00000` for the remainder. [`Libm`] selects between those bodies
-//! and the ports of glibc's single-precision functions.
+//! NaN the caller passes. [`Libm`] selects between those bodies and the ports of glibc's
+//! single-precision functions.
 
 use super::glibc;
 
 /// The quiet NaN with the sign bit clear.
-pub(crate) const POSITIVE_NAN: f32 = f32::from_bits(0x7fc0_0000);
+const POSITIVE_NAN: f32 = f32::from_bits(0x7fc0_0000);
 
 const QUIET_BIT: u32 = 0x0040_0000;
 
@@ -51,14 +51,12 @@ pub(crate) fn cos(x: f32, invalid: f32) -> f32 {
     rounded(libm::cos(f64::from(x)), x, invalid)
 }
 
-/// `|x| > 1` gives [`POSITIVE_NAN`].
-pub(crate) fn asin(x: f32) -> f32 {
-    rounded(libm::asin(f64::from(x)), x, POSITIVE_NAN)
+pub(crate) fn asin(x: f32, invalid: f32) -> f32 {
+    rounded(libm::asin(f64::from(x)), x, invalid)
 }
 
-/// `|x| > 1` gives [`POSITIVE_NAN`].
-pub(crate) fn acos(x: f32) -> f32 {
-    rounded(libm::acos(f64::from(x)), x, POSITIVE_NAN)
+pub(crate) fn acos(x: f32, invalid: f32) -> f32 {
+    rounded(libm::acos(f64::from(x)), x, invalid)
 }
 
 pub(crate) fn atan(x: f32) -> f32 {
@@ -111,11 +109,11 @@ pub(crate) fn sqrt(x: f32, invalid: f32) -> f32 {
     if r.is_nan() { nan_of(x, invalid) } else { r }
 }
 
-/// `a % b`, the remainder truncated toward zero; a zero `b` or an infinite `a` gives `0xffc00000`.
-pub(crate) fn rem(a: f32, b: f32) -> f32 {
+/// `a % b`, the remainder truncated toward zero; a zero `b` or an infinite `a` is invalid.
+pub(crate) fn rem(a: f32, b: f32, invalid: f32) -> f32 {
     let r = a % b;
     if r.is_nan() {
-        nan_of(a, nan_of(b, NEGATIVE_NAN))
+        nan_of(a, nan_of(b, invalid))
     } else {
         r
     }
@@ -197,16 +195,14 @@ impl Libm {
 
     pub(crate) fn asin(self, x: f32) -> f32 {
         match self {
-            Self::RoundedF64 { invalid } if x.abs() > 1.0 => invalid.nan(),
-            Self::RoundedF64 { .. } => asin(x),
+            Self::RoundedF64 { invalid } => asin(x, invalid.nan()),
             Self::Glibc(_) => glibc::asinf(x),
         }
     }
 
     pub(crate) fn acos(self, x: f32) -> f32 {
         match self {
-            Self::RoundedF64 { invalid } if x.abs() > 1.0 => invalid.nan(),
-            Self::RoundedF64 { .. } => acos(x),
+            Self::RoundedF64 { invalid } => acos(x, invalid.nan()),
             Self::Glibc(_) => glibc::acosf(x),
         }
     }
@@ -291,8 +287,8 @@ mod tests {
             let unary: [(&str, f32); 10] = [
                 ("sin", sin(x, INVALID)),
                 ("cos", cos(x, INVALID)),
-                ("asin", asin(x)),
-                ("acos", acos(x)),
+                ("asin", asin(x, INVALID)),
+                ("acos", acos(x, INVALID)),
                 ("atan", atan(x)),
                 ("exp", exp(x)),
                 ("exp2", exp2(x)),
@@ -345,7 +341,7 @@ mod tests {
             (-INF, INF),
             (-INF, 0.0),
         ] {
-            assert_eq!(bits(rem(a, b)), 0xffc0_0000, "{a} % {b}");
+            assert_eq!(bits(rem(a, b, INVALID)), bits(INVALID), "{a} % {b}");
         }
         for (first, second) in [
             (NAN, NEGATIVE_NAN),
@@ -358,18 +354,18 @@ mod tests {
             } else {
                 bits(second)
             } | QUIET_BIT;
-            assert_eq!(bits(rem(first, second)), expected);
+            assert_eq!(bits(rem(first, second, INVALID)), expected);
         }
-        assert_bits(rem(-4.0, 2.0), -0.0);
-        assert_bits(rem(7.5, -2.0), 1.5);
-        assert_bits(rem(-3.0, INF), -3.0);
+        assert_bits(rem(-4.0, 2.0, INVALID), -0.0);
+        assert_bits(rem(7.5, -2.0, INVALID), 1.5);
+        assert_bits(rem(-3.0, INF, INVALID), -3.0);
     }
 
     #[test]
-    fn asin_and_acos_beyond_one_give_the_positive_nan() {
+    fn asin_and_acos_beyond_one_give_the_callers_nan() {
         for x in [1.000_001, -1.000_001, 2.0, INF, -INF] {
-            assert_eq!(bits(asin(x)), 0x7fc0_0000, "asin({x})");
-            assert_eq!(bits(acos(x)), 0x7fc0_0000, "acos({x})");
+            assert_eq!(bits(asin(x, INVALID)), bits(INVALID), "asin({x})");
+            assert_eq!(bits(acos(x, INVALID)), bits(INVALID), "acos({x})");
         }
     }
 
@@ -411,7 +407,7 @@ mod tests {
         assert_eq!(ln(0.0, INVALID), -INF);
         assert_eq!(ln(-0.0, INVALID), -INF);
         assert_bits(atan2(0.0, 0.0), 0.0);
-        assert_bits(asin(1.0), std::f32::consts::FRAC_PI_2);
+        assert_bits(asin(1.0, INVALID), std::f32::consts::FRAC_PI_2);
     }
 
     /// Arguments where the `f32` functions round differently.
@@ -420,7 +416,7 @@ mod tests {
         let at = f32::from_bits;
         assert_eq!(bits(sin(at(0x400c_dd30), INVALID)), 0x3f4e_d304);
         assert_eq!(bits(cos(at(0x3e99_1688), INVALID)), 0x3f74_a444);
-        assert_eq!(bits(asin(at(0x3bf8_b588))), 0x3bf8_b625);
+        assert_eq!(bits(asin(at(0x3bf8_b588), INVALID)), 0x3bf8_b625);
         assert_eq!(bits(exp2(at(0xb59b_cfa6))), 0x3f7f_fff3);
         assert_eq!(bits(pow(at(0x3f8e_147b), -10.0, INVALID)), 0x3eb4_5185);
     }

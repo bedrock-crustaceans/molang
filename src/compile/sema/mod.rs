@@ -304,8 +304,16 @@ pub(crate) mod test_support {
         (ok, logged(&cx), texts(&cx))
     }
 
-    pub(super) fn folded(mut root: Node) -> Node {
-        let (ok, log, texts) = optimise_node(&mut root, &client(13));
+    pub(super) fn folded(root: Node) -> Node {
+        folded_on(crate::numeric::Platform::default(), root)
+    }
+
+    pub(super) fn folded_on(platform: crate::numeric::Platform, mut root: Node) -> Node {
+        let opts = CompileOptions {
+            platform,
+            ..client(13)
+        };
+        let (ok, log, texts) = optimise_node(&mut root, &opts);
         assert!(ok && log.is_empty(), "{texts:?}");
         root
     }

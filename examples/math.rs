@@ -8,7 +8,7 @@
 
 use molang::catalog::{Arity, MathCatalog, MathDecl};
 use molang::compile::{CompileOptions, compile};
-use molang::numeric::PostOp;
+use molang::numeric::{Platform, PostOp};
 use molang::rng::sample;
 use molang::stdlib::math;
 use molang::version::MolangVersion;
@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let catalog = MathCatalog::new([
         // Pure: a call of constants is folded at compile time.
         MathDecl::pure("math.smooth_max", Arity::exactly(2), |a| {
-            math::max(a[0], a[1], PostOp::IDENTITY) * 0.9
+            math::max(Platform::default(), a[0], a[1], PostOp::IDENTITY) * 0.9
         })?,
         // Volatile: `a + b · r` for one draw `r`.
         MathDecl::volatile("math.gauss", Arity::exactly(2), |rng, a| {

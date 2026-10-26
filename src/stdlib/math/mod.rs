@@ -1,14 +1,13 @@
 //! One function per `math.*` operator.
 //!
-//! Each takes the Molang arguments in order, then the node's [`PostOp`], and computes with this
-//! build's float behaviour ([`numeric::ARCH`](crate::numeric::ARCH)). Nothing clamps `t` or
-//! validates arguments. The random family takes raw samples from the caller and clamps them with
+//! Each takes the [`Platform`] whose float behaviour it reproduces, the Molang arguments in order,
+//! then the node's [`PostOp`]. Nothing clamps `t` or validates arguments. The random family takes raw samples from the caller and clamps them with
 //! [`clamp_sample`].
 
 // Single-letter names follow the formulas.
 #![allow(clippy::many_single_char_names)]
 
-use crate::numeric::PostOp;
+use crate::numeric::{Platform, PostOp, arith};
 pub use ease::{
     ease_in_back, ease_in_bounce, ease_in_circ, ease_in_cubic, ease_in_elastic, ease_in_expo,
     ease_in_out_back, ease_in_out_bounce, ease_in_out_circ, ease_in_out_cubic, ease_in_out_elastic,
@@ -37,14 +36,27 @@ pub const INVERSE_TRIG_TOLERANCE: f32 = f32::from_bits(0x3f80_1062);
 
 /// `math.pi` with the node's post-op.
 #[inline]
-pub fn pi(post: PostOp) -> f32 {
-    post.apply(PI)
+pub fn pi(platform: Platform, post: PostOp) -> f32 {
+    post.apply(platform, PI)
 }
 
-mod arch;
+/// `raw·S + O`, computed as `O + S·raw` on [`Platform::BdsWindows`]: the same value, only the
+/// choice between two NaNs differs.
+#[inline]
+fn offset_first(platform: Platform, raw: f32, post: PostOp) -> f32 {
+    match platform {
+        Platform::BdsWindows if !post.is_identity() => {
+            arith::add(platform, post.offset, arith::mul(platform, post.scale, raw))
+        }
+        _ => post.apply(platform, raw),
+    }
+}
+
 mod arithmetic;
+mod cmath;
 mod ease;
 pub(crate) mod fold;
+mod formula;
 pub(crate) mod glibc;
 mod interpolation;
 mod random;
@@ -77,14 +89,25 @@ mod tests {
     }
 
     #[test]
-    fn pi_applies_the_post_op_with_the_architecture_rounding() {
-        assert_bits(pi(ID), PI);
-        assert_eq!(pi(ID), 3.141_592_74);
-        assert_eq!(pi(PostOp::new(2.0, 0.0)), 6.283_185_5);
-        assert_bits(pi(AFFINE), 2.0 * PI + 1.0);
-        assert_bits(pi(PostOp::new(0.0, 5.0)), 5.0);
-        assert_bits(pi(PostOp::new(-1.0, 0.0)), -PI);
-        let post = PostOp::new(3.0, -1.0);
-        assert_bits(pi(post), per_arch(PI * 3.0 - 1.0, PI.mul_add(3.0, -1.0)));
+    fn pi_applies_the_post_op_rounded_twice() {
+        for p in PLATFORMS {
+            assert_bits(pi(p, ID), PI);
+            assert_eq!(pi(p, ID), 3.141_592_74);
+            assert_eq!(pi(p, PostOp::new(2.0, 0.0)), 6.283_185_5);
+            assert_bits(pi(p, AFFINE), 2.0 * PI + 1.0);
+            assert_bits(pi(p, PostOp::new(0.0, 5.0)), 5.0);
+            assert_bits(pi(p, PostOp::new(-1.0, 0.0)), -PI);
+            assert_bits(pi(p, PostOp::new(3.0, -1.0)), PI * 3.0 - 1.0);
+        }
+    }
+
+    #[test]
+    fn only_windows_adds_the_offset_first() {
+        let post = PostOp::new(NAN, -NAN);
+        assert_bits(offset_first(LINUX, 1.0, post), NAN);
+        assert_bits(offset_first(ANDROID, 1.0, post), NAN);
+        assert_bits(offset_first(WINDOWS, 1.0, post), -NAN);
+        assert_bits(offset_first(WINDOWS, -0.0, ID), -0.0);
+        assert_bits(offset_first(WINDOWS, 3.0, AFFINE), 7.0);
     }
 }

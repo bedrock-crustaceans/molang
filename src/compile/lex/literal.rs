@@ -3,6 +3,7 @@
 use super::{Lexeme, Lexer, NameChars, TokenFailed};
 use crate::compile::ast::Payload;
 use crate::diag::LanguageMessage as Msg;
+use crate::numeric::Platform;
 use crate::ops::ExpressionOp as Op;
 
 /// The f32 powers of ten a fraction of up to eight digits is divided by.
@@ -26,11 +27,11 @@ fn powi(mut a: f64, mut b: i32) -> f64 {
 }
 
 /// `number·10^exponent`, the product in `f64`.
-fn scaled(number: f32, exponent: i32) -> f32 {
+fn scaled(platform: Platform, number: f32, exponent: i32) -> f32 {
     let product = powi(10.0, exponent) * f64::from(number);
-    // `0e400` is ∞·0: the invalid-operation NaN of the build's arithmetic.
+    // `0e400` is ∞·0: the invalid-operation NaN of the platform's arithmetic.
     if product.is_nan() {
-        crate::numeric::arith::mul(f32::INFINITY, 0.0)
+        crate::numeric::arith::mul(platform, f32::INFINITY, 0.0)
     } else {
         product as f32
     }
@@ -115,7 +116,7 @@ impl Lexer<'_, '_> {
             } else {
                 exponent
             };
-            number = scaled(number, exponent);
+            number = scaled(self.cx.opts.platform, number, exponent);
         }
         if self.at(p) | 0x20 == b'f' {
             p += 1;
@@ -154,12 +155,19 @@ mod tests {
 
     #[test]
     fn a_zero_scaled_by_an_infinite_power_is_the_invalid_operation_nan() {
+        let android = CompileOptions {
+            platform: Platform::AndroidArm64,
+            ..client()
+        };
         for source in ["0e400", "0.0e999", "0e400f"] {
-            assert_eq!(
-                float_bits(source),
-                crate::numeric::test_support::per_arch(0xffc0_0000, 0x7fc0_0000),
-                "{source}"
-            );
+            assert_eq!(float_bits(source), 0xffc0_0000, "{source}");
+            let tokens = run_with(source, &android)
+                .tokens
+                .expect("the literal lexes");
+            let Payload::Float(v) = tokens[0].1 else {
+                panic!("not a float: {source}");
+            };
+            assert_eq!(v.to_bits(), 0x7fc0_0000, "{source}");
         }
     }
 

@@ -17,7 +17,7 @@
 //! A program is immutable and `Send + Sync`; [`crate::compile::Expr`] shares it behind an `Arc`.
 use crate::catalog::{MathCatalog, MathRef, QueryCatalog, QueryIndex};
 use crate::hash::HashedStr;
-use crate::numeric::{self, PostOp};
+use crate::numeric::{self, Platform, PostOp};
 use crate::ops::ExpressionOp as Op;
 #[cfg(feature = "stdlib")]
 use crate::stdlib::math;
@@ -172,24 +172,24 @@ impl Fn1 {
 
     /// `f(x)` with the post-op.
     #[inline]
-    pub(crate) fn apply(self, x: f32, post: PostOp) -> f32 {
+    pub(crate) fn apply(self, platform: Platform, x: f32, post: PostOp) -> f32 {
         match self {
-            Self::Abs => math::abs(x, post),
-            Self::Acos => math::acos(x, post),
-            Self::Asin => math::asin(x, post),
-            Self::Atan => math::atan(x, post),
-            Self::Ceil => math::ceil(x, post),
-            Self::Cos => math::cos(x, post),
-            Self::Exp => math::exp(x, post),
-            Self::Floor => math::floor(x, post),
-            Self::HermiteBlend => math::hermite_blend(x, post),
-            Self::Ln => math::ln(x, post),
-            Self::MinAngle => math::min_angle(x, post),
-            Self::Round => math::round(x, post),
-            Self::Sin => math::sin(x, post),
+            Self::Abs => math::abs(platform, x, post),
+            Self::Acos => math::acos(platform, x, post),
+            Self::Asin => math::asin(platform, x, post),
+            Self::Atan => math::atan(platform, x, post),
+            Self::Ceil => math::ceil(platform, x, post),
+            Self::Cos => math::cos(platform, x, post),
+            Self::Exp => math::exp(platform, x, post),
+            Self::Floor => math::floor(platform, x, post),
+            Self::HermiteBlend => math::hermite_blend(platform, x, post),
+            Self::Ln => math::ln(platform, x, post),
+            Self::MinAngle => math::min_angle(platform, x, post),
+            Self::Round => math::round(platform, x, post),
+            Self::Sin => math::sin(platform, x, post),
             Self::Sign => math::sign(x, post),
-            Self::Sqrt => math::sqrt(x, post),
-            Self::Trunc => math::trunc(x, post),
+            Self::Sqrt => math::sqrt(platform, x, post),
+            Self::Trunc => math::trunc(platform, x, post),
         }
     }
 }
@@ -210,13 +210,13 @@ impl Fn2 {
 
     /// `f(a, b)` with the post-op.
     #[inline]
-    pub(crate) fn apply(self, a: f32, b: f32, post: PostOp) -> f32 {
+    pub(crate) fn apply(self, platform: Platform, a: f32, b: f32, post: PostOp) -> f32 {
         match self {
-            Self::Atan2 => math::atan2(a, b, post),
-            Self::CopySign => math::copy_sign(a, b, post),
-            Self::Max => math::max(a, b, post),
-            Self::Min => math::min(a, b, post),
-            Self::Pow => math::pow(a, b, post),
+            Self::Atan2 => math::atan2(platform, a, b, post),
+            Self::CopySign => math::copy_sign(platform, a, b, post),
+            Self::Max => math::max(platform, a, b, post),
+            Self::Min => math::min(platform, a, b, post),
+            Self::Pow => math::pow(platform, a, b, post),
         }
     }
 }
@@ -266,42 +266,42 @@ impl Fn3 {
 
     /// `f(a, b, c)` with the post-op.
     #[inline]
-    pub(crate) fn apply(self, a: f32, b: f32, c: f32, post: PostOp) -> f32 {
+    pub(crate) fn apply(self, platform: Platform, a: f32, b: f32, c: f32, post: PostOp) -> f32 {
         match self {
-            Self::Clamp => math::clamp(a, b, c, post),
-            Self::Lerp => math::lerp(a, b, c, post),
-            Self::LerpRotate => math::lerprotate(a, b, c, post),
-            Self::InverseLerp => math::inverse_lerp(a, b, c, post),
-            Self::EaseInQuad => math::ease_in_quad(a, b, c, post),
-            Self::EaseOutQuad => math::ease_out_quad(a, b, c, post),
-            Self::EaseInOutQuad => math::ease_in_out_quad(a, b, c, post),
-            Self::EaseInCubic => math::ease_in_cubic(a, b, c, post),
-            Self::EaseOutCubic => math::ease_out_cubic(a, b, c, post),
-            Self::EaseInOutCubic => math::ease_in_out_cubic(a, b, c, post),
-            Self::EaseInQuart => math::ease_in_quart(a, b, c, post),
-            Self::EaseOutQuart => math::ease_out_quart(a, b, c, post),
-            Self::EaseInOutQuart => math::ease_in_out_quart(a, b, c, post),
-            Self::EaseInQuint => math::ease_in_quint(a, b, c, post),
-            Self::EaseOutQuint => math::ease_out_quint(a, b, c, post),
-            Self::EaseInOutQuint => math::ease_in_out_quint(a, b, c, post),
-            Self::EaseInSine => math::ease_in_sine(a, b, c, post),
-            Self::EaseOutSine => math::ease_out_sine(a, b, c, post),
-            Self::EaseInOutSine => math::ease_in_out_sine(a, b, c, post),
-            Self::EaseInExpo => math::ease_in_expo(a, b, c, post),
-            Self::EaseOutExpo => math::ease_out_expo(a, b, c, post),
-            Self::EaseInOutExpo => math::ease_in_out_expo(a, b, c, post),
-            Self::EaseInCirc => math::ease_in_circ(a, b, c, post),
-            Self::EaseOutCirc => math::ease_out_circ(a, b, c, post),
-            Self::EaseInOutCirc => math::ease_in_out_circ(a, b, c, post),
-            Self::EaseInBounce => math::ease_in_bounce(a, b, c, post),
-            Self::EaseOutBounce => math::ease_out_bounce(a, b, c, post),
-            Self::EaseInOutBounce => math::ease_in_out_bounce(a, b, c, post),
-            Self::EaseInBack => math::ease_in_back(a, b, c, post),
-            Self::EaseOutBack => math::ease_out_back(a, b, c, post),
-            Self::EaseInOutBack => math::ease_in_out_back(a, b, c, post),
-            Self::EaseInElastic => math::ease_in_elastic(a, b, c, post),
-            Self::EaseOutElastic => math::ease_out_elastic(a, b, c, post),
-            Self::EaseInOutElastic => math::ease_in_out_elastic(a, b, c, post),
+            Self::Clamp => math::clamp(platform, a, b, c, post),
+            Self::Lerp => math::lerp(platform, a, b, c, post),
+            Self::LerpRotate => math::lerprotate(platform, a, b, c, post),
+            Self::InverseLerp => math::inverse_lerp(platform, a, b, c, post),
+            Self::EaseInQuad => math::ease_in_quad(platform, a, b, c, post),
+            Self::EaseOutQuad => math::ease_out_quad(platform, a, b, c, post),
+            Self::EaseInOutQuad => math::ease_in_out_quad(platform, a, b, c, post),
+            Self::EaseInCubic => math::ease_in_cubic(platform, a, b, c, post),
+            Self::EaseOutCubic => math::ease_out_cubic(platform, a, b, c, post),
+            Self::EaseInOutCubic => math::ease_in_out_cubic(platform, a, b, c, post),
+            Self::EaseInQuart => math::ease_in_quart(platform, a, b, c, post),
+            Self::EaseOutQuart => math::ease_out_quart(platform, a, b, c, post),
+            Self::EaseInOutQuart => math::ease_in_out_quart(platform, a, b, c, post),
+            Self::EaseInQuint => math::ease_in_quint(platform, a, b, c, post),
+            Self::EaseOutQuint => math::ease_out_quint(platform, a, b, c, post),
+            Self::EaseInOutQuint => math::ease_in_out_quint(platform, a, b, c, post),
+            Self::EaseInSine => math::ease_in_sine(platform, a, b, c, post),
+            Self::EaseOutSine => math::ease_out_sine(platform, a, b, c, post),
+            Self::EaseInOutSine => math::ease_in_out_sine(platform, a, b, c, post),
+            Self::EaseInExpo => math::ease_in_expo(platform, a, b, c, post),
+            Self::EaseOutExpo => math::ease_out_expo(platform, a, b, c, post),
+            Self::EaseInOutExpo => math::ease_in_out_expo(platform, a, b, c, post),
+            Self::EaseInCirc => math::ease_in_circ(platform, a, b, c, post),
+            Self::EaseOutCirc => math::ease_out_circ(platform, a, b, c, post),
+            Self::EaseInOutCirc => math::ease_in_out_circ(platform, a, b, c, post),
+            Self::EaseInBounce => math::ease_in_bounce(platform, a, b, c, post),
+            Self::EaseOutBounce => math::ease_out_bounce(platform, a, b, c, post),
+            Self::EaseInOutBounce => math::ease_in_out_bounce(platform, a, b, c, post),
+            Self::EaseInBack => math::ease_in_back(platform, a, b, c, post),
+            Self::EaseOutBack => math::ease_out_back(platform, a, b, c, post),
+            Self::EaseInOutBack => math::ease_in_out_back(platform, a, b, c, post),
+            Self::EaseInElastic => math::ease_in_elastic(platform, a, b, c, post),
+            Self::EaseOutElastic => math::ease_out_elastic(platform, a, b, c, post),
+            Self::EaseInOutElastic => math::ease_in_out_elastic(platform, a, b, c, post),
         }
     }
 }
@@ -318,7 +318,7 @@ impl CmpOp {
         })
     }
 
-    /// Whether `a <op> b` holds by this build's comparisons.
+    /// Whether `a <op> b` holds: false when either is NaN.
     #[inline]
     pub(crate) fn holds(self, a: f32, b: f32) -> bool {
         match self {
@@ -672,6 +672,8 @@ pub(crate) struct Program {
     /// the float loop makes itself and whose non-float results it hands over.
     pub(crate) float_loop: bool,
     pub(crate) version: MolangVersion,
+    /// The platform whose float behaviour the program reproduces.
+    pub(crate) platform: Platform,
 }
 
 impl Program {
@@ -967,6 +969,7 @@ mod tests {
             flags: ProgramFlags::empty(),
             float_loop: false,
             version: MolangVersion::LATEST,
+            platform: crate::numeric::Platform::default(),
         }
     }
 
@@ -1022,14 +1025,16 @@ mod tests {
         for op in [Op::DieRoll, Op::DieRollInt] {
             assert_eq!(Fn3::of(op), None, "{op:?}");
         }
-        assert_eq!(Fn3::Clamp.apply(3.0, 2.0, 1.0, PostOp::IDENTITY), 1.0);
+        assert_eq!(Fn3::Clamp.apply(P, 3.0, 2.0, 1.0, PostOp::IDENTITY), 1.0);
     }
 
-    type F1 = fn(f32, PostOp) -> f32;
+    type F1 = fn(Platform, f32, PostOp) -> f32;
 
-    type F2 = fn(f32, f32, PostOp) -> f32;
+    type F2 = fn(Platform, f32, f32, PostOp) -> f32;
 
-    type F3 = fn(f32, f32, f32, PostOp) -> f32;
+    type F3 = fn(Platform, f32, f32, f32, PostOp) -> f32;
+
+    const P: Platform = Platform::BdsLinux(crate::numeric::LinuxRelease::LATEST);
 
     const POSTS: [PostOp; 2] = [PostOp::IDENTITY, PostOp::new(2.0, 1.0)];
 
@@ -1053,14 +1058,14 @@ mod tests {
             (Fn1::MinAngle, math::min_angle),
             (Fn1::Round, math::round),
             (Fn1::Sin, math::sin),
-            (Fn1::Sign, math::sign),
+            (Fn1::Sign, |_, x, post| math::sign(x, post)),
             (Fn1::Sqrt, math::sqrt),
             (Fn1::Trunc, math::trunc),
         ];
         for (f, direct) in table {
             for x in [0.5, -1.5, 30.0, 2.0, 0.0] {
                 for post in POSTS {
-                    assert!(same(f.apply(x, post), direct(x, post)), "{f:?}({x})");
+                    assert!(same(f.apply(P, x, post), direct(P, x, post)), "{f:?}({x})");
                 }
             }
         }
@@ -1069,14 +1074,14 @@ mod tests {
     #[test]
     fn fn1_pinned_values_tell_neighbouring_functions_apart() {
         let id = PostOp::IDENTITY;
-        assert_eq!(Fn1::Floor.apply(-1.5, id), -2.0);
-        assert_eq!(Fn1::Ceil.apply(-1.5, id), -1.0);
-        assert_eq!(Fn1::Trunc.apply(-1.5, id), -1.0);
-        assert_eq!(Fn1::Round.apply(2.5, id), 3.0);
-        assert_eq!(Fn1::Abs.apply(-1.5, id), 1.5);
-        assert_eq!(Fn1::Sign.apply(-3.0, id), -1.0);
-        assert_eq!(Fn1::Sqrt.apply(9.0, id), 3.0);
-        assert_eq!(Fn1::Abs.apply(-1.5, PostOp::new(2.0, 1.0)), 4.0);
+        assert_eq!(Fn1::Floor.apply(P, -1.5, id), -2.0);
+        assert_eq!(Fn1::Ceil.apply(P, -1.5, id), -1.0);
+        assert_eq!(Fn1::Trunc.apply(P, -1.5, id), -1.0);
+        assert_eq!(Fn1::Round.apply(P, 2.5, id), 3.0);
+        assert_eq!(Fn1::Abs.apply(P, -1.5, id), 1.5);
+        assert_eq!(Fn1::Sign.apply(P, -3.0, id), -1.0);
+        assert_eq!(Fn1::Sqrt.apply(P, 9.0, id), 3.0);
+        assert_eq!(Fn1::Abs.apply(P, -1.5, PostOp::new(2.0, 1.0)), 4.0);
     }
 
     #[test]
@@ -1092,17 +1097,17 @@ mod tests {
             for (a, b) in [(3.0, 2.0), (-1.0, 4.0), (0.5, 2.0), (1.0, 1.0)] {
                 for post in POSTS {
                     assert!(
-                        same(f.apply(a, b, post), direct(a, b, post)),
+                        same(f.apply(P, a, b, post), direct(P, a, b, post)),
                         "{f:?}({a}, {b})"
                     );
                 }
             }
         }
         let id = PostOp::IDENTITY;
-        assert_eq!(Fn2::Max.apply(3.0, 2.0, id), 3.0);
-        assert_eq!(Fn2::Min.apply(3.0, 2.0, id), 2.0);
-        assert_eq!(Fn2::Pow.apply(2.0, 3.0, id), 8.0);
-        assert_eq!(Fn2::CopySign.apply(3.0, -1.0, id), -3.0);
+        assert_eq!(Fn2::Max.apply(P, 3.0, 2.0, id), 3.0);
+        assert_eq!(Fn2::Min.apply(P, 3.0, 2.0, id), 2.0);
+        assert_eq!(Fn2::Pow.apply(P, 2.0, 3.0, id), 8.0);
+        assert_eq!(Fn2::CopySign.apply(P, 3.0, -1.0, id), -3.0);
     }
 
     macro_rules! fn3_table {
@@ -1158,17 +1163,17 @@ mod tests {
             ] {
                 for post in POSTS {
                     assert!(
-                        same(f.apply(a, b, c, post), direct(a, b, c, post)),
+                        same(f.apply(P, a, b, c, post), direct(P, a, b, c, post)),
                         "{f:?}({a}, {b}, {c})"
                     );
                 }
             }
         }
         let id = PostOp::IDENTITY;
-        assert_eq!(Fn3::Clamp.apply(5.0, 0.0, 1.0, id), 1.0);
-        assert_eq!(Fn3::Clamp.apply(-5.0, 0.0, 1.0, id), 0.0);
-        assert_eq!(Fn3::Lerp.apply(0.0, 10.0, 0.5, id), 5.0);
-        assert_eq!(Fn3::InverseLerp.apply(0.0, 10.0, 5.0, id), 0.5);
+        assert_eq!(Fn3::Clamp.apply(P, 5.0, 0.0, 1.0, id), 1.0);
+        assert_eq!(Fn3::Clamp.apply(P, -5.0, 0.0, 1.0, id), 0.0);
+        assert_eq!(Fn3::Lerp.apply(P, 0.0, 10.0, 0.5, id), 5.0);
+        assert_eq!(Fn3::InverseLerp.apply(P, 0.0, 10.0, 5.0, id), 0.5);
     }
 
     #[test]
@@ -1208,7 +1213,7 @@ mod tests {
         ];
         let bits: std::collections::HashSet<u32> = eases
             .iter()
-            .map(|&f| f.apply(1.0, 4.0, 0.37, PostOp::IDENTITY).to_bits())
+            .map(|&f| f.apply(P, 1.0, 4.0, 0.37, PostOp::IDENTITY).to_bits())
             .collect();
         assert_eq!(bits.len(), 30);
     }
@@ -1228,17 +1233,10 @@ mod tests {
 
     #[cfg(feature = "vm")]
     #[test]
-    fn cmp_op_with_nan_follows_the_architecture() {
-        use crate::numeric::test_support::per_arch;
-        // x86-64: every comparison with a NaN is false. arm64: `<` and `<=` are true with a NaN.
-        for (op, x86, arm) in [
-            (CmpOp::Lt, false, true),
-            (CmpOp::Le, false, true),
-            (CmpOp::Ge, false, false),
-            (CmpOp::Gt, false, false),
-        ] {
+    fn cmp_op_with_nan_is_false() {
+        for op in [CmpOp::Lt, CmpOp::Le, CmpOp::Ge, CmpOp::Gt] {
             for (a, b) in [(f32::NAN, 1.0), (1.0, f32::NAN), (f32::NAN, f32::NAN)] {
-                assert_eq!(op.holds(a, b), per_arch(x86, arm), "{op:?} {a} {b}");
+                assert!(!op.holds(a, b), "{op:?} {a} {b}");
             }
         }
     }

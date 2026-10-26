@@ -100,7 +100,7 @@ impl Builder<'_, '_> {
 
     #[inline(never)]
     pub(super) fn generic_constant(&mut self, node: &Node) -> Build {
-        let c = self.konst(node.post.apply(payload_f32(node)))?;
+        let c = self.konst(node.post.apply(self.cx.opts.platform, payload_f32(node)))?;
         self.code.emit(Instr::Const { c });
         Ok(())
     }

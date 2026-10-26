@@ -30,7 +30,7 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                 ControlFlow::Continue(())
             }
             None => {
-                self.acc = R::float(program.post(p).apply(0.0));
+                self.acc = R::float(program.post(p).apply(program.platform, 0.0));
                 ControlFlow::Break(())
             }
         }

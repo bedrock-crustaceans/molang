@@ -10,7 +10,7 @@ use crate::compile::{
     program::{CmpOp, EqOp},
 };
 use crate::diag::LanguageMessage as Msg;
-use crate::numeric::{self, PostOp, arith};
+use crate::numeric::{self, Platform, PostOp, arith};
 use crate::ops::ExpressionOp as Op;
 #[cfg(feature = "stdlib")]
 use crate::{
@@ -24,7 +24,7 @@ pub(super) fn after_children(cx: &mut Cx<'_>, node: &mut Node) -> Pass {
     if op == Op::Add {
         // The terms are counted after flattening.
         let new = new_terms(node);
-        flatten_add(node);
+        flatten_add(cx.opts.platform, node);
         child_count_in_bounds(cx, node, op)?;
         return fold_sum(cx, node, new);
     }
@@ -33,7 +33,7 @@ pub(super) fn after_children(cx: &mut Cx<'_>, node: &mut Node) -> Pass {
         return fold_comparison(cx, node, cmp);
     }
     if let Some(test) = EqOp::of(op) {
-        fold_equality(node, test);
+        fold_equality(cx.opts.platform, node, test);
         return Ok(());
     }
     match op {
@@ -52,7 +52,7 @@ pub(super) fn after_children(cx: &mut Cx<'_>, node: &mut Node) -> Pass {
         // `Array` has exactly one child, so only `=` has a second operand to move.
         Op::Assignment => {
             if only_second_is_float(node) {
-                absorb_float_child(node, 1);
+                absorb_float_child(cx.opts.platform, node, 1);
             }
             Ok(())
         }
@@ -90,9 +90,10 @@ fn only_second_is_float(node: &Node) -> bool {
 }
 
 /// Moves the float child at `index` into the node's value, its post-op applied.
-fn absorb_float_child(node: &mut Node, index: usize) {
+fn absorb_float_child(p: Platform, node: &mut Node, index: usize) {
     let child = node.children.remove(index);
     node.value = Payload::Float(arith::mul_add(
+        p,
         child.post.scale,
         child.float(),
         child.post.offset,
@@ -101,12 +102,12 @@ fn absorb_float_child(node: &mut Node, index: usize) {
 
 /// Absorbs the first float child of a two-child node; without one, the first string child moves
 /// its hash into the value.
-fn absorb_constant_child(node: &mut Node) {
+fn absorb_constant_child(p: Platform, node: &mut Node) {
     if node.children.len() != 2 {
         return;
     }
     if let Some(index) = node.children.iter().position(|c| c.is(Op::Float)) {
-        absorb_float_child(node, index);
+        absorb_float_child(p, node, index);
     } else if let Some(index) = node.children.iter().position(|c| c.is(Op::StringLiteral)) {
         let child = node.children.remove(index);
         node.value = child.value.clone();
@@ -197,7 +198,7 @@ fn fold_sum(cx: &mut Cx<'_>, node: &mut Node, new: NewTerms) -> Pass {
         NewTerms::Last => node.children.len().saturating_sub(1),
     };
     numerical_operands(cx, node, &node.children[first_new..])?;
-    optimize_add(node, new);
+    optimize_add(cx.opts.platform, node, new);
     Ok(())
 }
 
@@ -208,17 +209,17 @@ fn fold_comparison(cx: &mut Cx<'_>, node: &mut Node, cmp: CmpOp) -> Pass {
     if let Some([a, b]) = constants(node) {
         node.set_float(f32::from(u8::from(cmp.holds(a, b))));
     } else if only_second_is_float(node) {
-        absorb_float_child(node, 1);
+        absorb_float_child(cx.opts.platform, node, 1);
     }
     Ok(())
 }
 
 /// `==` and `!=`: folded when constant; else a constant operand on either side moves into the node.
-fn fold_equality(node: &mut Node, test: EqOp) {
+fn fold_equality(p: Platform, node: &mut Node, test: EqOp) {
     if let Some([a, b]) = constants(node) {
         node.set_float(f32::from(u8::from(test.holds(numeric::eq(a, b)))));
     } else {
-        absorb_constant_child(node);
+        absorb_constant_child(p, node);
     }
 }
 
@@ -259,15 +260,20 @@ fn fold_logic(cx: &mut Cx<'_>, node: &mut Node, op: Op) -> Pass {
 /// `*`: folded when constant; else a constant factor folds into the other operand's post-op.
 fn fold_product(cx: &mut Cx<'_>, node: &mut Node) -> Pass {
     numerical_children(cx, node)?;
+    let p = cx.opts.platform;
     if let Some([a, b]) = constants(node) {
-        // The left operand's NaN wins on x86-64.
-        node.set_float(arith::mul(a, b));
+        node.set_float(arith::mul(p, a, b));
     } else if let Some(index) = node.children.iter().position(|c| c.is(Op::Float)) {
         let constant = &node.children[index];
-        let factor = arith::mul_add(constant.post.scale, constant.float(), constant.post.offset);
+        let factor = arith::mul_add(
+            p,
+            constant.post.scale,
+            constant.float(),
+            constant.post.offset,
+        );
         let own = node.post;
         let other = lift_child(node, 1 - index);
-        other.post = own.fold_scaled(factor, other.post);
+        other.post = own.fold_scaled(p, factor, other.post);
     }
     Ok(())
 }
@@ -277,7 +283,7 @@ fn fold_product(cx: &mut Cx<'_>, node: &mut Node) -> Pass {
 fn fold_quotient(cx: &mut Cx<'_>, node: &mut Node) -> Pass {
     numerical_children(cx, node)?;
     if let Some([a, b]) = constants(node) {
-        node.set_float(numeric::fold_const_div(a, b));
+        node.set_float(numeric::fold_const_div(cx.opts.platform, a, b));
     } else if let [_, divisor] = node.children.as_mut_slice()
         && divisor.is(Op::Float)
     {
@@ -295,7 +301,7 @@ fn fold_negation(cx: &mut Cx<'_>, node: &mut Node) -> Pass {
     } else {
         let own = node.post;
         let other = lift_child(node, 0);
-        other.post = own.fold_negated(other.post);
+        other.post = own.fold_negated(cx.opts.platform, other.post);
     }
     Ok(())
 }
@@ -306,31 +312,31 @@ fn fold_negation(cx: &mut Cx<'_>, node: &mut Node) -> Pass {
 #[cfg(feature = "stdlib")]
 fn fold_math(cx: &mut Cx<'_>, node: &mut Node, op: Op) -> Pass {
     numerical_children(cx, node)?;
-    let id = PostOp::IDENTITY;
+    let (p, id) = (cx.opts.platform, PostOp::IDENTITY);
     if op == Op::Pi {
         node.set_float(math::PI);
     } else if op == Op::Mod {
         if let Some([a, b]) = constants(node) {
-            node.set_float(math::fold::modulo(a, b));
+            node.set_float(math::fold::modulo(p, a, b));
         } else if only_second_is_float(node) {
-            absorb_float_child(node, 1);
+            absorb_float_child(p, node, 1);
         }
     } else if let Some(f) = Fn2::of(op) {
         if let Some([a, b]) = constants(node) {
-            node.set_float(f.apply(a, b, id));
+            node.set_float(f.apply(p, a, b, id));
         } else if matches!(f, Fn2::Min | Fn2::Max) {
-            absorb_constant_child(node);
+            absorb_constant_child(p, node);
         } else if f == Fn2::Pow && only_second_is_float(node) {
-            absorb_float_child(node, 1);
+            absorb_float_child(p, node, 1);
         }
     } else if let Some(f) = Fn3::of(op) {
         if let Some([a, b, c]) = constants(node) {
-            node.set_float(f.apply(a, b, c, id));
+            node.set_float(f.apply(p, a, b, c, id));
         }
     } else if let Some(f) = Fn1::of(op)
         && let Some([x]) = constants(node)
     {
-        node.set_float(f.apply(x, id));
+        node.set_float(f.apply(p, x, id));
     }
     Ok(())
 }
@@ -362,11 +368,10 @@ mod tests {
     use crate::compile::{CompileOptions, Deviations, sema::test_support::*};
     use crate::diag::Severity;
     use crate::hash::HashedStr;
-    use crate::numeric::{
-        arch::{arm64, x86_64},
-        test_support::per_arch,
-    };
+    use crate::numeric::test_support::{LINUX, PLATFORMS};
     use crate::stdlib::math;
+
+    const P: Platform = LINUX;
 
     fn run_after(node: &mut Node) -> (Pass, Vec<Logged>) {
         let opts = client(13);
@@ -777,7 +782,7 @@ mod tests {
         }
     }
 
-    /// An all-constant `a + b` or `a * b` with two NaNs keeps the left operand's on x86-64, as at
+    /// An all-constant `a + b` or `a * b` with two quiet NaNs keeps the left operand's, as at
     /// run time.
     #[test]
     fn literal_arithmetic_with_two_nans_keeps_the_left_one() {
@@ -814,7 +819,7 @@ mod tests {
     }
 
     #[test]
-    fn unary_math_functions_fold_with_the_numeric_function_of_the_architecture() {
+    fn unary_math_functions_fold_with_the_numeric_function() {
         let id = PostOp::IDENTITY;
         for (op, x) in [
             (Op::Abs, -3.5),
@@ -836,22 +841,22 @@ mod tests {
             (Op::LogicalNot, 3.0),
         ] {
             let want = match op {
-                Op::Abs => math::abs(x, id),
-                Op::Acos => math::acos(x, id),
-                Op::Asin => math::asin(x, id),
-                Op::Atan => math::atan(x, id),
-                Op::Ceil => math::ceil(x, id),
-                Op::Cos => math::cos(x, id),
-                Op::Exp => math::exp(x, id),
-                Op::Floor => math::floor(x, id),
-                Op::HermiteBlend => math::hermite_blend(x, id),
-                Op::Ln => math::ln(x, id),
-                Op::MinAngle => math::min_angle(x, id),
-                Op::Round => math::round(x, id),
-                Op::Sin => math::sin(x, id),
+                Op::Abs => math::abs(P, x, id),
+                Op::Acos => math::acos(P, x, id),
+                Op::Asin => math::asin(P, x, id),
+                Op::Atan => math::atan(P, x, id),
+                Op::Ceil => math::ceil(P, x, id),
+                Op::Cos => math::cos(P, x, id),
+                Op::Exp => math::exp(P, x, id),
+                Op::Floor => math::floor(P, x, id),
+                Op::HermiteBlend => math::hermite_blend(P, x, id),
+                Op::Ln => math::ln(P, x, id),
+                Op::MinAngle => math::min_angle(P, x, id),
+                Op::Round => math::round(P, x, id),
+                Op::Sin => math::sin(P, x, id),
                 Op::Sign => math::sign(x, id),
-                Op::Sqrt => math::sqrt(x, id),
-                Op::Trunc => math::trunc(x, id),
+                Op::Sqrt => math::sqrt(P, x, id),
+                Op::Trunc => math::trunc(P, x, id),
                 _ => numeric::not(x, id),
             };
             let root = folded(parent(op, vec![float(x)]));
@@ -860,40 +865,46 @@ mod tests {
     }
 
     #[test]
-    fn unary_math_functions_fold_special_operands_with_the_numeric_function_of_the_architecture() {
-        // The architectures differ on a NaN operand (`asin`, `acos`) and on the infinities; each op
-        // must use the architecture's.
+    fn unary_math_functions_fold_special_operands_with_the_platforms_numeric_function() {
+        // The platforms differ on the NaN of an invalid operand; each op must use the platform's.
         let id = PostOp::IDENTITY;
-        for x in [
-            f32::NAN,
-            f32::INFINITY,
-            f32::NEG_INFINITY,
-            -0.0,
-            0.0,
-            1.5,
-            -1.5,
-        ] {
+        for (p, x) in PLATFORMS.into_iter().flat_map(|p| {
+            [
+                f32::NAN,
+                f32::INFINITY,
+                f32::NEG_INFINITY,
+                -0.0,
+                0.0,
+                1.5,
+                -1.5,
+            ]
+            .map(|x| (p, x))
+        }) {
             for (op, want) in [
-                (Op::Abs, math::abs(x, id)),
-                (Op::Acos, math::acos(x, id)),
-                (Op::Asin, math::asin(x, id)),
-                (Op::Atan, math::atan(x, id)),
-                (Op::Ceil, math::ceil(x, id)),
-                (Op::Cos, math::cos(x, id)),
-                (Op::Exp, math::exp(x, id)),
-                (Op::Floor, math::floor(x, id)),
-                (Op::HermiteBlend, math::hermite_blend(x, id)),
-                (Op::Ln, math::ln(x, id)),
-                (Op::MinAngle, math::min_angle(x, id)),
-                (Op::Round, math::round(x, id)),
-                (Op::Sin, math::sin(x, id)),
+                (Op::Abs, math::abs(p, x, id)),
+                (Op::Acos, math::acos(p, x, id)),
+                (Op::Asin, math::asin(p, x, id)),
+                (Op::Atan, math::atan(p, x, id)),
+                (Op::Ceil, math::ceil(p, x, id)),
+                (Op::Cos, math::cos(p, x, id)),
+                (Op::Exp, math::exp(p, x, id)),
+                (Op::Floor, math::floor(p, x, id)),
+                (Op::HermiteBlend, math::hermite_blend(p, x, id)),
+                (Op::Ln, math::ln(p, x, id)),
+                (Op::MinAngle, math::min_angle(p, x, id)),
+                (Op::Round, math::round(p, x, id)),
+                (Op::Sin, math::sin(p, x, id)),
                 (Op::Sign, math::sign(x, id)),
-                (Op::Sqrt, math::sqrt(x, id)),
-                (Op::Trunc, math::trunc(x, id)),
+                (Op::Sqrt, math::sqrt(p, x, id)),
+                (Op::Trunc, math::trunc(p, x, id)),
             ] {
-                let root = folded(parent(op, vec![float(x)]));
-                assert!(root.is(Op::Float), "{op:?}({x}) at ");
-                assert_eq!(root.float().to_bits(), want.to_bits(), "{op:?}({x}) at ");
+                let root = folded_on(p, parent(op, vec![float(x)]));
+                assert!(root.is(Op::Float), "{op:?}({x}) on {p:?}");
+                assert_eq!(
+                    root.float().to_bits(),
+                    want.to_bits(),
+                    "{op:?}({x}) on {p:?}"
+                );
             }
         }
     }
@@ -946,16 +957,19 @@ mod tests {
     }
 
     #[test]
-    fn binary_math_functions_fold_with_the_numeric_function_of_the_architecture() {
+    fn binary_math_functions_fold_with_the_numeric_function() {
         let id = PostOp::IDENTITY;
         let opts = client(13);
         for (src, want) in [
-            ("math.atan2(0.3,2.5)", math::atan2(0.3, 2.5, id)),
-            ("math.copy_sign(2.5,-0.5)", math::copy_sign(2.5, -0.5, id)),
-            ("math.min(2.5,-0.5)", math::min(2.5, -0.5, id)),
-            ("math.max(2.5,-0.5)", math::max(2.5, -0.5, id)),
-            ("math.pow(2.5,3.5)", math::pow(2.5, 3.5, id)),
-            ("math.clamp(2.5,0,1)", math::clamp(2.5, 0.0, 1.0, id)),
+            ("math.atan2(0.3,2.5)", math::atan2(P, 0.3, 2.5, id)),
+            (
+                "math.copy_sign(2.5,-0.5)",
+                math::copy_sign(P, 2.5, -0.5, id),
+            ),
+            ("math.min(2.5,-0.5)", math::min(P, 2.5, -0.5, id)),
+            ("math.max(2.5,-0.5)", math::max(P, 2.5, -0.5, id)),
+            ("math.pow(2.5,3.5)", math::pow(P, 2.5, 3.5, id)),
+            ("math.clamp(2.5,0,1)", math::clamp(P, 2.5, 0.0, 1.0, id)),
         ] {
             let out = optimise_with(src, &opts);
             assert!(out.ok && out.log.is_empty(), "{src}");
@@ -964,11 +978,11 @@ mod tests {
     }
 
     #[test]
-    fn min_and_max_with_a_nan_operand_follow_the_architecture() {
-        // x86-64: `(a > b) ? a : b`, so `max(1, NaN)` is NaN; arm64 ignores the NaN.
+    fn min_and_max_with_a_nan_operand_return_the_second_operand() {
+        // `(a > b) ? a : b`, so `max(1, NaN)` is NaN.
         let folded = folded(call(Op::Max, vec![float(1.0), float(f32::NAN)]));
         assert!(folded.is(Op::Float));
-        assert_eq!(folded.float().is_nan(), per_arch(true, false));
+        assert!(folded.float().is_nan());
     }
 
     #[test]
@@ -1004,22 +1018,17 @@ mod tests {
     }
 
     #[test]
-    fn comparisons_with_a_nan_operand_follow_the_architecture() {
-        // x86-64: every comparison with a NaN is false. arm64: `<` and `<=` are true when an
-        // operand is NaN while `>` and `>=` are not.
-        for (op, x86, arm) in [
-            (Op::LessThan, 0.0, 1.0),
-            (Op::LessEqual, 0.0, 1.0),
-            (Op::GreaterThan, 0.0, 0.0),
-            (Op::GreaterEqual, 0.0, 0.0),
-            (Op::LogicalEqual, 0.0, 0.0),
-            (Op::LogicalNotEqual, 1.0, 1.0),
+    fn comparisons_with_a_nan_operand_are_false() {
+        for (op, want) in [
+            (Op::LessThan, 0.0),
+            (Op::LessEqual, 0.0),
+            (Op::GreaterThan, 0.0),
+            (Op::GreaterEqual, 0.0),
+            (Op::LogicalEqual, 0.0),
+            (Op::LogicalNotEqual, 1.0),
         ] {
             for (a, b) in [(f32::NAN, 1.0), (1.0, f32::NAN)] {
-                assert_float_bits(
-                    &folded(parent(op, vec![float(a), float(b)])),
-                    per_arch(x86, arm),
-                );
+                assert_float_bits(&folded(parent(op, vec![float(a), float(b)])), want);
             }
         }
     }
@@ -1429,37 +1438,33 @@ mod tests {
     }
 
     #[test]
-    fn the_multiplication_offset_rounds_as_the_architecture_does() {
-        // c·o + O: two roundings on x86-64, one on arm64. 0.3·3.3 + 0.3 differs by one ulp.
+    fn the_multiplication_offset_rounds_twice() {
+        // c·o + O, rounded twice: 0.3·3.3 + 0.3 is one ulp off the fused value.
         let (c, o, offset) = (0.3f32, 3.3f32, 0.3f32);
-        assert_ne!(
-            x86_64::mul_add(c, o, offset).to_bits(),
-            arm64::mul_add(c, o, offset).to_bits()
-        );
+        assert_ne!((c * o + offset).to_bits(), c.mul_add(o, offset).to_bits());
         let node = with_post(
             parent(Op::Mul, vec![float(c), with_post(entity("x"), 1.0, o)]),
             1.0,
             offset,
         );
         let root = folded(node);
-        assert_post_bits(&root, c, arith::mul_add(c, o, offset));
+        assert_post_bits(&root, c, arith::mul_add(P, c, o, offset));
     }
 
     #[test]
-    fn the_constant_factor_of_a_multiplication_rounds_as_the_architecture_does() {
-        // The constant's own post-op (scale 0.3, offset 0.3) on the value 3.3: two roundings on
-        // x86-64, one on arm64.
+    fn the_constant_factor_of_a_multiplication_rounds_twice() {
+        // The constant's own post-op (scale 0.3, offset 0.3) on the value 3.3, rounded twice.
         let (scale, value, offset) = (0.3f32, 3.3f32, 0.3f32);
         assert_ne!(
-            x86_64::mul_add(scale, value, offset).to_bits(),
-            arm64::mul_add(scale, value, offset).to_bits()
+            (scale * value + offset).to_bits(),
+            scale.mul_add(value, offset).to_bits()
         );
         let node = parent(
             Op::Mul,
             vec![with_post(float(value), scale, offset), entity("x")],
         );
         let root = folded(node);
-        assert_post_bits(&root, arith::mul_add(scale, value, offset), 0.0);
+        assert_post_bits(&root, arith::mul_add(P, scale, value, offset), 0.0);
     }
 
     #[test]
@@ -1487,9 +1492,9 @@ mod tests {
 
     #[test]
     fn a_constant_product_folds_to_its_value_before_a_term_or_a_negation() {
-        let product = arith::mul(numeric::fold_const_div(1.0, 3.0), 3.0);
+        let product = arith::mul(P, numeric::fold_const_div(P, 1.0, 3.0), 3.0);
         assert_eq!(constant("(1/3)*3").to_bits(), product.to_bits());
-        let less_one = arith::add(product, -1.0).to_bits();
+        let less_one = arith::add(P, product, -1.0).to_bits();
         assert_eq!(constant("(1/3)*3-1").to_bits(), less_one);
         assert_eq!(constant("-1+(1/3)*3").to_bits(), less_one);
         assert_eq!(constant("-((1/3)*3)").to_bits(), (-product).to_bits());
@@ -1517,7 +1522,7 @@ mod tests {
     #[test]
     fn absorb_float_child_removes_the_indexed_child_and_applies_its_post_op() {
         let mut node = parent(Op::Min, vec![with_post(float(5.0), 2.0, 1.0), entity("x")]);
-        absorb_float_child(&mut node, 0);
+        absorb_float_child(P, &mut node, 0);
         assert_eq!(node.children.len(), 1);
         assert!(node.children[0].is(Op::EntityVariable));
         assert_eq!(node.value, Payload::Float(11.0));
@@ -1526,7 +1531,7 @@ mod tests {
     #[test]
     fn absorb_constant_child_prefers_the_float() {
         let mut node = parent(Op::LogicalEqual, vec![string("a"), float(3.0)]);
-        absorb_constant_child(&mut node);
+        absorb_constant_child(P, &mut node);
         assert_eq!(node.value, Payload::Float(3.0));
         assert_eq!(node.children.len(), 1);
         assert!(node.children[0].is(Op::StringLiteral));
@@ -1535,7 +1540,7 @@ mod tests {
     #[test]
     fn absorb_constant_child_moves_the_first_string_when_there_is_no_float() {
         let mut node = parent(Op::LogicalEqual, vec![entity("x"), string("a")]);
-        absorb_constant_child(&mut node);
+        absorb_constant_child(P, &mut node);
         assert_eq!(node.value, Payload::Hash(HashedStr::new("a").as_u64()));
         assert_eq!(node.children.len(), 1);
         assert!(node.children[0].is(Op::EntityVariable));
@@ -1544,7 +1549,7 @@ mod tests {
     #[test]
     fn absorb_constant_child_leaves_other_shapes_alone() {
         let mut no_constant = parent(Op::LogicalEqual, vec![entity("x"), entity("y")]);
-        absorb_constant_child(&mut no_constant);
+        absorb_constant_child(P, &mut no_constant);
         assert_eq!(no_constant.children.len(), 2);
         assert_eq!(no_constant.value, Payload::None);
 
@@ -1552,7 +1557,7 @@ mod tests {
             Op::LogicalEqual,
             vec![string("a"), entity("y"), entity("z")],
         );
-        absorb_constant_child(&mut three);
+        absorb_constant_child(P, &mut three);
         assert_eq!(three.children.len(), 3);
         assert_eq!(three.value, Payload::None);
     }
@@ -1662,12 +1667,11 @@ mod tests {
 
     #[test]
     fn a_moved_constant_is_the_value_the_post_op_gives() {
-        // S·v + O, rounded as the architecture does: the post-op of the moved node is gone from the
-        // tree.
+        // S·v + O, rounded twice: the post-op of the moved node is gone from the tree.
         let (scale, value, offset) = (0.1f32, 0.3f32, 0.9f32);
         assert_ne!(
-            x86_64::mul_add(scale, value, offset).to_bits(),
-            arm64::mul_add(scale, value, offset).to_bits()
+            (scale * value + offset).to_bits(),
+            scale.mul_add(value, offset).to_bits()
         );
         let node = parent(
             Op::LessThan,
@@ -1676,7 +1680,7 @@ mod tests {
         let root = folded(node);
         assert_eq!(
             moved_value(&root).to_bits(),
-            arith::mul_add(scale, value, offset).to_bits()
+            arith::mul_add(P, scale, value, offset).to_bits()
         );
     }
 

@@ -3,10 +3,8 @@
 //! Each operator is a pure function of its bounds and of the raw samples it draws, each clamped by
 //! [`clamp_sample`]; the number and order of draws are part of the contract.
 
-use super::arch::{
-    self, Sort, integer_draw, integer_reach, integer_reach_const, interpolate, sorted_bounds,
-};
-use crate::numeric::{PostOp, arith};
+use super::formula::{Sort, integer_draw, integer_reach, interpolate, sorted_bounds};
+use crate::numeric::{Platform, PostOp, arith};
 
 mod dice;
 
@@ -24,25 +22,23 @@ pub fn clamp_sample(raw: f32) -> f32 {
     }
 }
 
-/// `math.random(a, b)` with run-time bounds, over the closed interval of the sorted bounds.
-///
-/// `X86_64` computes `hi·r + (1 − r)·lo`, NaN for a NaN bound; `Arm64` computes `lo + r·(hi − lo)`
-/// rounded once, ignoring a NaN bound.
+/// `math.random(a, b)` with run-time bounds, over the closed interval of the sorted bounds:
+/// `hi·r + (1 − r)·lo`, NaN for a NaN bound.
 #[inline]
-pub fn random(a: f32, b: f32, sample: f32, post: PostOp) -> f32 {
+pub fn random(platform: Platform, a: f32, b: f32, sample: f32, post: PostOp) -> f32 {
     let r = clamp_sample(sample);
     let (lo, hi) = sorted_bounds(Sort::RunTime, a, b);
-    post.apply(interpolate(lo, hi, r))
+    post.apply(platform, interpolate(platform, lo, hi, r))
 }
 
 /// The post-op `math.random(a, b)` with two literal bounds folds into: `S' = (hi − lo)·S`,
-/// `O' = lo·S + O` (rounded once on `Arm64`), evaluated by [`random_folded`].
+/// `O' = lo·S + O`, evaluated by [`random_folded`].
 #[inline]
-pub fn random_const_bounds(a: f32, b: f32, post: PostOp) -> PostOp {
+pub fn random_const_bounds(platform: Platform, a: f32, b: f32, post: PostOp) -> PostOp {
     let (lo, hi) = sorted_bounds(Sort::Literal, a, b);
     PostOp {
-        scale: arch::mul(arch::sub(hi, lo), post.scale),
-        offset: arith::mul_add(lo, post.scale, post.offset),
+        scale: arith::mul(platform, arith::sub(platform, hi, lo), post.scale),
+        offset: arith::mul_add(platform, lo, post.scale, post.offset),
     }
 }
 
@@ -50,42 +46,45 @@ pub fn random_const_bounds(a: f32, b: f32, post: PostOp) -> PostOp {
 ///
 /// Unlike [`PostOp::apply`] this always multiplies and adds, even for `(1, 0)`.
 #[inline]
-pub fn random_folded(sample: f32, folded: PostOp) -> f32 {
-    arith::mul_add(clamp_sample(sample), folded.scale, folded.offset)
+pub fn random_folded(platform: Platform, sample: f32, folded: PostOp) -> f32 {
+    arith::mul_add(platform, clamp_sample(sample), folded.scale, folded.offset)
 }
 
-/// `math.random_integer(a, b)` with run-time bounds.
-///
-/// `X86_64`: `floor((1 − r)·lo + r·top)` with `top = (hi·(−ε) + 1) + hi`; `Arm64`:
-/// `floor(lo + r·span)` with `span = (hi + 1 − lo) − hi·ε`; then clamped to `[lo, hi]`. The bounds
-/// are not rounded, so `random_integer(0.1, 1000001)` at `r = 0` is 0.1.
+/// `math.random_integer(a, b)` with run-time bounds: `floor((1 − r)·lo + r·top)` with
+/// `top = (hi·(−ε) + 1) + hi`, then clamped to `[lo, hi]`. The bounds are not rounded, so
+/// `random_integer(0.1, 1000001)` at `r = 0` is 0.1.
 #[inline]
-pub fn random_integer(a: f32, b: f32, sample: f32, post: PostOp) -> f32 {
+pub fn random_integer(platform: Platform, a: f32, b: f32, sample: f32, post: PostOp) -> f32 {
     let r = clamp_sample(sample);
     let (lo, hi) = sorted_bounds(Sort::RunTime, a, b);
-    let reach = integer_reach(lo, hi);
-    post.apply(integer_draw(lo, hi, reach, r))
+    let reach = integer_reach(platform, hi);
+    post.apply(platform, integer_draw(platform, lo, hi, reach, r))
 }
 
-/// `math.random_integer(a, b)` with two literal bounds.
-///
-/// On `Arm64` the span is `(hi·(1 − ε) + 1) − lo`, which rounds differently from the run-time form
-/// and makes a draw above 0 with an infinite bound +∞ (`random_integer(0, 1e39)`; 0 with run-time
-/// bounds); on `X86_64` only the sorting of a NaN bound differs.
+/// `math.random_integer(a, b)` with two literal bounds: [`random_integer`] with the literal
+/// sorting of a NaN bound.
 #[inline]
-pub fn random_integer_const_bounds(a: f32, b: f32, sample: f32, post: PostOp) -> f32 {
+pub fn random_integer_const_bounds(
+    platform: Platform,
+    a: f32,
+    b: f32,
+    sample: f32,
+    post: PostOp,
+) -> f32 {
     let r = clamp_sample(sample);
     let (lo, hi) = sorted_bounds(Sort::Literal, a, b);
-    let reach = integer_reach_const(lo, hi);
-    post.apply(integer_draw(lo, hi, reach, r))
+    let reach = integer_reach(platform, hi);
+    post.apply(platform, integer_draw(platform, lo, hi, reach, r))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::numeric::{ARCH, Arch, test_support::*};
+    use crate::numeric::test_support::*;
     use crate::rng::FixedRng;
-    use crate::stdlib::math::arch::{arm64::ONE_MINUS_EPSILON, clamp_draw};
+    use crate::stdlib::math::formula::clamp_draw;
+
+    const P: Platform = LINUX;
     use proptest::prelude::*;
 
     #[test]
@@ -130,7 +129,7 @@ mod tests {
     }
 
     #[test]
-    fn sorted_bounds_orders_ordinary_bounds_on_both_architectures() {
+    fn sorted_bounds_orders_ordinary_bounds() {
         for sort in [Sort::RunTime, Sort::Literal] {
             assert_eq!(sorted_bounds(sort, 1.0, 3.0), (1.0, 3.0));
             assert_eq!(sorted_bounds(sort, 3.0, 1.0), (1.0, 3.0));
@@ -142,47 +141,36 @@ mod tests {
     }
 
     #[test]
-    fn sorted_bounds_with_a_nan_bound_depends_on_the_architecture_and_the_sort() {
+    fn sorted_bounds_with_a_nan_bound_depends_on_the_sort() {
         let nan_pair = |(lo, hi): (f32, f32)| (lo.is_nan(), hi.is_nan());
-        if ARCH == Arch::X86_64 {
-            assert_eq!(
-                nan_pair(sorted_bounds(Sort::RunTime, NAN, 4.0)),
-                (true, false)
-            );
-            assert_eq!(sorted_bounds(Sort::RunTime, NAN, 4.0).1, 4.0);
-            assert_eq!(
-                nan_pair(sorted_bounds(Sort::RunTime, 4.0, NAN)),
-                (false, true)
-            );
-            assert_eq!(sorted_bounds(Sort::RunTime, 4.0, NAN).0, 4.0);
-            assert_eq!(
-                nan_pair(sorted_bounds(Sort::Literal, NAN, 4.0)),
-                (true, true)
-            );
-            assert_eq!(sorted_bounds(Sort::Literal, 4.0, NAN), (4.0, 4.0));
-        }
+        assert_eq!(
+            nan_pair(sorted_bounds(Sort::RunTime, NAN, 4.0)),
+            (true, false)
+        );
+        assert_eq!(sorted_bounds(Sort::RunTime, NAN, 4.0).1, 4.0);
+        assert_eq!(
+            nan_pair(sorted_bounds(Sort::RunTime, 4.0, NAN)),
+            (false, true)
+        );
+        assert_eq!(sorted_bounds(Sort::RunTime, 4.0, NAN).0, 4.0);
+        assert_eq!(
+            nan_pair(sorted_bounds(Sort::Literal, NAN, 4.0)),
+            (true, true)
+        );
+        assert_eq!(sorted_bounds(Sort::Literal, 4.0, NAN), (4.0, 4.0));
         for sort in [Sort::RunTime, Sort::Literal] {
-            if ARCH == Arch::Arm64 {
-                assert_eq!(sorted_bounds(sort, NAN, 4.0), (4.0, 4.0));
-                assert_eq!(sorted_bounds(sort, 4.0, NAN), (4.0, 4.0));
-            }
             assert_eq!(nan_pair(sorted_bounds(sort, NAN, NAN)), (true, true));
         }
     }
 
     #[test]
     fn sorted_bounds_of_equal_zeros_of_opposite_sign() {
-        let (lo, hi) = crate::stdlib::math::arch::x86_64::sorted_bounds(Sort::RunTime, 0.0, -0.0);
+        let (lo, hi) = sorted_bounds(Sort::RunTime, 0.0, -0.0);
         assert_bits(lo, 0.0);
         assert_bits(hi, -0.0);
-        let (lo, hi) = crate::stdlib::math::arch::x86_64::sorted_bounds(Sort::Literal, 0.0, -0.0);
+        let (lo, hi) = sorted_bounds(Sort::Literal, 0.0, -0.0);
         assert_bits(lo, 0.0);
         assert_bits(hi, 0.0);
-        for (a, b) in [(0.0, -0.0), (-0.0, 0.0)] {
-            let (lo, hi) = crate::stdlib::math::arch::arm64::sorted_bounds(Sort::RunTime, a, b);
-            assert_bits(lo, -0.0);
-            assert_bits(hi, 0.0);
-        }
     }
 
     #[test]
@@ -198,88 +186,47 @@ mod tests {
 
     #[test]
     fn interpolate_hits_the_bounds_at_samples_zero_and_one() {
-        assert_bits(interpolate(2.0, 7.0, 0.0), 2.0);
-        assert_bits(interpolate(2.0, 7.0, 1.0), 7.0);
-        assert_bits(interpolate(2.0, 7.0, 0.5), 4.5);
-        assert_bits(interpolate(-3.0, 3.0, 0.5), 0.0);
-        assert_bits(interpolate(5.0, 5.0, 0.37), 5.0);
+        assert_bits(interpolate(P, 2.0, 7.0, 0.0), 2.0);
+        assert_bits(interpolate(P, 2.0, 7.0, 1.0), 7.0);
+        assert_bits(interpolate(P, 2.0, 7.0, 0.5), 4.5);
+        assert_bits(interpolate(P, -3.0, 3.0, 0.5), 0.0);
+        assert_bits(interpolate(P, 5.0, 5.0, 0.37), 5.0);
     }
 
     #[test]
-    fn interpolate_uses_the_formula_of_each_architecture() {
+    fn interpolate_rounds_each_operation() {
         let (lo, hi, r) = (
             third(),
             f32::from_bits(0x3f91_bc0d),
             f32::from_bits(0x3ecf_a978),
         );
-        assert_bits(
-            interpolate(lo, hi, r),
-            per_arch(hi * r + (1.0 - r) * lo, (hi - lo).mul_add(r, lo)),
-        );
+        assert_bits(interpolate(P, lo, hi, r), hi * r + (1.0 - r) * lo);
     }
 
     #[test]
-    fn interpolate_differs_by_one_ulp_between_the_architectures_on_some_operands() {
+    fn interpolate_on_inexact_operands() {
         let (lo, hi, r) = (1.0_f32 / 7.0, 1.0_f32 / 7.0 + 1.0 / 3.0, 3.0_f32 / 19.0);
-        assert_bits(
-            interpolate(lo, hi, r),
-            per_arch(hi * r + (1.0 - r) * lo, (hi - lo).mul_add(r, lo)),
-        );
+        assert_bits(interpolate(P, lo, hi, r), hi * r + (1.0 - r) * lo);
+        assert_eq!(interpolate(P, lo, hi, r).to_bits(), 0x3e48_2e32);
+    }
+
+    #[test]
+    fn interpolate_with_infinite_bounds_never_forms_the_span() {
         assert_eq!(
-            interpolate(lo, hi, r).to_bits(),
-            per_arch(0x3e48_2e32, 0x3e48_2e33)
+            interpolate(P, f32::NEG_INFINITY, -180.0, 0.0),
+            f32::NEG_INFINITY
         );
+        assert!(interpolate(P, -INF, INF, 0.5).is_nan());
+        assert!(interpolate(P, 1.0, INF, 0.0).is_nan());
     }
 
     #[test]
-    fn interpolate_with_infinite_bounds_differs_between_the_architectures() {
-        // x86-64 never forms hi − lo.
-        if ARCH == Arch::X86_64 {
-            assert_eq!(
-                interpolate(f32::NEG_INFINITY, -180.0, 0.0),
-                f32::NEG_INFINITY
-            );
-        }
-        if ARCH == Arch::Arm64 {
-            assert!(interpolate(f32::NEG_INFINITY, -180.0, 0.0).is_nan());
-        }
-        if ARCH == Arch::X86_64 {
-            assert!(interpolate(-INF, INF, 0.5).is_nan());
-        }
-        if ARCH == Arch::Arm64 {
-            assert!(interpolate(-INF, INF, 0.5).is_nan());
-        }
-        if ARCH == Arch::X86_64 {
-            assert!(interpolate(1.0, INF, 0.0).is_nan());
-        }
-        if ARCH == Arch::Arm64 {
-            assert!(interpolate(1.0, INF, 0.0).is_nan());
-            assert_eq!(interpolate(1.0, INF, 0.5), INF);
-        }
-    }
-
-    #[test]
-    fn integer_reach_follows_the_formula_of_each_architecture() {
-        let (lo, hi) = (2.0_f32, 7.0_f32);
-        assert_bits(
-            integer_reach(lo, hi),
-            per_arch(
-                (-f32::EPSILON * hi + 1.0) + hi,
-                hi.mul_add(-f32::EPSILON, (hi + 1.0) - lo),
-            ),
-        );
-        let x86 = crate::stdlib::math::arch::x86_64::integer_reach(lo, hi);
-        assert!(x86 < 8.0 && x86 > 7.999_998, "{x86}");
-        let arm = crate::stdlib::math::arch::arm64::integer_reach(lo, hi);
-        assert!(arm < 6.0 && arm > 5.999_998, "{arm}");
-        close_reach(
-            crate::stdlib::math::arch::x86_64::integer_reach(0.5, 2.5),
-            3.5,
-        );
-        close_reach(
-            crate::stdlib::math::arch::arm64::integer_reach(0.5, 2.5),
-            3.0,
-        );
+    fn integer_reach_is_just_below_hi_plus_one() {
+        let hi = 7.0_f32;
+        assert_bits(integer_reach(P, hi), (-f32::EPSILON * hi + 1.0) + hi);
+        let reach = integer_reach(P, hi);
+        assert!(reach < 8.0 && reach > 7.999_998, "{reach}");
+        close_reach(integer_reach(P, 2.5), 3.5);
     }
 
     #[track_caller]
@@ -293,54 +240,57 @@ mod tests {
     #[test]
     fn integer_draw_floors_and_clamps_to_the_bounds() {
         let (lo, hi) = (2.0_f32, 7.0_f32);
-        let reach = integer_reach(lo, hi);
-        assert_bits(integer_draw(lo, hi, reach, 0.0), 2.0);
-        assert_bits(integer_draw(lo, hi, reach, 1.0), 7.0);
-        assert_bits(integer_draw(lo, hi, reach, 0.5), 4.0);
-        assert_bits(integer_draw(lo, hi, reach, 0.999), 7.0);
-        assert_bits(integer_draw(lo, hi, reach, 0.1), 2.0);
-        assert_bits(integer_draw(lo, hi, reach, 0.17), 3.0);
-        assert_bits(integer_draw(lo, hi, 100.0, 1.0), 7.0);
-        assert_bits(integer_draw(lo, hi, -100.0, 1.0), 2.0);
+        let reach = integer_reach(P, hi);
+        assert_bits(integer_draw(P, lo, hi, reach, 0.0), 2.0);
+        assert_bits(integer_draw(P, lo, hi, reach, 1.0), 7.0);
+        assert_bits(integer_draw(P, lo, hi, reach, 0.5), 4.0);
+        assert_bits(integer_draw(P, lo, hi, reach, 0.999), 7.0);
+        assert_bits(integer_draw(P, lo, hi, reach, 0.1), 2.0);
+        assert_bits(integer_draw(P, lo, hi, reach, 0.17), 3.0);
+        assert_bits(integer_draw(P, lo, hi, 100.0, 1.0), 7.0);
+        assert_bits(integer_draw(P, lo, hi, -100.0, 1.0), 2.0);
     }
 
     #[test]
     fn random_at_samples_zero_half_and_one() {
-        assert_bits(random(2.0, 7.0, 0.0, ID), 2.0);
-        assert_bits(random(2.0, 7.0, 0.5, ID), 4.5);
-        assert_bits(random(2.0, 7.0, 1.0, ID), 7.0);
-        assert_bits(random(-4.0, 4.0, 0.5, ID), 0.0);
-        assert_bits(random(-4.0, -2.0, 0.5, ID), -3.0);
+        assert_bits(random(P, 2.0, 7.0, 0.0, ID), 2.0);
+        assert_bits(random(P, 2.0, 7.0, 0.5, ID), 4.5);
+        assert_bits(random(P, 2.0, 7.0, 1.0, ID), 7.0);
+        assert_bits(random(P, -4.0, 4.0, 0.5, ID), 0.0);
+        assert_bits(random(P, -4.0, -2.0, 0.5, ID), -3.0);
         for sample in [0.0, 0.3, 1.0] {
-            assert_bits(random(3.0, 3.0, sample, ID), 3.0);
+            assert_bits(random(P, 3.0, 3.0, sample, ID), 3.0);
         }
     }
 
     #[test]
     fn random_with_inverted_bounds_equals_the_sorted_call() {
         for sample in [0.0, 0.1, 0.5, 0.9, 1.0] {
-            assert_bits(random(7.0, 2.0, sample, ID), random(2.0, 7.0, sample, ID));
             assert_bits(
-                random(7.0, 2.0, sample, AFFINE),
-                random(2.0, 7.0, sample, AFFINE),
+                random(P, 7.0, 2.0, sample, ID),
+                random(P, 2.0, 7.0, sample, ID),
+            );
+            assert_bits(
+                random(P, 7.0, 2.0, sample, AFFINE),
+                random(P, 2.0, 7.0, sample, AFFINE),
             );
         }
     }
 
     #[test]
     fn random_clamps_the_sample() {
-        assert_bits(random(2.0, 7.0, 3.0, ID), 7.0);
-        assert_bits(random(2.0, 7.0, INF, ID), 7.0);
-        assert_bits(random(2.0, 7.0, -3.0, ID), 2.0);
-        assert_bits(random(2.0, 7.0, -INF, ID), 2.0);
-        assert_bits(random(2.0, 7.0, NAN, ID), 2.0);
-        assert_bits(random(2.0, 7.0, -0.0, ID), 2.0);
+        assert_bits(random(P, 2.0, 7.0, 3.0, ID), 7.0);
+        assert_bits(random(P, 2.0, 7.0, INF, ID), 7.0);
+        assert_bits(random(P, 2.0, 7.0, -3.0, ID), 2.0);
+        assert_bits(random(P, 2.0, 7.0, -INF, ID), 2.0);
+        assert_bits(random(P, 2.0, 7.0, NAN, ID), 2.0);
+        assert_bits(random(P, 2.0, 7.0, -0.0, ID), 2.0);
         for (a, b, sample, run_time, literal) in [
             (
                 16_777_216.0,
                 -1_274.555_4,
                 1_695.562_9,
-                per_arch(0x4b7f_ffff, 0x4b7f_fffd),
+                0x4b7f_ffff,
                 0x4b7f_ffff,
             ),
             (3.866_985e-26, -INF, 417.559_8, 0xff80_0000, 0xff80_0000),
@@ -353,201 +303,142 @@ mod tests {
             ),
         ] {
             assert_eq!(
-                random_integer(a, b, sample, ID).to_bits(),
+                random_integer(P, a, b, sample, ID).to_bits(),
                 run_time,
                 "{a} {b} {sample}"
             );
             assert_eq!(
-                random_integer_const_bounds(a, b, sample, ID).to_bits(),
+                random_integer_const_bounds(P, a, b, sample, ID).to_bits(),
                 literal,
                 "{a} {b} {sample}"
             );
         }
     }
 
-    /// `floor` can land past either bound; both forms clamp it back.
+    /// `floor` can land past either bound; the draw clamps it back.
     #[test]
-    fn an_integer_draw_is_clamped_to_the_bounds_on_both_architectures() {
-        use crate::stdlib::math::arch::{arm64, x86_64};
-        assert_bits(
-            arm64::integer_draw(0.0, 2.5, arm64::integer_reach(0.0, 2.5), 1.0),
-            2.5,
-        );
-        assert_bits(
-            x86_64::integer_draw(0.0, 2.5, x86_64::integer_reach(0.0, 2.5), 1.0),
-            2.5,
-        );
-        assert_bits(
-            arm64::integer_draw(0.5, 3.0, arm64::integer_reach(0.5, 3.0), 0.0),
-            0.5,
-        );
-        assert_bits(
-            x86_64::integer_draw(0.5, 3.0, x86_64::integer_reach(0.5, 3.0), 0.0),
-            0.5,
-        );
+    fn an_integer_draw_is_clamped_to_the_bounds() {
+        assert_bits(integer_draw(P, 0.0, 2.5, integer_reach(P, 2.5), 1.0), 2.5);
+        assert_bits(integer_draw(P, 0.5, 3.0, integer_reach(P, 3.0), 0.0), 0.5);
     }
 
     #[test]
     fn random_applies_the_post_op() {
-        assert_bits(random(2.0, 7.0, 0.5, AFFINE), 10.0);
-        assert_bits(random(2.0, 7.0, 0.0, PostOp::new(-1.0, 0.0)), -2.0);
-        assert_bits(random(2.0, 7.0, 1.0, PostOp::new(0.0, 5.0)), 5.0);
-        assert_bits(random(0.0, 0.0, 0.5, PostOp::new(-1.0, 0.0)), 0.0);
+        assert_bits(random(P, 2.0, 7.0, 0.5, AFFINE), 10.0);
+        assert_bits(random(P, 2.0, 7.0, 0.0, PostOp::new(-1.0, 0.0)), -2.0);
+        assert_bits(random(P, 2.0, 7.0, 1.0, PostOp::new(0.0, 5.0)), 5.0);
+        assert_bits(random(P, 0.0, 0.0, 0.5, PostOp::new(-1.0, 0.0)), 0.0);
     }
 
     #[test]
     fn random_bounds_with_nan() {
-        if ARCH == Arch::X86_64 {
-            assert!(random(NAN, 4.0, 0.5, ID).is_nan());
-        }
+        assert!(random(P, NAN, 4.0, 0.5, ID).is_nan());
         for sample in [0.0, 0.5, 1.0] {
-            if ARCH == Arch::X86_64 {
-                assert!(random(NAN, 4.0, sample, ID).is_nan());
-                assert!(random(4.0, NAN, sample, ID).is_nan());
-                assert!(random_integer(NAN, 4.0, sample, ID).is_nan());
-                assert_eq!(random_integer(4.0, NAN, sample, ID), 4.0);
-            }
+            assert!(random(P, NAN, 4.0, sample, ID).is_nan());
+            assert!(random(P, 4.0, NAN, sample, ID).is_nan());
+            assert!(random_integer(P, NAN, 4.0, sample, ID).is_nan());
+            assert_eq!(random_integer(P, 4.0, NAN, sample, ID), 4.0);
         }
-        if ARCH == Arch::X86_64 {
-            assert!(random_folded(0.5, random_const_bounds(NAN, 4.0, ID)).is_nan());
-            assert_eq!(random_folded(0.5, random_const_bounds(4.0, NAN, ID)), 4.0);
-        }
-        if ARCH == Arch::Arm64 {
-            assert_eq!(random(NAN, 5.0, 0.5, ID), 5.0);
-            assert_eq!(random(5.0, NAN, 0.5, ID), 5.0);
-        }
+        assert!(random_folded(P, 0.5, random_const_bounds(P, NAN, 4.0, ID)).is_nan());
+        assert_eq!(
+            random_folded(P, 0.5, random_const_bounds(P, 4.0, NAN, ID)),
+            4.0
+        );
     }
 
     #[test]
-    fn random_with_two_nan_bounds_is_nan_on_both_architectures() {
+    fn random_with_two_nan_bounds_is_nan() {
         for sample in [0.0, 0.5, 1.0] {
-            assert!(random(NAN, NAN, sample, ID).is_nan());
-            assert!(random_integer(NAN, NAN, sample, ID).is_nan());
-        }
-    }
-
-    #[test]
-    fn random_with_a_nan_bound_on_arm64_is_the_other_bound_at_every_sample() {
-        for sample in [0.0, 0.25, 0.5, 1.0] {
-            if ARCH == Arch::Arm64 {
-                assert_bits(random(NAN, 5.0, sample, ID), 5.0);
-                assert_bits(random(5.0, NAN, sample, ID), 5.0);
-                assert_bits(random(NAN, 5.0, sample, AFFINE), 11.0);
-            }
+            assert!(random(P, NAN, NAN, sample, ID).is_nan());
+            assert!(random_integer(P, NAN, NAN, sample, ID).is_nan());
         }
     }
 
     #[test]
     fn random_with_infinite_bounds() {
-        if ARCH == Arch::X86_64 {
-            assert_eq!(random(-INF, 5.0, 0.0, ID), -INF);
-            assert_eq!(random(5.0, INF, 1.0, ID), INF);
-            assert!(random(-INF, 5.0, 1.0, ID).is_nan());
-        }
-        if ARCH == Arch::Arm64 {
-            assert!(random(-INF, 5.0, 0.0, ID).is_nan());
-            assert_eq!(random(5.0, INF, 1.0, ID), INF);
-        }
-        assert!(random(-INF, INF, 0.5, ID).is_nan());
-        assert_eq!(random(5.0, INF, 0.5, ID), INF);
+        assert_eq!(random(P, -INF, 5.0, 0.0, ID), -INF);
+        assert_eq!(random(P, 5.0, INF, 1.0, ID), INF);
+        assert!(random(P, -INF, 5.0, 1.0, ID).is_nan());
+        assert!(random(P, -INF, INF, 0.5, ID).is_nan());
+        assert_eq!(random(P, 5.0, INF, 0.5, ID), INF);
     }
 
     #[test]
-    fn random_of_negative_zero_bounds_differs_between_the_architectures() {
-        // arm64 forms (−0 − (−0))·0.5 + (−0) = +0.
-        assert_bits(random(-0.0, -0.0, 0.5, ID), per_arch(-0.0, 0.0));
+    fn random_of_negative_zero_bounds_is_negative_zero() {
+        for p in PLATFORMS {
+            assert_bits(random(p, -0.0, -0.0, 0.5, ID), -0.0);
+        }
     }
 
     #[test]
-    fn random_interpolation_differs_between_the_architectures() {
+    fn random_interpolation_rounds_each_operation() {
         let (lo, hi, r) = (
             third(),
             f32::from_bits(0x3f91_bc0d),
             f32::from_bits(0x3ecf_a978),
         );
-        assert_eq!(
-            random(lo, hi, r, ID),
-            per_arch(hi * r + (1.0 - r) * lo, (hi - lo).mul_add(r, lo))
-        );
-        if ARCH == Arch::X86_64 {
-            assert_eq!(random(lo, hi, r, ID).to_bits(), 0x3f28_f09f);
-        }
-        // arm64's shape rounded step by step is one ulp lower.
+        assert_eq!(random(P, lo, hi, r, ID), hi * r + (1.0 - r) * lo);
+        assert_eq!(random(P, lo, hi, r, ID).to_bits(), 0x3f28_f09f);
         assert_eq!(((hi - lo) * r + lo).to_bits(), 0x3f28_f09e);
-        if ARCH == Arch::X86_64 {
-            assert_eq!(
-                random(-180.0, f32::NEG_INFINITY, 0.0, ID),
-                f32::NEG_INFINITY
-            );
-        }
-        if ARCH == Arch::Arm64 {
-            assert!(random(f32::NEG_INFINITY, f32::INFINITY, 0.5, ID).is_nan());
-        }
+        assert_eq!(
+            random(P, -180.0, f32::NEG_INFINITY, 0.0, ID),
+            f32::NEG_INFINITY
+        );
         let (lo, hi, r) = (-3.0_f32, 2.0_f32, 0.5_f32);
         let top = (-f32::EPSILON * hi + 1.0) + hi;
-        if ARCH == Arch::X86_64 {
-            assert_eq!(
-                random_integer(lo, hi, r, ID),
-                ((1.0 - r) * lo + top * r).floor()
-            );
-            assert_eq!(
-                random_integer_const_bounds(lo, hi, r, ID),
-                ((1.0 - r) * lo + top * r).floor()
-            );
-        }
-        let span = hi.mul_add(-f32::EPSILON, (hi + 1.0) - lo);
-        if ARCH == Arch::Arm64 {
-            assert_eq!(random_integer(lo, hi, r, ID), span.mul_add(r, lo).floor());
-        }
-        // arm64's span 6 − 2ε rounds to 6, giving 0; x86-64's 0.5·(−3) + 0.5·2.9999998 is just
-        // below 0.
-        assert_eq!(random_integer(lo, hi, r, ID), per_arch(-1.0, 0.0));
+        assert_eq!(
+            random_integer(P, lo, hi, r, ID),
+            ((1.0 - r) * lo + top * r).floor()
+        );
+        assert_eq!(
+            random_integer_const_bounds(P, lo, hi, r, ID),
+            ((1.0 - r) * lo + top * r).floor()
+        );
+        // 0.5·(−3) + 0.5·2.9999998 is just below 0.
+        assert_eq!(random_integer(P, lo, hi, r, ID), -1.0);
         let mut half = FixedRng::HALF;
         assert_eq!(
-            die_roll_integer(1.0, lo, hi, 1, &mut half, ID),
-            per_arch(Some(-1.0), Some(0.0))
+            die_roll_integer(P, 1.0, lo, hi, 1, &mut half, ID),
+            Some(-1.0)
         );
         let mut rng = FixedRng::from_sample(third()).expect("a word's sample");
         assert_eq!(
-            die_roll(1.0, 1.1, 7.3, 1, &mut rng, ID),
-            per_arch(
-                Some(0.0 + (third() * 7.0 + (1.0 - third()) * 1.0)),
-                Some(third().mul_add(6.0, 0.0 + 1.0))
-            )
+            die_roll(P, 1.0, 1.1, 7.3, 1, &mut rng, ID),
+            Some(0.0 + (third() * 7.0 + (1.0 - third()) * 1.0))
         );
     }
 
     #[test]
     fn random_const_bounds_folds_the_bounds_into_the_post_op() {
-        assert_eq!(random_const_bounds(2.0, 7.0, ID), PostOp::new(5.0, 2.0));
-        assert_eq!(random_const_bounds(7.0, 2.0, ID), PostOp::new(5.0, 2.0));
+        assert_eq!(random_const_bounds(P, 2.0, 7.0, ID), PostOp::new(5.0, 2.0));
+        assert_eq!(random_const_bounds(P, 7.0, 2.0, ID), PostOp::new(5.0, 2.0));
         assert_eq!(
-            random_const_bounds(7.0, 2.0, AFFINE),
+            random_const_bounds(P, 7.0, 2.0, AFFINE),
             PostOp::new(10.0, 5.0)
         );
-        assert_eq!(random_const_bounds(3.0, 3.0, AFFINE), PostOp::new(0.0, 7.0));
         assert_eq!(
-            random_const_bounds(-4.0, 4.0, PostOp::new(-1.0, 0.5)),
+            random_const_bounds(P, 3.0, 3.0, AFFINE),
+            PostOp::new(0.0, 7.0)
+        );
+        assert_eq!(
+            random_const_bounds(P, -4.0, 4.0, PostOp::new(-1.0, 0.5)),
             PostOp::new(-8.0, 4.5)
         );
-        assert_eq!(random_const_bounds(-INF, 1.0, ID).scale, INF);
+        assert_eq!(random_const_bounds(P, -INF, 1.0, ID).scale, INF);
     }
 
     #[test]
-    fn random_const_bounds_rounds_the_offset_with_the_architecture() {
+    fn random_const_bounds_rounds_the_offset_twice() {
         let (lo, post) = (1.1_f32, PostOp::new(3.3, 0.7));
+        assert_bits(random_const_bounds(P, lo, 9.0, post).offset, lo * 3.3 + 0.7);
         assert_bits(
-            random_const_bounds(lo, 9.0, post).offset,
-            per_arch(lo * 3.3 + 0.7, lo.mul_add(3.3, 0.7)),
-        );
-        assert_bits(
-            random_const_bounds(lo, 9.0, post).scale,
+            random_const_bounds(P, lo, 9.0, post).scale,
             (9.0_f32 - lo) * 3.3,
         );
     }
 
     #[test]
-    fn random_const_bounds_offset_differs_between_the_architectures_for_an_inexact_product() {
+    fn random_const_bounds_offset_is_unfused_for_an_inexact_product() {
         let (lo, post) = (0.1_f32, PostOp::new(3.1, 1.1));
         assert_ne!(
             (lo * 3.1 + 1.1).to_bits(),
@@ -555,76 +446,56 @@ mod tests {
             "the operands must tell fused from unfused"
         );
         assert_eq!(
-            random_const_bounds(lo, 0.5, post).offset.to_bits(),
-            per_arch(0x3fb4_7ae2, 0x3fb4_7ae1)
+            random_const_bounds(P, lo, 0.5, post).offset.to_bits(),
+            0x3fb4_7ae2
         );
-        let folded = random_const_bounds(lo, 0.5, post);
+        let folded = random_const_bounds(P, lo, 0.5, post);
         assert_bits(
-            random_folded(0.3, folded),
-            per_arch(
-                0.3 * folded.scale + folded.offset,
-                0.3_f32.mul_add(folded.scale, folded.offset),
-            ),
+            random_folded(P, 0.3, folded),
+            0.3 * folded.scale + folded.offset,
         );
     }
 
     #[test]
     fn random_const_bounds_with_a_nan_bound() {
-        let folded = random_const_bounds(NAN, 4.0, ID);
-        assert_eq!(
-            folded.scale.is_nan() && folded.offset.is_nan(),
-            per_arch(true, false)
-        );
-        if ARCH == Arch::Arm64 {
-            assert_eq!(folded, PostOp::new(0.0, 4.0));
-        }
-        assert_eq!(random_const_bounds(4.0, NAN, ID), PostOp::new(0.0, 4.0));
+        let folded = random_const_bounds(P, NAN, 4.0, ID);
+        assert!(folded.scale.is_nan() && folded.offset.is_nan());
+        assert_eq!(random_const_bounds(P, 4.0, NAN, ID), PostOp::new(0.0, 4.0));
     }
 
     #[test]
     fn random_const_bounds_chooses_its_nans() {
         let (q1, q2) = (f32::from_bits(0x7fc0_0001), f32::from_bits(0xffc0_0002));
-        if ARCH == Arch::X86_64 {
-            assert_eq!(
-                random_const_bounds(q1, 4.0, PostOp::new(q2, 0.0))
-                    .scale
-                    .to_bits(),
-                0x7fc0_0001
-            );
-        }
-        if ARCH == Arch::Arm64 {
-            assert_eq!(
-                random_const_bounds(q1, q1, PostOp::new(q2, 0.0))
-                    .scale
-                    .to_bits(),
-                0x7fc0_0001
-            );
-        }
         assert_eq!(
-            random_const_bounds(INF, INF, ID).scale.to_bits(),
-            per_arch(0xffc0_0000, 0x7fc0_0000)
+            random_const_bounds(P, q1, 4.0, PostOp::new(q2, 0.0))
+                .scale
+                .to_bits(),
+            0x7fc0_0001
+        );
+        assert_eq!(
+            random_const_bounds(P, INF, INF, ID).scale.to_bits(),
+            0xffc0_0000
+        );
+        assert_eq!(
+            random_const_bounds(ANDROID, INF, INF, ID).scale.to_bits(),
+            0x7fc0_0000
         );
     }
 
     #[test]
     fn random_folded_always_multiplies_and_adds() {
-        assert_bits(random_folded(0.0, PostOp::new(5.0, 2.0)), 2.0);
-        assert_bits(random_folded(0.5, PostOp::new(5.0, 2.0)), 4.5);
-        assert_bits(random_folded(1.0, PostOp::new(5.0, 2.0)), 7.0);
-        assert_bits(random_folded(9.0, PostOp::new(5.0, 2.0)), 7.0);
-        assert_bits(random_folded(-9.0, PostOp::new(5.0, 2.0)), 2.0);
-        assert_bits(random_folded(NAN, PostOp::new(5.0, 2.0)), 2.0);
+        assert_bits(random_folded(P, 0.0, PostOp::new(5.0, 2.0)), 2.0);
+        assert_bits(random_folded(P, 0.5, PostOp::new(5.0, 2.0)), 4.5);
+        assert_bits(random_folded(P, 1.0, PostOp::new(5.0, 2.0)), 7.0);
+        assert_bits(random_folded(P, 9.0, PostOp::new(5.0, 2.0)), 7.0);
+        assert_bits(random_folded(P, -9.0, PostOp::new(5.0, 2.0)), 2.0);
+        assert_bits(random_folded(P, NAN, PostOp::new(5.0, 2.0)), 2.0);
         // (1, −0) is still multiplied and added, so the −0 offset is normalised.
-        assert_bits(random_folded(0.0, PostOp::new(1.0, -0.0)), 0.0);
-        assert_bits(random_folded(0.25, PostOp::IDENTITY), 0.25);
-        assert_bits(random_folded(1.0, PostOp::new(0.0, 3.0)), 3.0);
+        assert_bits(random_folded(P, 0.0, PostOp::new(1.0, -0.0)), 0.0);
+        assert_bits(random_folded(P, 0.25, PostOp::IDENTITY), 0.25);
+        assert_bits(random_folded(P, 1.0, PostOp::new(0.0, 3.0)), 3.0);
         let folded = PostOp::new(3.0, -1.0);
-        if ARCH == Arch::X86_64 {
-            assert_bits(random_folded(third(), folded), 0.0);
-        }
-        if ARCH == Arch::Arm64 {
-            assert_eq!(random_folded(third(), folded), 2.980_232_2e-8);
-        }
+        assert_bits(random_folded(P, third(), folded), 0.0);
     }
 
     #[test]
@@ -632,8 +503,11 @@ mod tests {
         for (a, b) in [(2.0_f32, 7.0), (7.0, 2.0), (-4.0, 4.0), (0.0, 1.0)] {
             for sample in [0.0, 0.25, 0.5, 1.0] {
                 for post in [ID, AFFINE, PostOp::new(0.5, -3.0)] {
-                    let folded = random_const_bounds(a, b, post);
-                    assert_bits(random_folded(sample, folded), random(a, b, sample, post));
+                    let folded = random_const_bounds(P, a, b, post);
+                    assert_bits(
+                        random_folded(P, sample, folded),
+                        random(P, a, b, sample, post),
+                    );
                 }
             }
         }
@@ -641,16 +515,16 @@ mod tests {
 
     #[test]
     fn random_integer_at_samples_zero_half_and_one() {
-        assert_bits(random_integer(2.0, 7.0, 0.0, ID), 2.0);
-        assert_bits(random_integer(2.0, 7.0, 0.5, ID), 4.0);
-        assert_bits(random_integer(2.0, 7.0, 1.0, ID), 7.0);
-        assert_bits(random_integer(0.0, 1.0, 0.0, ID), 0.0);
-        assert_bits(random_integer(0.0, 1.0, 0.5, ID), 0.0);
-        assert_bits(random_integer(0.0, 1.0, 1.0, ID), 1.0);
-        assert_bits(random_integer(-3.0, 2.0, 0.0, ID), -3.0);
-        assert_bits(random_integer(-3.0, 2.0, 1.0, ID), 2.0);
+        assert_bits(random_integer(P, 2.0, 7.0, 0.0, ID), 2.0);
+        assert_bits(random_integer(P, 2.0, 7.0, 0.5, ID), 4.0);
+        assert_bits(random_integer(P, 2.0, 7.0, 1.0, ID), 7.0);
+        assert_bits(random_integer(P, 0.0, 1.0, 0.0, ID), 0.0);
+        assert_bits(random_integer(P, 0.0, 1.0, 0.5, ID), 0.0);
+        assert_bits(random_integer(P, 0.0, 1.0, 1.0, ID), 1.0);
+        assert_bits(random_integer(P, -3.0, 2.0, 0.0, ID), -3.0);
+        assert_bits(random_integer(P, -3.0, 2.0, 1.0, ID), 2.0);
         for sample in [0.0, 0.5, 1.0] {
-            assert_bits(random_integer(3.0, 3.0, sample, ID), 3.0);
+            assert_bits(random_integer(P, 3.0, 3.0, sample, ID), 3.0);
         }
     }
 
@@ -658,12 +532,12 @@ mod tests {
     fn random_integer_with_inverted_bounds_equals_the_sorted_call() {
         for sample in [0.0, 0.1, 0.5, 0.9, 1.0] {
             assert_bits(
-                random_integer(7.0, 2.0, sample, ID),
-                random_integer(2.0, 7.0, sample, ID),
+                random_integer(P, 7.0, 2.0, sample, ID),
+                random_integer(P, 2.0, 7.0, sample, ID),
             );
             assert_bits(
-                random_integer_const_bounds(7.0, 2.0, sample, ID),
-                random_integer_const_bounds(2.0, 7.0, sample, ID),
+                random_integer_const_bounds(P, 7.0, 2.0, sample, ID),
+                random_integer_const_bounds(P, 2.0, 7.0, sample, ID),
             );
         }
     }
@@ -672,7 +546,7 @@ mod tests {
     fn random_integer_covers_every_integer_between_the_bounds() {
         let mut seen = [false; 6];
         for k in 0..=1000 {
-            let value = random_integer(2.0, 7.0, k as f32 / 1000.0, ID);
+            let value = random_integer(P, 2.0, 7.0, k as f32 / 1000.0, ID);
             assert_eq!(value, value.floor());
             assert!((2.0..=7.0).contains(&value));
             seen[value as usize - 2] = true;
@@ -682,98 +556,55 @@ mod tests {
 
     #[test]
     fn random_integer_does_not_round_its_bounds() {
-        assert_bits(random_integer(0.5, 2.5, 0.0, ID), 0.5);
-        assert_bits(random_integer(0.5, 2.5, 1.0, ID), 2.5);
-        assert_bits(random_integer_const_bounds(0.5, 2.5, 0.0, ID), 0.5);
-        assert_bits(random_integer_const_bounds(0.5, 2.5, 1.0, ID), 2.5);
-        assert_eq!(random_integer(0.1, 1_000_001.0, 0.0, ID), 0.1);
+        assert_bits(random_integer(P, 0.5, 2.5, 0.0, ID), 0.5);
+        assert_bits(random_integer(P, 0.5, 2.5, 1.0, ID), 2.5);
+        assert_bits(random_integer_const_bounds(P, 0.5, 2.5, 0.0, ID), 0.5);
+        assert_bits(random_integer_const_bounds(P, 0.5, 2.5, 1.0, ID), 2.5);
+        assert_eq!(random_integer(P, 0.1, 1_000_001.0, 0.0, ID), 0.1);
     }
 
     #[test]
     fn random_integer_clamps_the_sample_and_applies_the_post_op() {
-        assert_bits(random_integer(2.0, 7.0, 9.0, ID), 7.0);
-        assert_bits(random_integer(2.0, 7.0, -9.0, ID), 2.0);
-        assert_bits(random_integer(2.0, 7.0, NAN, ID), 2.0);
-        assert_bits(random_integer(0.0, 3.0, 1.0, AFFINE), 7.0);
-        assert_bits(random_integer(0.0, 3.0, 0.0, AFFINE), 1.0);
-        assert_bits(random_integer_const_bounds(0.0, 3.0, 1.0, AFFINE), 7.0);
-        assert_bits(random_integer(0.0, 0.0, 0.5, PostOp::new(-1.0, 0.0)), 0.0);
+        assert_bits(random_integer(P, 2.0, 7.0, 9.0, ID), 7.0);
+        assert_bits(random_integer(P, 2.0, 7.0, -9.0, ID), 2.0);
+        assert_bits(random_integer(P, 2.0, 7.0, NAN, ID), 2.0);
+        assert_bits(random_integer(P, 0.0, 3.0, 1.0, AFFINE), 7.0);
+        assert_bits(random_integer(P, 0.0, 3.0, 0.0, AFFINE), 1.0);
+        assert_bits(random_integer_const_bounds(P, 0.0, 3.0, 1.0, AFFINE), 7.0);
+        assert_bits(
+            random_integer(P, 0.0, 0.0, 0.5, PostOp::new(-1.0, 0.0)),
+            0.0,
+        );
     }
 
     #[test]
     fn random_integer_with_nan_bounds() {
         for sample in [0.0, 0.5, 1.0] {
-            if ARCH == Arch::X86_64 {
-                assert!(random_integer(NAN, 4.0, sample, ID).is_nan());
-                assert_bits(random_integer(4.0, NAN, sample, ID), 4.0);
-            }
-            if ARCH == Arch::Arm64 {
-                assert_bits(random_integer(NAN, 4.0, sample, ID), 4.0);
-                assert_bits(random_integer(4.0, NAN, sample, ID), 4.0);
-            }
+            assert!(random_integer(P, NAN, 4.0, sample, ID).is_nan());
+            assert_bits(random_integer(P, 4.0, NAN, sample, ID), 4.0);
         }
     }
 
     #[test]
-    fn random_integer_const_bounds_sorts_nan_with_the_literal_rule_on_x86_64() {
+    fn random_integer_const_bounds_sorts_nan_with_the_literal_rule() {
         for sample in [0.0, 0.5, 1.0] {
-            if ARCH == Arch::X86_64 {
-                assert!(random_integer_const_bounds(NAN, 4.0, sample, ID).is_nan());
-                assert_bits(random_integer_const_bounds(4.0, NAN, sample, ID), 4.0);
-            }
-            if ARCH == Arch::Arm64 {
-                assert_bits(random_integer_const_bounds(NAN, 4.0, sample, ID), 4.0);
-                assert_bits(random_integer_const_bounds(4.0, NAN, sample, ID), 4.0);
-            }
+            assert!(random_integer_const_bounds(P, NAN, 4.0, sample, ID).is_nan());
+            assert_bits(random_integer_const_bounds(P, 4.0, NAN, sample, ID), 4.0);
         }
     }
 
     #[test]
-    fn random_integer_const_bounds_matches_the_run_time_form_on_x86_64() {
+    fn random_integer_const_bounds_matches_the_run_time_form() {
         for lo in -8..8 {
             for hi in lo..16 {
                 for k in 0..=20 {
                     let (lo, hi, r) = (lo as f32, hi as f32, k as f32 / 20.0);
-                    if ARCH == Arch::X86_64 {
-                        assert_bits(
-                            random_integer_const_bounds(lo, hi, r, ID),
-                            random_integer(lo, hi, r, ID),
-                        );
-                    }
+                    assert_bits(
+                        random_integer_const_bounds(P, lo, hi, r, ID),
+                        random_integer(P, lo, hi, r, ID),
+                    );
                 }
             }
-        }
-    }
-
-    #[test]
-    fn random_integer_const_bounds_rounds_the_span_differently_on_arm64() {
-        // (−8, 5) at 0.5: the run-time span 13.999999 floors to −2; the literal span rounds up
-        // to 14.
-        if ARCH == Arch::Arm64 {
-            assert_bits(random_integer(-8.0, 5.0, 0.5, ID), -2.0);
-            assert_bits(random_integer_const_bounds(-8.0, 5.0, 0.5, ID), -1.0);
-            assert_bits(random_integer(-8.0, 9.0, 0.5, ID), 0.0);
-            assert_bits(random_integer_const_bounds(-8.0, 9.0, 0.5, ID), 1.0);
-        }
-        if ARCH == Arch::X86_64 {
-            assert_bits(
-                random_integer(-8.0, 5.0, 0.5, ID),
-                random_integer_const_bounds(-8.0, 5.0, 0.5, ID),
-            );
-        }
-    }
-
-    #[test]
-    fn the_arm64_literal_span_uses_one_minus_epsilon() {
-        assert_eq!(ONE_MINUS_EPSILON.to_bits(), 0x3f7f_fffe);
-        assert_eq!(ONE_MINUS_EPSILON, 1.0 - f32::EPSILON);
-        let (lo, hi, r) = (-8.0_f32, 5.0_f32, 0.5_f32);
-        let span = hi.mul_add(ONE_MINUS_EPSILON, 1.0) - lo;
-        if ARCH == Arch::Arm64 {
-            assert_bits(
-                random_integer_const_bounds(lo, hi, r, ID),
-                span.mul_add(r, lo).floor(),
-            );
         }
     }
 
@@ -782,9 +613,9 @@ mod tests {
         fn random_lies_between_the_sorted_bounds_for_finite_bounds(a in -1000.0_f32..1000.0, b in -1000.0_f32..1000.0, sample in 0.0_f32..=1.0) {
             let (lo, hi) = (a.min(b), a.max(b));
             let slack = 1e-3;
-            let value = random(a, b, sample, ID);
+            let value = random(P, a, b, sample, ID);
             prop_assert!(value >= lo - slack && value <= hi + slack, "{} not in [{}, {}]", value, lo, hi);
-            let integer = random_integer(a, b, sample, ID);
+            let integer = random_integer(P, a, b, sample, ID);
             prop_assert!(integer >= lo && integer <= hi);
         }
     }
@@ -797,36 +628,42 @@ mod tests {
         assert_eq!(clamp_sample(-0.0).to_bits(), 0.0_f32.to_bits());
         assert_eq!(clamp_sample(NAN), 0.0);
         assert_eq!(clamp_sample(1.0), 1.0);
-        assert_eq!(random(2.0, 7.0, 9.0, ID), 7.0);
-        assert_eq!(random(2.0, 7.0, -9.0, ID), 2.0);
+        assert_eq!(random(P, 2.0, 7.0, 9.0, ID), 7.0);
+        assert_eq!(random(P, 2.0, 7.0, -9.0, ID), 2.0);
     }
 
     #[test]
     fn random_and_random_integer_on_key_samples_and_bounds() {
         for (sample, real, integer) in [(0.0, 2.0, 2.0), (0.5, 4.5, 4.0), (1.0, 7.0, 7.0)] {
-            assert_eq!(random(2.0, 7.0, sample, ID), real);
-            assert_eq!(random(7.0, 2.0, sample, ID), real, "inverted bounds");
-            assert_eq!(random_integer(2.0, 7.0, sample, ID), integer);
+            assert_eq!(random(P, 2.0, 7.0, sample, ID), real);
+            assert_eq!(random(P, 7.0, 2.0, sample, ID), real, "inverted bounds");
+            assert_eq!(random_integer(P, 2.0, 7.0, sample, ID), integer);
             assert_eq!(
-                random_integer(7.0, 2.0, sample, ID),
+                random_integer(P, 7.0, 2.0, sample, ID),
                 integer,
                 "inverted bounds"
             );
-            assert_eq!(random_integer_const_bounds(2.0, 7.0, sample, ID), integer);
             assert_eq!(
-                random(2.0, 7.0, sample, PostOp::new(2.0, 1.0)),
+                random_integer_const_bounds(P, 2.0, 7.0, sample, ID),
+                integer
+            );
+            assert_eq!(
+                random(P, 2.0, 7.0, sample, PostOp::new(2.0, 1.0)),
                 real * 2.0 + 1.0
             );
-            let folded = random_const_bounds(7.0, 2.0, PostOp::new(2.0, 1.0));
+            let folded = random_const_bounds(P, 7.0, 2.0, PostOp::new(2.0, 1.0));
             assert_eq!(folded, PostOp::new(10.0, 5.0));
-            assert_eq!(random_folded(sample, folded), real * 2.0 + 1.0);
+            assert_eq!(random_folded(P, sample, folded), real * 2.0 + 1.0);
             assert_eq!(
-                random_folded(sample, random_const_bounds(2.0, 7.0, ID)),
+                random_folded(P, sample, random_const_bounds(P, 2.0, 7.0, ID)),
                 real
             );
         }
-        assert_eq!(random_integer(0.1, 1_000_001.0, 0.0, ID), 0.1);
-        assert_eq!(random_integer_const_bounds(0.1, 1_000_001.0, 0.0, ID), 0.1);
-        assert_eq!(random_integer(0.0, 3.0, 1.0, PostOp::new(2.0, 1.0)), 7.0);
+        assert_eq!(random_integer(P, 0.1, 1_000_001.0, 0.0, ID), 0.1);
+        assert_eq!(
+            random_integer_const_bounds(P, 0.1, 1_000_001.0, 0.0, ID),
+            0.1
+        );
+        assert_eq!(random_integer(P, 0.0, 3.0, 1.0, PostOp::new(2.0, 1.0)), 7.0);
     }
 }

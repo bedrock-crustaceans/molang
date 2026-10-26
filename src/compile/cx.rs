@@ -6,6 +6,7 @@ use crate::compile::{
     ast::{Friendly, Node, Span},
 };
 use crate::diag::{DiagCode, Diagnostic, LanguageMessage, Severity};
+use crate::numeric::Platform;
 use crate::ops::OpSet;
 use crate::version::{ExperimentMask, MolangVersion, RawVersion};
 use std::borrow::Cow;
@@ -25,6 +26,7 @@ pub(super) struct Settings<'o> {
     pub(super) experiments: ExperimentMask,
     pub(super) math: Option<&'o MathCatalog>,
     pub(super) deviations: Deviations,
+    pub(super) platform: Platform,
 }
 
 impl<'o> Settings<'o> {
@@ -38,6 +40,7 @@ impl<'o> Settings<'o> {
             math,
             keep_source: _,
             deviations,
+            platform,
         } = opts;
         Self {
             catalog,
@@ -46,6 +49,7 @@ impl<'o> Settings<'o> {
             experiments: *experiments,
             math: math.as_ref(),
             deviations: *deviations,
+            platform: *platform,
         }
     }
 }

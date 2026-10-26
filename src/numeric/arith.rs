@@ -1,66 +1,64 @@
-//! The engine's primitive float operations, as this build performs them (see
-//! [`ARCH`](super::ARCH)).
+//! The engine's primitive float operations, as a [`Platform`] performs them.
+//!
+//! Each operation is rounded on its own; the platform chooses the NaN of a NaN result and the
+//! integer of an out-of-range conversion.
 
-use super::arch::native;
+use super::{Platform, fpu};
 
-/// `a·b + c`: rounded once on `Arm64`; rounded twice on `X86_64`, a NaN `a` winning over a NaN `b`
-/// and the product over `c`.
+/// `a·b + c`, rounded twice: the NaN of the product, then of `c`.
 #[inline]
-pub fn mul_add(a: f32, b: f32, c: f32) -> f32 {
-    native::mul_add(a, b, c)
+pub fn mul_add(platform: Platform, a: f32, b: f32, c: f32) -> f32 {
+    fpu::mul_add(platform, a, b, c)
 }
 
-/// `c − a·b`, rounded once on `Arm64`.
+/// `c − a·b`, rounded twice: the NaN of `c`, then of the product.
 #[inline]
-pub fn mul_sub(a: f32, b: f32, c: f32) -> f32 {
-    native::mul_sub(a, b, c)
+pub fn mul_sub(platform: Platform, a: f32, b: f32, c: f32) -> f32 {
+    fpu::sub(platform, c, fpu::mul(platform, a, b))
 }
 
-/// `a + b`; on `X86_64` a NaN `a` wins over a NaN `b`.
+/// `a + b`.
 #[inline]
-pub fn add(a: f32, b: f32) -> f32 {
-    native::add(a, b)
+pub fn add(platform: Platform, a: f32, b: f32) -> f32 {
+    fpu::add(platform, a, b)
 }
 
-/// `a·b`; on `X86_64` a NaN `a` wins over a NaN `b`.
+/// `a − b`.
 #[inline]
-pub fn mul(a: f32, b: f32) -> f32 {
-    native::mul(a, b)
+pub fn sub(platform: Platform, a: f32, b: f32) -> f32 {
+    fpu::sub(platform, a, b)
 }
 
-/// `−(a·b) − c`, rounded once on `Arm64`.
-///
-/// Not `−(a·b + c)`: an exact cancellation gives `+0`.
+/// `a·b`.
 #[inline]
-pub fn neg_mul_add(a: f32, b: f32, c: f32) -> f32 {
-    native::neg_mul_add(a, b, c)
+pub fn mul(platform: Platform, a: f32, b: f32) -> f32 {
+    fpu::mul(platform, a, b)
 }
 
-/// `a·b − c`, rounded once on `Arm64`.
+/// `a / b`.
 #[inline]
-pub fn neg_mul_sub(a: f32, b: f32, c: f32) -> f32 {
-    native::neg_mul_sub(a, b, c)
+pub fn div(platform: Platform, a: f32, b: f32) -> f32 {
+    fpu::div(platform, a, b)
 }
 
-/// `(a > b) ? a : b` on `X86_64`; on `Arm64` the larger operand, a NaN against a number ignored and
-/// of two NaNs the second, as it is.
+/// `(a > b) ? a : b` on every platform: `b` when either is NaN or both are zeros.
 #[inline]
 pub fn max(a: f32, b: f32) -> f32 {
-    native::max(a, b)
+    fpu::max(a, b)
 }
 
-/// `(a < b) ? a : b` on `X86_64`; on `Arm64` the smaller operand, a NaN against a number ignored
-/// and of two NaNs the second, as it is.
+/// `(a < b) ? a : b` on every platform: `b` when either is NaN or both are zeros.
 #[inline]
 pub fn min(a: f32, b: f32) -> f32 {
-    native::min(a, b)
+    fpu::min(a, b)
 }
 
-/// Truncating float-to-int: `Arm64` saturates and maps NaN to 0; `X86_64` gives `i32::MIN` for NaN
-/// and out-of-range values.
+/// Truncating float-to-int. Out of range or NaN, [`Platform::BdsLinux`] and
+/// [`Platform::BdsWindows`] give `i32::MIN`; [`Platform::AndroidArm64`] saturates and maps NaN to
+/// 0.
 #[inline]
-pub fn to_int(v: f32) -> i32 {
-    native::to_int(v)
+pub fn to_int(platform: Platform, v: f32) -> i32 {
+    fpu::to_int(platform, v)
 }
 
 #[cfg(test)]
@@ -68,23 +66,24 @@ mod tests {
     use crate::numeric::test_support::*;
 
     #[test]
-    fn the_wrappers_are_the_native_primitives() {
+    fn the_wrappers_are_the_primitives() {
         let x = third();
-        assert_bits(super::mul_add(x, 3.0, -1.0), per_arch(0.0, 2.980_232_2e-8));
-        assert_bits(super::mul_sub(x, 3.0, 1.0), per_arch(0.0, -2.980_232_2e-8));
-        assert_bits(
-            super::neg_mul_add(x, 3.0, -1.0),
-            per_arch(0.0, -2.980_232_2e-8),
-        );
-        assert_bits(
-            super::neg_mul_sub(x, 3.0, 1.0),
-            per_arch(0.0, 2.980_232_2e-8),
-        );
-        assert_bits(super::add(0.1, 0.2), 0.1 + 0.2);
-        assert_bits(super::mul(0.1, 0.2), 0.1 * 0.2);
+        for p in PLATFORMS {
+            assert_bits(super::mul_add(p, x, 3.0, -1.0), 0.0);
+            assert_bits(super::mul_sub(p, x, 3.0, 1.0), 0.0);
+            assert_bits(super::add(p, 0.1, 0.2), 0.1 + 0.2);
+            assert_bits(super::sub(p, 0.1, 0.2), 0.1 - 0.2);
+            assert_bits(super::mul(p, 0.1, 0.2), 0.1 * 0.2);
+            assert_bits(super::div(p, 0.1, 0.2), 0.1 / 0.2);
+        }
         assert_bits(super::max(NAN, 4.0), 4.0);
-        assert_eq!(super::max(4.0, NAN).is_nan(), per_arch(true, false));
-        assert_eq!(super::min(4.0, NAN).is_nan(), per_arch(true, false));
-        assert_eq!(super::to_int(NAN), per_arch(i32::MIN, 0));
+        assert!(super::max(4.0, NAN).is_nan());
+        assert!(super::min(4.0, NAN).is_nan());
+        assert_eq!(super::to_int(LINUX, NAN), i32::MIN);
+        assert_eq!(super::to_int(ANDROID, NAN), 0);
+        assert_eq!(
+            super::mul_sub(LINUX, NAN, 1.0, -NAN).to_bits(),
+            (-NAN).to_bits()
+        );
     }
 }

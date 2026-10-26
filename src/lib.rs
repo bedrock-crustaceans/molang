@@ -86,11 +86,12 @@
 //!
 //! # Float behaviour
 //!
-//! The target architecture decides how floats are computed, when the crate is built: an `aarch64`
-//! build rounds a multiply-add once, ignores a NaN operand in `math.min` / `math.max` and makes `<`
-//! / `<=` true for a NaN operand; every other target rounds every operation on its own and makes
-//! every comparison with a NaN false. The `numeric` module documents both and what other targets
-//! reproduce; `numeric::ARCH` names the behaviour of a build.
+//! The host chooses whose float behaviour an expression reproduces: `compile::CompileOptions`
+//! holds a `numeric::Platform` (BDS Linux, by release, BDS Windows or the Android arm64 client),
+//! the compiled expression records it, and folding and evaluation follow it, so an expression gives
+//! the same bits on every host. The platforms differ in the NaN an operation returns, in float →
+//! int conversion and in the NaN of an invalid standard function; `numeric::Platform` lists the
+//! differences.
 //!
 //! [`MolangSource`]: json::MolangSource
 //! [`QueryCatalog`]: catalog::QueryCatalog

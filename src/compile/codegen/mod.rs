@@ -155,6 +155,7 @@ impl<'c, 'o> Builder<'c, 'o> {
             flags: self.flags,
             float_loop: self.float_loop,
             version: self.cx.version(),
+            platform: self.cx.opts.platform,
         })
     }
 
@@ -487,7 +488,7 @@ mod tests {
         compile,
         program::ProgramFlags,
     };
-    use crate::numeric::PostOp;
+    use crate::numeric::{Platform, PostOp};
     use crate::ops::ExpressionOp as Op;
     use crate::stdlib::math;
     use crate::version::RawVersion;
@@ -840,21 +841,23 @@ mod tests {
 
     #[test]
     fn constants_folded_into_a_random_or_a_loop_use_the_numeric_functions() {
-        // The arm64 behaviour rounds the offset of the folded bounds once: the pooled post-op is
-        // `random_const_bounds`'s.
+        // The pooled post-op is `random_const_bounds`'s.
         let (lo, hi, post) = (1.1_f32, 9.0, PostOp::new(3.3, 0.7));
         let mut random = op(Op::Random, vec![float(lo), float(hi)]);
         random.post = post;
         let options = opts(13);
         let mut cx = Cx::for_test("", &options);
         let p = build(&mut cx, &random).unwrap();
-        assert_eq!(p.posts[1], math::random_const_bounds(lo, hi, post));
+        assert_eq!(
+            p.posts[1],
+            math::random_const_bounds(Platform::default(), lo, hi, post)
+        );
         // A loop's exit constant is the loop's post-op applied to 0.
         let body = op(Op::Semicolon, vec![]);
         let mut looped = op(Op::Loop, vec![float(1.0), body]);
         looped.post = post;
         let p = build(&mut cx, &looped).unwrap();
-        assert!(p.consts.contains(&post.apply(0.0)));
+        assert!(p.consts.contains(&post.apply(Platform::default(), 0.0)));
     }
 
     #[test]

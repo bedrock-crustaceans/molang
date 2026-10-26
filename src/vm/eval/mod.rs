@@ -408,6 +408,7 @@ pub(crate) mod test_support {
             flags: ProgramFlags::empty(),
             float_loop: false,
             version: MolangVersion::LATEST,
+            platform: crate::numeric::Platform::default(),
         }
     }
 

@@ -201,7 +201,12 @@ impl Builder<'_, '_> {
         let [a, b] = two(node)?;
         self.flags |= ProgramFlags::USES_RANDOM.union(ProgramFlags::USES_RANDOM_OP);
         if a.is(Op::Float) && b.is(Op::Float) {
-            let p = self.post_of(math::random_const_bounds(a.float(), b.float(), node.post))?;
+            let p = self.post_of(math::random_const_bounds(
+                self.cx.opts.platform,
+                a.float(),
+                b.float(),
+                node.post,
+            ))?;
             self.code.emit(Instr::RandomConst { p });
             return Ok(());
         }

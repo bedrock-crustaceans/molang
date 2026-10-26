@@ -2,7 +2,7 @@
 
 use super::lift_child;
 use crate::compile::ast::{Name, Node, Payload, TERM_TEXT_LIMIT};
-use crate::numeric::arith;
+use crate::numeric::{Platform, arith};
 use crate::ops::ExpressionOp as Op;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -13,7 +13,7 @@ use std::hash::{BuildHasherDefault, Hasher};
 ///
 /// A leading nested sum's list becomes this node's, so a left-nested chain `a + b + c + …` does not
 /// copy its terms once per `+`.
-pub(super) fn flatten_add(node: &mut Node) {
+pub(super) fn flatten_add(p: Platform, node: &mut Node) {
     if !node.children.iter().any(|c| c.is(Op::Add)) {
         return;
     }
@@ -26,11 +26,11 @@ pub(super) fn flatten_add(node: &mut Node) {
         // A product with 1 is the other factor bit for bit: no scale or offset is a signalling NaN.
         if child.post.scale != 1.0 {
             for term in &mut child.children {
-                term.post.scale = arith::mul(term.post.scale, child.post.scale);
-                term.post.offset = arith::mul(term.post.offset, child.post.scale);
+                term.post.scale = arith::mul(p, term.post.scale, child.post.scale);
+                term.post.offset = arith::mul(p, term.post.offset, child.post.scale);
             }
         }
-        node.post.offset = arith::mul_add(node.post.scale, child.post.offset, node.post.offset);
+        node.post.offset = arith::mul_add(p, node.post.scale, child.post.offset, node.post.offset);
         if node.children.is_empty() {
             node.children = std::mem::take(&mut child.children);
         } else {
@@ -63,33 +63,32 @@ pub(super) fn new_terms(node: &Node) -> NewTerms {
 
 /// The `Add` case, after flattening: only the `new` terms can be the constant term or merge with an
 /// earlier term.
-pub(super) fn optimize_add(node: &mut Node, new: NewTerms) {
+pub(super) fn optimize_add(p: Platform, node: &mut Node, new: NewTerms) {
     if new == NewTerms::All
         && node.children.iter().all(|c| c.is(Op::Float))
         && let [a, b, ..] = node.children.as_slice()
     {
-        // Only the first two children count; the parser never builds more. The left operand's NaN
-        // wins on x86-64.
-        let sum = arith::add(a.float(), b.float());
+        // Only the first two children count; the parser never builds more.
+        let sum = arith::add(p, a.float(), b.float());
         node.set_float(sum);
         return;
     }
-    if let Some(constant) = take_constant(node, new) {
+    if let Some(constant) = take_constant(p, node, new) {
         if let [term] = node.children.as_mut_slice() {
             // `x + c`: folded into `x`'s post-op.
-            term.post.offset = arith::add(term.post.offset, constant);
-            lift_only_term(node);
+            term.post.offset = arith::add(p, term.post.offset, constant);
+            lift_only_term(p, node);
             return;
         }
-        node.post.offset = arith::mul_add(node.post.scale, constant, node.post.offset);
+        node.post.offset = arith::mul_add(p, node.post.scale, constant, node.post.offset);
     } else if terms_print_alike(node) {
-        merge_alike_terms(node);
+        merge_alike_terms(p, node);
         return;
     }
 
     match new {
-        NewTerms::All => merge_entity_variable_terms(node),
-        NewTerms::Last => merge_last_term(&mut node.children),
+        NewTerms::All => merge_entity_variable_terms(p, node),
+        NewTerms::Last => merge_last_term(p, &mut node.children),
     }
     match node.children.len() {
         0 => {
@@ -97,16 +96,16 @@ pub(super) fn optimize_add(node: &mut Node, new: NewTerms) {
             let offset = node.post.offset;
             node.set_float(offset);
         }
-        1 => lift_only_term(node),
+        1 => lift_only_term(p, node),
         _ => {}
     }
 }
 
 /// Removes the constant term, the *last* float child (after flattening there is at most one), and
 /// returns its value with its post-op applied.
-fn take_constant(node: &mut Node, new: NewTerms) -> Option<f32> {
+fn take_constant(p: Platform, node: &mut Node, new: NewTerms) -> Option<f32> {
     let constant =
-        |child: &Node| arith::mul_add(child.post.scale, child.float(), child.post.offset);
+        |child: &Node| arith::mul_add(p, child.post.scale, child.float(), child.post.offset);
     match new {
         NewTerms::Last => {
             debug_assert!(
@@ -133,34 +132,34 @@ fn take_constant(node: &mut Node, new: NewTerms) -> Option<f32> {
 }
 
 /// Replaces the sum by its only term, the sum's post-op applied after the term's.
-fn lift_only_term(node: &mut Node) {
+fn lift_only_term(p: Platform, node: &mut Node) {
     let own = node.post;
     let term = lift_child(node, 0);
-    term.post.scale = arith::mul(term.post.scale, own.scale);
-    term.post.offset = arith::mul_add(term.post.offset, own.scale, own.offset);
+    term.post.scale = arith::mul(p, term.post.scale, own.scale);
+    term.post.offset = arith::mul_add(p, term.post.offset, own.scale, own.offset);
 }
 
 /// `x + x + …` of identical terms: one term with the post-ops summed in two interleaved chains
 /// (even and odd positions), then the odd one out.
-fn merge_alike_terms(node: &mut Node) {
+fn merge_alike_terms(p: Platform, node: &mut Node) {
     let mut even = (0.0f32, 0.0f32);
     let mut odd = (0.0f32, 0.0f32);
     let (pairs, rest) = node.children.as_chunks::<2>();
     for [a, b] in pairs {
         even = (
-            arith::add(a.post.scale, even.0),
-            arith::add(a.post.offset, even.1),
+            arith::add(p, a.post.scale, even.0),
+            arith::add(p, a.post.offset, even.1),
         );
         odd = (
-            arith::add(b.post.scale, odd.0),
-            arith::add(b.post.offset, odd.1),
+            arith::add(p, b.post.scale, odd.0),
+            arith::add(p, b.post.offset, odd.1),
         );
     }
-    let mut sum = (arith::add(odd.0, even.0), arith::add(odd.1, even.1));
+    let mut sum = (arith::add(p, odd.0, even.0), arith::add(p, odd.1, even.1));
     if let [last] = rest {
         sum = (
-            arith::add(last.post.scale, sum.0),
-            arith::add(last.post.offset, sum.1),
+            arith::add(p, last.post.scale, sum.0),
+            arith::add(p, last.post.offset, sum.1),
         );
     }
     if sum.0 == 0.0 {
@@ -169,15 +168,15 @@ fn merge_alike_terms(node: &mut Node) {
     } else {
         let own = node.post;
         let term = lift_child(node, 0);
-        term.post.scale = arith::mul(own.scale, sum.0);
-        term.post.offset = arith::mul_add(own.scale, sum.1, own.offset);
+        term.post.scale = arith::mul(p, own.scale, sum.0);
+        term.post.offset = arith::mul_add(p, own.scale, sum.1, own.offset);
     }
 }
 
 /// Adds `term`'s post-op to `merged`'s; whether the merged scale cancelled to exactly zero.
-fn merge_into(merged: &mut Node, term: &Node) -> bool {
-    merged.post.scale = arith::add(merged.post.scale, term.post.scale);
-    merged.post.offset = arith::add(merged.post.offset, term.post.offset);
+fn merge_into(p: Platform, merged: &mut Node, term: &Node) -> bool {
+    merged.post.scale = arith::add(p, merged.post.scale, term.post.scale);
+    merged.post.offset = arith::add(p, merged.post.offset, term.post.offset);
     merged.post.scale == 0.0
 }
 
@@ -187,7 +186,7 @@ fn merge_into(merged: &mut Node, term: &Node) -> bool {
 /// own position.
 ///
 /// Same result as comparing every term with every later one, in linear time.
-fn merge_entity_variable_terms(node: &mut Node) {
+fn merge_entity_variable_terms(p: Platform, node: &mut Node) {
     let terms = &mut node.children;
     let Some(repeated) = RepeatedNames::of(terms) else {
         return;
@@ -226,7 +225,7 @@ fn merge_entity_variable_terms(node: &mut Node) {
         let (head, tail) = terms.split_at_mut(index);
         let merged = &mut head[first];
         leaving.push(index);
-        if merge_into(merged, &tail[0]) {
+        if merge_into(p, merged, &tail[0]) {
             leaving.push(first);
             if live.get(&key) == Some(&first) {
                 live.remove(&key);
@@ -249,7 +248,7 @@ fn merge_entity_variable_terms(node: &mut Node) {
 
 /// [`merge_entity_variable_terms`] for terms whose entity variables, all but the last term's, are
 /// distinct: the last term merges into the earlier one of the same variable, if there is one.
-fn merge_last_term(terms: &mut Vec<Node>) {
+fn merge_last_term(p: Platform, terms: &mut Vec<Node>) {
     let Some((term, earlier)) = terms.split_last_mut() else {
         return;
     };
@@ -262,7 +261,7 @@ fn merge_last_term(terms: &mut Vec<Node>) {
     }) else {
         return;
     };
-    let cancelled = merge_into(&mut earlier[first], term);
+    let cancelled = merge_into(p, &mut earlier[first], term);
     terms.pop();
     if cancelled {
         terms.remove(first);
@@ -378,10 +377,9 @@ mod tests {
     use super::*;
     use crate::compile::ast::Span;
     use crate::compile::sema::test_support::*;
-    use crate::numeric::{
-        arch::{arm64, x86_64},
-        test_support::per_arch,
-    };
+    use crate::numeric::test_support::{ANDROID, LINUX};
+
+    const P: Platform = LINUX;
 
     fn add(children: Vec<Node>) -> Node {
         parent(Op::Add, children)
@@ -415,7 +413,7 @@ mod tests {
     #[test]
     fn flatten_add_leaves_a_sum_without_nested_sums_alone() {
         let mut node = add(vec![entity("a"), entity("b"), float(1.0)]);
-        flatten_add(&mut node);
+        flatten_add(P, &mut node);
         assert_eq!(node.tree_notation(9), "(Add v.a v.b 1)");
         assert_post_bits(&node, 1.0, 0.0);
     }
@@ -428,7 +426,7 @@ mod tests {
             entity("d"),
             add(vec![entity("e"), entity("f")]),
         ]);
-        flatten_add(&mut node);
+        flatten_add(P, &mut node);
         assert_eq!(node.tree_notation(9), "(Add v.a v.b v.c v.d v.e v.f)");
     }
 
@@ -440,7 +438,7 @@ mod tests {
             1.0,
         );
         let mut node = with_post(add(vec![inner, entity("a")]), 3.0, 0.5);
-        flatten_add(&mut node);
+        flatten_add(P, &mut node);
         assert_eq!(node.children.len(), 3);
         // Each term: scale × 2, offset × 2.
         assert_post_bits(&node.children[0], 2.0, 10.0);
@@ -451,11 +449,11 @@ mod tests {
     }
 
     #[test]
-    fn flatten_add_rounds_the_outer_offset_as_the_architecture_does() {
+    fn flatten_add_rounds_the_outer_offset_twice() {
         let (scale, nested, offset) = (0.3f32, 0.1f32, 0.1f32);
         assert_ne!(
-            x86_64::mul_add(scale, nested, offset).to_bits(),
-            arm64::mul_add(scale, nested, offset).to_bits()
+            (scale * nested + offset).to_bits(),
+            scale.mul_add(nested, offset).to_bits()
         );
         let mut node = with_post(
             add(vec![
@@ -465,10 +463,10 @@ mod tests {
             scale,
             offset,
         );
-        flatten_add(&mut node);
+        flatten_add(P, &mut node);
         assert_eq!(
             node.post.offset.to_bits(),
-            arith::mul_add(scale, nested, offset).to_bits()
+            arith::mul_add(P, scale, nested, offset).to_bits()
         );
     }
 
@@ -537,22 +535,22 @@ mod tests {
     }
 
     #[test]
-    fn the_term_offset_rounds_as_the_architecture_does() {
+    fn the_term_offset_rounds_twice() {
         let (constant, scale, offset) = (0.3f32, 0.1f32, 0.1f32);
         assert_ne!(
-            x86_64::mul_add(constant, scale, offset).to_bits(),
-            arm64::mul_add(constant, scale, offset).to_bits()
+            (constant * scale + offset).to_bits(),
+            constant.mul_add(scale, offset).to_bits()
         );
         let root = folded(with_post(
             add(vec![entity("x"), float(constant)]),
             scale,
             offset,
         ));
-        assert_post_bits(&root, scale, arith::mul_add(constant, scale, offset));
+        assert_post_bits(&root, scale, arith::mul_add(P, constant, scale, offset));
     }
 
     #[test]
-    fn the_folded_term_chooses_its_nans_as_the_architecture_does() {
+    fn the_folded_term_chooses_its_nans() {
         let (q1, q2) = (f32::from_bits(0x7fc0_0001), f32::from_bits(0xffc0_0002));
         let root = folded(add(vec![with_post(entity("x"), q2, q1), float(q2)]));
         assert_post_bits(&root, q2, q1);
@@ -560,11 +558,13 @@ mod tests {
             with_post(entity("x"), 1.0, f32::INFINITY),
             float(f32::NEG_INFINITY),
         ]));
-        assert_post_bits(
-            &root,
-            1.0,
-            f32::from_bits(per_arch(0xffc0_0000, 0x7fc0_0000)),
-        );
+        assert_post_bits(&root, 1.0, f32::from_bits(0xffc0_0000));
+        let mut node = add(vec![
+            with_post(entity("x"), 1.0, f32::INFINITY),
+            float(f32::NEG_INFINITY),
+        ]);
+        optimize_add(ANDROID, &mut node, NewTerms::All);
+        assert_post_bits(&node, 1.0, f32::from_bits(0x7fc0_0000));
     }
 
     #[test]
@@ -917,13 +917,13 @@ mod tests {
     #[test]
     fn merge_without_a_repeated_name_does_nothing() {
         let mut node = terms(&["a", "b", "c"]);
-        merge_entity_variable_terms(&mut node);
+        merge_entity_variable_terms(P, &mut node);
         assert_eq!(node.tree_notation(9), "(Add v.a v.b v.c)");
         let mut single = terms(&["a"]);
-        merge_entity_variable_terms(&mut single);
+        merge_entity_variable_terms(P, &mut single);
         assert_eq!(single.children.len(), 1);
         let mut empty = add(vec![]);
-        merge_entity_variable_terms(&mut empty);
+        merge_entity_variable_terms(P, &mut empty);
         assert!(empty.children.is_empty());
     }
 
@@ -934,7 +934,7 @@ mod tests {
             entity("b"),
             with_post(entity("a"), 2.0, 0.5),
         ]);
-        merge_entity_variable_terms(&mut node);
+        merge_entity_variable_terms(P, &mut node);
         assert_eq!(node.children.len(), 2);
         assert_post_bits(&node.children[0], 3.5, 0.75);
         assert!(node.children[1].is(Op::EntityVariable));
@@ -948,13 +948,13 @@ mod tests {
             entity("b"),
             with_post(entity("a"), -1.0, 0.0),
         ]);
-        merge_entity_variable_terms(&mut node);
+        merge_entity_variable_terms(P, &mut node);
         assert_eq!(node.tree_notation(9), "(Add v.b)");
         let mut only = add(vec![
             with_post(entity("a"), 1.0, 7.0),
             with_post(entity("a"), -1.0, 9.0),
         ]);
-        merge_entity_variable_terms(&mut only);
+        merge_entity_variable_terms(P, &mut only);
         assert!(only.children.is_empty());
     }
 
@@ -964,7 +964,7 @@ mod tests {
             entity("a"),
             with_post(entity("a"), -0.999_999_94, 0.0),
         ]);
-        merge_entity_variable_terms(&mut node);
+        merge_entity_variable_terms(P, &mut node);
         assert_eq!(node.children.len(), 1);
         assert_eq!(
             node.children[0].post.scale.to_bits(),
@@ -980,7 +980,7 @@ mod tests {
             with_post(entity("a"), -1.0, 0.0),
             with_post(entity("a"), 5.0, 1.0),
         ]);
-        merge_entity_variable_terms(&mut node);
+        merge_entity_variable_terms(P, &mut node);
         assert_eq!(node.children.len(), 2);
         assert!(node.children[0].is(Op::EntityVariable));
         assert_post_bits(&node.children[0], 1.0, 0.0);
@@ -991,7 +991,7 @@ mod tests {
     #[test]
     fn merge_ignores_terms_that_are_not_entity_variables() {
         let mut node = add(vec![temp("a"), temp("a"), string("a"), string("a")]);
-        merge_entity_variable_terms(&mut node);
+        merge_entity_variable_terms(P, &mut node);
         assert_eq!(node.children.len(), 4);
     }
 
@@ -1006,7 +1006,7 @@ mod tests {
             entity_variable_name(&b1).map(Name::hash)
         );
         let mut node = add(vec![a1, b1, a2, b2]);
-        merge_entity_variable_terms(&mut node);
+        merge_entity_variable_terms(P, &mut node);
         assert_eq!(node.children.len(), 2);
         assert_eq!(node.tree_notation(9), "(Add [v.a*2+0] [v.b*2+0])");
     }
@@ -1016,7 +1016,7 @@ mod tests {
         let (a1, b1) = colliding("a", "b");
         let (a2, _) = colliding("a", "b");
         let mut node = add(vec![a1, b1, a2]);
-        merge_entity_variable_terms(&mut node);
+        merge_entity_variable_terms(P, &mut node);
         assert_eq!(node.children.len(), 2);
         assert_post_bits(&node.children[0], 2.0, 0.0);
         assert_post_bits(&node.children[1], 1.0, 0.0);
@@ -1034,7 +1034,7 @@ mod tests {
         let mut cancelling = b2;
         cancelling.post.scale = -1.0;
         let mut node = add(vec![a1, b1, cancelling, b3]);
-        merge_entity_variable_terms(&mut node);
+        merge_entity_variable_terms(P, &mut node);
         // `b` (first) and `-b` cancel; the later `b` stands alone again after the first `a`.
         assert_eq!(node.children.len(), 2);
         assert_eq!(
@@ -1054,7 +1054,7 @@ mod tests {
         let (mut a2, _) = colliding("a", "b");
         a2.post.scale = -1.0;
         let mut node = add(vec![a1, b1, a2]);
-        merge_entity_variable_terms(&mut node);
+        merge_entity_variable_terms(P, &mut node);
         assert_eq!(node.children.len(), 1);
         assert_eq!(
             entity_variable_name(&node.children[0]).map(Name::as_str),
@@ -1070,7 +1070,7 @@ mod tests {
         let (mut a2, b2) = colliding("a", "b");
         a2.post.scale = -1.0;
         let mut node = add(vec![a1, b1, a2, b2]);
-        merge_entity_variable_terms(&mut node);
+        merge_entity_variable_terms(P, &mut node);
         assert_eq!(node.children.len(), 1);
         assert_eq!(
             entity_variable_name(&node.children[0]).map(Name::as_str),
@@ -1094,7 +1094,7 @@ mod tests {
             node("b", 2.0, 2.0),
             node("a", 4.0, 4.0),
         ]);
-        merge_entity_variable_terms(&mut sum);
+        merge_entity_variable_terms(P, &mut sum);
         assert_eq!(
             sum.tree_notation(9),
             "(Add [v.b*3+2.25] [v.c*4+1.125] [v.a*4+4])"
@@ -1113,7 +1113,7 @@ mod tests {
             node("b", 5.0),
             node("a", 1.0),
         ]);
-        merge_entity_variable_terms(&mut sum);
+        merge_entity_variable_terms(P, &mut sum);
         assert_eq!(sum.tree_notation(9), "(Add [v.a*2+0] [v.b*5+0])");
     }
 
@@ -1130,7 +1130,7 @@ mod tests {
             node("b", 1.0),
             node("a", 3.0),
         ]);
-        merge_entity_variable_terms(&mut sum);
+        merge_entity_variable_terms(P, &mut sum);
         assert_eq!(sum.tree_notation(9), "(Add [v.b*2+0] [v.a*5+0])");
     }
 
@@ -1146,7 +1146,7 @@ mod tests {
             node("a", 1.0),
             node("b", 1.0),
         ]);
-        merge_entity_variable_terms(&mut sum);
+        merge_entity_variable_terms(P, &mut sum);
         assert_eq!(sum.tree_notation(9), "(Add [v.a*2+0] v.b)");
     }
 
@@ -1165,8 +1165,8 @@ mod tests {
                     continue;
                 }
                 let later = terms.remove(j);
-                terms[i].post.scale = x86_64::add(terms[i].post.scale, later.post.scale);
-                terms[i].post.offset = x86_64::add(terms[i].post.offset, later.post.offset);
+                terms[i].post.scale = arith::add(P, terms[i].post.scale, later.post.scale);
+                terms[i].post.offset = arith::add(P, terms[i].post.offset, later.post.offset);
                 if terms[i].post.scale == 0.0 {
                     terms.remove(i);
                     cancelled = true;
@@ -1226,7 +1226,7 @@ mod tests {
                 pairwise_merge(&mut expected.children);
                 for collide in [false, true] {
                     let mut node = build(collide);
-                    merge_entity_variable_terms(&mut node);
+                    merge_entity_variable_terms(P, &mut node);
                     assert_eq!(
                         merged_terms(&node),
                         merged_terms(&expected),
@@ -1247,14 +1247,14 @@ mod tests {
             .map(|name| entity(name))
             .chain([entity("n0"), entity("n1"), entity("n4999")])
             .collect());
-        merge_entity_variable_terms(&mut wide);
+        merge_entity_variable_terms(P, &mut wide);
         assert_eq!(wide.children.len(), count);
         assert_post_bits(&wide.children[0], 2.0, 0.0);
         assert_post_bits(&wide.children[1], 2.0, 0.0);
         assert_post_bits(&wide.children[2], 1.0, 0.0);
         assert_post_bits(&wide.children[count - 1], 2.0, 0.0);
         let mut distinct = add(names.iter().map(|name| entity(name)).collect());
-        merge_entity_variable_terms(&mut distinct);
+        merge_entity_variable_terms(P, &mut distinct);
         assert_eq!(distinct.children.len(), count);
         assert!(
             distinct
@@ -1406,13 +1406,13 @@ mod tests {
     #[test]
     fn flatten_add_keeps_the_terms_of_a_leading_sum_and_appends_the_rest() {
         let mut node = add(vec![terms(&["a", "b"]), entity("c")]);
-        flatten_add(&mut node);
+        flatten_add(P, &mut node);
         assert_eq!(node.tree_notation(9), "(Add v.a v.b v.c)");
         let mut scaled = add(vec![
             with_post(terms(&["a", "b"]), 1.0, 2.0),
             with_post(terms(&["c", "d"]), -1.0, 0.0),
         ]);
-        flatten_add(&mut scaled);
+        flatten_add(P, &mut scaled);
         assert_eq!(
             scaled.tree_notation(9),
             "[(Add v.a v.b [v.c*-1+-0] [v.d*-1+-0])*1+2]"
@@ -1427,7 +1427,7 @@ mod tests {
             entity("c"),
             with_post(entity("b"), 3.0, 0.5),
         ];
-        merge_last_term(&mut terms);
+        merge_last_term(P, &mut terms);
         assert_eq!(terms.len(), 3);
         assert_post_bits(&terms[1], 5.0, 1.5);
     }
@@ -1440,7 +1440,7 @@ mod tests {
             entity("c"),
             with_post(entity("b"), -1.0, 4.0),
         ];
-        merge_last_term(&mut terms);
+        merge_last_term(P, &mut terms);
         assert_eq!(
             terms.iter().map(|t| t.tree_notation(9)).collect::<Vec<_>>(),
             ["v.a", "v.c"]
@@ -1456,25 +1456,25 @@ mod tests {
             parent(Op::Sin, vec![entity("a")]),
         ] {
             let mut terms = vec![entity("a"), entity("b"), last];
-            merge_last_term(&mut terms);
+            merge_last_term(P, &mut terms);
             assert_eq!(terms.len(), 3);
             assert!(terms.iter().all(|t| !t.has_post_op()));
         }
         let mut one = vec![entity("a")];
-        merge_last_term(&mut one);
+        merge_last_term(P, &mut one);
         assert_eq!(one.len(), 1);
-        merge_last_term(&mut Vec::new());
+        merge_last_term(P, &mut Vec::new());
     }
 
     #[test]
     fn merge_last_term_compares_names_not_hashes() {
         let (first, second) = colliding("a", "b");
         let mut terms = vec![first, entity("c"), second];
-        merge_last_term(&mut terms);
+        merge_last_term(P, &mut terms);
         assert_eq!(terms.len(), 3, "one hash, two names");
         let (first, again) = colliding("a", "a");
         let mut terms = vec![first, entity("c"), again];
-        merge_last_term(&mut terms);
+        merge_last_term(P, &mut terms);
         assert_eq!(terms.len(), 2);
         assert_post_bits(&terms[0], 2.0, 0.0);
     }
@@ -1496,8 +1496,8 @@ mod tests {
             };
             let mut ours = build();
             let mut general = add(build());
-            merge_last_term(&mut ours);
-            merge_entity_variable_terms(&mut general);
+            merge_last_term(P, &mut ours);
+            merge_entity_variable_terms(P, &mut general);
             assert_eq!(
                 merged_terms(&add(ours)),
                 merged_terms(&general),
@@ -1512,8 +1512,8 @@ mod tests {
             let mut node = add(vec![tree(sum), term]);
             assert!(node.children[0].is(Op::Add), "{sum} is not a sum");
             assert_eq!(new_terms(&node), NewTerms::Last);
-            flatten_add(&mut node);
-            optimize_add(&mut node, new);
+            flatten_add(P, &mut node);
+            optimize_add(P, &mut node, new);
             node.tree_notation(9)
         };
         let copy = Node::token(term.op, term.value.clone(), term.span);

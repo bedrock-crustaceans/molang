@@ -8,6 +8,7 @@ use crate::compile::{
     sema,
 };
 use crate::diag::{Diagnostic, Severity};
+use crate::numeric::Platform;
 use crate::ops::ExpressionOp as Op;
 use crate::version::{MolangVersion, RawVersion};
 use std::collections::HashSet;
@@ -222,6 +223,7 @@ pub struct Expr {
 struct ExprInner {
     body: Body,
     raw_version: RawVersion,
+    platform: Platform,
     source: Option<Arc<str>>,
 }
 
@@ -264,6 +266,7 @@ impl Expr {
                     math: opts.math.clone(),
                 },
                 raw_version,
+                platform: opts.platform,
                 source,
             }),
         }
@@ -275,6 +278,7 @@ impl Expr {
         raw_version: RawVersion,
         source: Option<Arc<str>>,
     ) -> Self {
+        let platform = program.platform;
         // The `Float` instruction loads the payload without a post-op, so the folded value stands.
         let body = if tree.is(Op::Float) {
             Body::Constant {
@@ -300,6 +304,7 @@ impl Expr {
             inner: Arc::new(ExprInner {
                 body,
                 raw_version,
+                platform,
                 source,
             }),
         }
@@ -347,6 +352,12 @@ impl Expr {
     /// version was never applied).
     pub fn raw_version(&self) -> RawVersion {
         self.inner.raw_version
+    }
+
+    /// The platform whose float behaviour the expression reproduces
+    /// ([`CompileOptions::platform`]).
+    pub fn platform(&self) -> Platform {
+        self.inner.platform
     }
 
     /// The catalogue the expression was compiled against.

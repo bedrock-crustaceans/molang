@@ -4,6 +4,7 @@
 use crate::catalog::Side;
 use crate::catalog::{MathCatalog, QueryAdmission, QueryCatalog, QuerySetMask};
 use crate::json::MolangSource;
+use crate::numeric::Platform;
 use crate::ops::OpSet;
 use crate::version::{ExperimentMask, MolangVersion, RawVersion};
 
@@ -72,7 +73,7 @@ impl Default for Deviations {
 }
 
 /// How an expression is compiled: query catalogue, version, admitted queries, allowed operations,
-/// host math functions and deviations.
+/// host math functions, deviations and the platform whose float behaviour it reproduces.
 ///
 /// The [`QueryCatalog`] decides which queries exist and whether client-only ones are
 /// flagged. The admitted queries ([`CompileOptions::admission`]) are set independently of it: an
@@ -128,11 +129,15 @@ pub struct CompileOptions {
     pub keep_source: bool,
     /// The active deviations (by default [`Deviations::DEFAULT`], every one on).
     pub deviations: Deviations,
+    /// The platform whose float behaviour constant folding and evaluation reproduce (by default
+    /// [`Platform::default`]).
+    pub platform: Platform,
 }
 
 impl CompileOptions {
     /// Default settings at `version` against `catalog`: the `default` query set, every operation
-    /// allowed, no experiments, no host math functions, source not kept, [`Deviations::DEFAULT`].
+    /// allowed, no experiments, no host math functions, source not kept, [`Deviations::DEFAULT`],
+    /// [`Platform::default`].
     pub const fn new(catalog: QueryCatalog, version: MolangVersion) -> Self {
         Self::from_raw_version(catalog, RawVersion(version.as_i16()))
     }
@@ -150,6 +155,7 @@ impl CompileOptions {
             math: None,
             keep_source: false,
             deviations: Deviations::DEFAULT,
+            platform: Platform::DEFAULT,
         }
     }
 
@@ -195,6 +201,7 @@ mod tests {
     use crate::version::{Experiment, ExperimentMask};
 
     use crate::json::MolangSource;
+    use crate::numeric::Platform;
     use crate::version::{MolangVersion, RawVersion};
 
     fn server() -> &'static QueryCatalog {
@@ -273,6 +280,18 @@ mod tests {
             CompileOptions::new(server().clone(), MolangVersion::LATEST)
         );
         assert_eq!(o.deviations, Deviations::ALL);
+        assert_eq!(o.platform, Platform::default());
+    }
+
+    #[test]
+    fn options_for_another_platform_compare_unequal() {
+        let o = CompileOptions::server(MolangVersion::LATEST);
+        let windows = CompileOptions {
+            platform: Platform::BdsWindows,
+            ..o.clone()
+        };
+        assert_ne!(o, windows);
+        assert_eq!(windows.platform, Platform::BdsWindows);
     }
 
     #[test]

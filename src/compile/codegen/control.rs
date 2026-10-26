@@ -121,7 +121,7 @@ impl Builder<'_, '_> {
         self.depth.pop_operands(1);
         self.depth.leave_loop();
         self.code.place(exit);
-        let c = self.konst(node.post.apply(0.0))?;
+        let c = self.konst(node.post.apply(self.cx.opts.platform, 0.0))?;
         self.code.emit(Instr::Const { c });
         Ok(())
     }
@@ -160,7 +160,7 @@ impl Builder<'_, '_> {
         self.code.emit(Instr::LoopEnd);
         self.depth.leave_loop();
         self.code.place(exit);
-        let c = self.konst(node.post.apply(0.0))?;
+        let c = self.konst(node.post.apply(self.cx.opts.platform, 0.0))?;
         self.code.emit(Instr::Const { c });
         Ok(())
     }

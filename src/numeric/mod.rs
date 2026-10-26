@@ -18,8 +18,7 @@
 //! - a literal divisor: the run-time form multiplies by its reciprocal: `(1/3)/3` folds to
 //!   `0x3de38e39`, `v.k/3` runs to `0x3de38e3a`; below the guard's threshold the factor is 0, so a
 //!   NaN or infinite dividend gives NaN where the fold gives 0: `math.sqrt(-1)/0` and `v.k/0`;
-//! - on `X86_64`, a NaN divisor: the fold gives 0, the run-time form NaN: `1/math.sqrt(-1)` and
-//!   `1/v.k`;
+//! - a NaN divisor: the fold gives 0, the run-time form NaN: `1/math.sqrt(-1)` and `1/v.k`;
 //! - `math.mod`: a zero divisor folds to NaN and runs to 0, and a −0 remainder folds to −0 and
 //!   runs to +0: `math.mod(3, 0)` and `math.mod(3, v.k)`, `math.mod(-4, 2)` and
 //!   `math.mod(v.k, 2)`;
@@ -31,52 +30,38 @@
 //!   `3.4e38*3.4e38*1e-45+1` folds to +∞ where `v.k*3.4e38*1e-45+1` does not overflow;
 //! - an infinite factor: a constant factor folds into its operand's post-op, so an infinite one
 //!   makes the offset `∞·O`, a NaN for an operand without an offset: `v.x * math.exp(1000)` and
-//!   `(v.x < 2) * math.exp(1000)` are NaN where the same infinity read from a variable multiplies;
-//! - on `Arm64`, a post-op computed inside its instruction: a multiply-add rounds once, and a
-//!   factor scales the dividend, one factor of a product or the degree conversion first (and can
-//!   overflow there): `(-1/3) * 3 + 1` folds to 0 and `v.d * 3 + 1` with `v.d` = −1/3 runs to
-//!   −2⁻²⁵.
+//!   `(v.x < 2) * math.exp(1000)` are NaN where the same infinity read from a variable multiplies.
 //!
-//! The float behaviour is chosen when the crate is built: an `aarch64` build has the `Arm64`
-//! behaviour, every other target the `X86_64` behaviour ([`ARCH`]).
+//! The float behaviour is a [`Platform`], which the host passes in the compile options and the
+//! compiled expression records: the same expression gives the same bits on every host. Every
+//! platform rounds each multiply, add and divide on its own, in formula order; the platforms differ
+//! in the NaN an operation returns, in float → int conversion and in the C library functions behind
+//! the transcendental `math.*` functions ([`Platform`] lists the differences).
 //!
-//! - `X86_64` rounds every multiply, add and divide separately, `min`/`max` return their second
-//!   operand when either is NaN and every comparison with a NaN is false. An arithmetic operation
-//!   with NaN operands returns its left NaN operand quietened; an invalid one gives `0xffc00000`.
-//! - `Arm64` rounds `x·S + O` and the other multiply-adds once, `min`/`max` ignore a NaN operand,
-//!   `<`/`<=` with a NaN are true, a NaN divisor gives 0 and a NaN `asin`/`acos` argument counts as
-//!   −1. An arithmetic operation (`+ − · /` and the multiply-adds) with NaN operands returns the
-//!   first signalling one quietened, else the first quiet one, the addend of a multiply-add first;
-//!   an invalid one gives `0x7fc00000`.
-//!
-//! Formulas of several operations (the easings, `math.hermite_blend`, the random interpolation, the
-//! inverse-trigonometric degree conversion) also differ in shape. An invalid `math.sin`,
-//! `math.cos`, `math.pow` or `math.mod` gives `0xffc00000` on both, `math.asin` / `math.acos`
-//! beyond the tolerance `0x7fc00000`; `math.ln` of a negative number gives `0x7fc00000` on `X86_64`
-//! and `0xffc00000` on `Arm64`, `math.sqrt` the reverse.
-//!
-//! A target other than x86-64 and aarch64 (wasm32, riscv64, 32-bit arm, 32-bit x86 with SSE2, …)
-//! has the `X86_64` behaviour and gives the same bits for every result that is not a NaN; 32-bit
-//! x86 without SSE2 does not compile. The arithmetic and the standard functions choose the sign and
-//! payload of the NaNs they return, so those are the same too, except where an instruction of the
-//! target makes the NaN: `math.floor`, `math.ceil`, `math.round` and `math.trunc` of a NaN, a NaN
-//! bound of `math.die_roll` / `math.die_roll_integer` (floored), and the result of a comparison or
-//! logical node whose folded post-op holds a NaN. On 32-bit x86 a value returned through the x87
-//! register may have a signalling NaN quietened.
+//! The arithmetic and the standard functions choose the sign and payload of every NaN they return,
+//! so those are the same on every host too, except where an instruction of the host makes the NaN:
+//! `math.floor`, `math.ceil`, `math.round` and `math.trunc` of a NaN, a NaN bound of
+//! `math.die_roll` / `math.die_roll_integer` (floored), and the result of a comparison or logical
+//! node whose folded post-op holds a NaN. On 32-bit x86 a value returned through the x87 register
+//! may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
 //!
 //! Every instruction function takes the node's [`PostOp`] as its last argument and returns the
 //! final value; pass [`PostOp::IDENTITY`] for the plain form.
 
-pub(crate) mod arch;
+#[cfg(all(target_arch = "x86", not(target_feature = "sse2")))]
+compile_error!("molang needs SSE2 on 32-bit x86: x87 rounds f32 operations in extended precision");
+
 pub mod arith;
+pub(crate) mod fpu;
 mod instr;
+pub(crate) mod platform;
 mod post_op;
 
-pub use arch::{ARCH, Arch};
 pub use instr::{
     add, array_index, div, div_guard, eq, fold_const_div, fold_const_divisor, ge, gt, le, lt, mul,
     ne, negate, not, truthy,
 };
+pub use platform::{LinuxRelease, Platform};
 pub use post_op::PostOp;
 
 #[cfg(test)]
@@ -87,11 +72,20 @@ pub(crate) mod test_support {
     pub(crate) const NAN: f32 = f32::NAN;
     pub(crate) const INF: f32 = f32::INFINITY;
 
-    /// `x86_64` on an `X86_64` build, `arm64` on an `Arm64` one.
-    pub(crate) fn per_arch<T>(x86_64: T, arm64: T) -> T {
-        match ARCH {
-            Arch::X86_64 => x86_64,
-            Arch::Arm64 => arm64,
+    /// The newest Linux server, the default platform.
+    pub(crate) const LINUX: Platform = Platform::BdsLinux(LinuxRelease::V1_26_52);
+    /// The older Linux server.
+    pub(crate) const LINUX_1_26_36: Platform = Platform::BdsLinux(LinuxRelease::V1_26_36);
+    pub(crate) const WINDOWS: Platform = Platform::BdsWindows;
+    pub(crate) const ANDROID: Platform = Platform::AndroidArm64;
+    /// Every platform, for a test that runs once with each.
+    pub(crate) const PLATFORMS: [Platform; 4] = [LINUX, LINUX_1_26_36, WINDOWS, ANDROID];
+
+    /// `x86_64` on a server platform, `arm64` on [`Platform::AndroidArm64`].
+    pub(crate) fn x86_or_arm<T>(p: Platform, x86_64: T, arm64: T) -> T {
+        match p.fpu() {
+            platform::Fpu::X86_64 => x86_64,
+            platform::Fpu::Arm64 => arm64,
         }
     }
 
@@ -119,7 +113,7 @@ pub(crate) mod test_support {
 
     /// The literal `1 / 3` as the optimiser folds it.
     pub(crate) fn third() -> f32 {
-        fold_const_div(1.0, 3.0)
+        fold_const_div(LINUX, 1.0, 3.0)
     }
 
     /// A grid over and beyond `[0, 1]`, a fixed pseudo-random scatter, and the values around the
@@ -135,8 +129,7 @@ pub(crate) mod test_support {
                 .wrapping_add(1_442_695_040_888_963_407);
             ts.push((state >> 40) as f32 / 16_777_216.0 * 2.0 - 0.5);
         }
-        // Bounce thresholds and centres, their arm64 mirrored and shifted forms, and the elastic
-        // shift.
+        // Bounce thresholds and centres, their mirrored and shifted forms, and the elastic shift.
         let specials = [
             0x3eba_2e8c_u32,
             0x3f3a_2e8c,

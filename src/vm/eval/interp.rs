@@ -11,8 +11,7 @@ use super::{Base, Deopt, Slot, Stop, Vm};
 use crate::catalog::{MAX_MATH_ARGS, MathImpl, MathRef};
 use crate::compile::program::{Divisor, Instr, PostIdx, Program, TempIdx};
 use crate::hash::HashedStr;
-use crate::numeric;
-use crate::numeric::arith;
+use crate::numeric::{self, Platform, arith};
 use crate::vm::{
     cx::{EvalCx, Temps},
     host::Host,
@@ -32,6 +31,7 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
         mut pc: usize,
         base: Base,
     ) -> Result<(), Stop<H>> {
+        let platform = program.platform;
         let step_budget = cx.limits.total_steps.unwrap_or(u64::MAX);
         let loop_limit = cx.limits.loop_iterations;
         if self.stopped {
@@ -56,7 +56,9 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                     ));
                     self.acc = R::from_ref(&resource).ok_or(Deopt::At(at))?;
                 }
-                Instr::This { p } => self.acc = R::float(program.post(p).apply(cx.subjects.this)),
+                Instr::This { p } => {
+                    self.acc = R::float(program.post(p).apply(platform, cx.subjects.this));
+                }
                 Instr::LoadVar { n, p } => {
                     let key = program.variable_name(n);
                     if self.arrows.is_empty() {
@@ -114,7 +116,7 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                     self.acc = R::float(program.konst(c));
                 }
                 Instr::Negate { p } => {
-                    self.acc = R::float(numeric::negate(self.acc.f32(), program.post(p)));
+                    self.acc = R::float(numeric::negate(platform, self.acc.f32(), program.post(p)));
                 }
                 Instr::Not { p } => {
                     self.acc = R::float(numeric::not(self.acc.f32(), program.post(p)));
@@ -122,16 +124,18 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                 Instr::AddAcc => {
                     let acc = self.acc.f32();
                     if let Some(top) = self.stack.last_mut() {
-                        *top = R::float(arith::add(top.f32(), acc));
+                        *top = R::float(arith::add(platform, top.f32(), acc));
                     }
                 }
                 Instr::AddLast { p } => {
                     let top = self.pop().f32();
-                    self.acc = R::float(numeric::add(self.acc.f32(), top, program.post(p)));
+                    self.acc =
+                        R::float(numeric::add(platform, self.acc.f32(), top, program.post(p)));
                 }
                 Instr::Mul { p } => {
                     let top = self.pop().f32();
-                    self.acc = R::float(numeric::mul(self.acc.f32(), top, program.post(p)));
+                    self.acc =
+                        R::float(numeric::mul(platform, self.acc.f32(), top, program.post(p)));
                 }
                 Instr::DivGuard { end, divisor } => {
                     match numeric::div_guard(divisor == Divisor::Signed, self.acc.f32()) {
@@ -144,16 +148,27 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                 }
                 Instr::Div { p } => {
                     let divisor = self.pop().f32();
-                    self.acc = R::float(numeric::div(self.acc.f32(), divisor, program.post(p)));
+                    self.acc = R::float(numeric::div(
+                        platform,
+                        self.acc.f32(),
+                        divisor,
+                        program.post(p),
+                    ));
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::Mod { p } => {
                     let a = self.pop().f32();
-                    self.acc = R::float(math::mod_runtime(a, self.acc.f32(), program.post(p)));
+                    self.acc = R::float(math::mod_runtime(
+                        platform,
+                        a,
+                        self.acc.f32(),
+                        program.post(p),
+                    ));
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::ModConst { c, p } => {
                     self.acc = R::float(math::mod_const(
+                        platform,
                         self.acc.f32(),
                         program.konst(c),
                         program.post(p),
@@ -161,40 +176,52 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::Math1 { f, p } => {
-                    self.acc = R::float(f.apply(self.acc.f32(), program.post(p)));
+                    self.acc = R::float(f.apply(platform, self.acc.f32(), program.post(p)));
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::Math2 { f, p } => {
                     let a = self.pop().f32();
-                    self.acc = R::float(f.apply(a, self.acc.f32(), program.post(p)));
+                    self.acc = R::float(f.apply(platform, a, self.acc.f32(), program.post(p)));
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::Math2Const { f, c, p } => {
-                    self.acc = R::float(f.apply(self.acc.f32(), program.konst(c), program.post(p)));
+                    self.acc = R::float(f.apply(
+                        platform,
+                        self.acc.f32(),
+                        program.konst(c),
+                        program.post(p),
+                    ));
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::Math3 { f, p } => {
                     let b = self.pop().f32();
                     let a = self.pop().f32();
-                    self.acc = R::float(f.apply(a, b, self.acc.f32(), program.post(p)));
+                    self.acc = R::float(f.apply(platform, a, b, self.acc.f32(), program.post(p)));
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::Random { p } => {
                     // The sample is drawn before the bounds are read.
                     let sample = rng::sample(cx.rng);
                     let a = self.pop().f32();
-                    self.acc = R::float(math::random(a, self.acc.f32(), sample, program.post(p)));
+                    self.acc = R::float(math::random(
+                        platform,
+                        a,
+                        self.acc.f32(),
+                        sample,
+                        program.post(p),
+                    ));
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::RandomConst { p } => {
                     let sample = rng::sample(cx.rng);
-                    self.acc = R::float(math::random_folded(sample, program.post(p)));
+                    self.acc = R::float(math::random_folded(platform, sample, program.post(p)));
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::RandomInt { p } => {
                     let sample = rng::sample(cx.rng);
                     let a = self.pop().f32();
                     self.acc = R::float(math::random_integer(
+                        platform,
                         a,
                         self.acc.f32(),
                         sample,
@@ -205,17 +232,24 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                 Instr::RandomIntConst { c, p } => {
                     let sample = rng::sample(cx.rng);
                     let [lo, hi] = program.konst_pair(c);
-                    let value = math::random_integer_const_bounds(lo, hi, sample, program.post(p));
+                    let value = math::random_integer_const_bounds(
+                        platform,
+                        lo,
+                        hi,
+                        sample,
+                        program.post(p),
+                    );
                     self.acc = R::float(value);
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::DieRoll { p } => {
-                    let sum = self.die_roll(cx, step_budget, math::DieRoll::new)?;
+                    let sum = self.die_roll(platform, cx, step_budget, math::DieRoll::new)?;
                     self.acc = R::float(sum.finish(program.post(p)));
                 }
                 #[cfg(feature = "stdlib")]
                 Instr::DieRollInt { p } => {
-                    let sum = self.die_roll(cx, step_budget, math::DieRoll::new_integer)?;
+                    let sum =
+                        self.die_roll(platform, cx, step_budget, math::DieRoll::new_integer)?;
                     self.acc = R::float(sum.finish(program.post(p)));
                 }
                 Instr::HostMath { f, argc, p } => {
@@ -278,12 +312,12 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                 Instr::PointerLeave { p } => self.pointer_leave(program, cx, p),
                 Instr::Call { q, p } => self.call_query(program, cx, q, p, at, pc)?,
                 Instr::LoopBegin { exit } => {
-                    if self.loop_begin().is_break() {
+                    if self.loop_begin(platform).is_break() {
                         pc = exit as usize;
                     }
                 }
                 Instr::LoopCheck { body } => {
-                    if self.loop_check(cx, loop_limit)?.is_continue() {
+                    if self.loop_check(platform, cx, loop_limit)?.is_continue() {
                         pc = body as usize;
                     }
                 }
@@ -323,14 +357,15 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
     #[inline]
     fn die_roll(
         &mut self,
+        platform: Platform,
         cx: &mut EvalCx<'_, '_, H>,
         step_budget: u64,
-        dice: fn(f32, f32, f32) -> math::DieRoll,
+        dice: fn(Platform, f32, f32, f32) -> math::DieRoll,
     ) -> Result<math::DieRoll, Aborted> {
         let b = self.acc.f32();
         let a = self.pop().f32();
         let n = self.pop().f32();
-        let mut roll = dice(n, a, b);
+        let mut roll = dice(platform, n, a, b);
         while roll.remaining() > 0 {
             self.step(cx, step_budget)?;
             roll.roll(rng::sample(cx.rng));
@@ -363,13 +398,13 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
             MathImpl::Pure(call) => call(&values[..count]),
             MathImpl::Volatile(call) => call(&mut *cx.rng, &values[..count]),
         };
-        program.post(p).apply(value)
+        program.post(p).apply(program.platform, value)
     }
 
     #[inline]
     pub(super) fn post_in_place(&mut self, program: &Program, p: PostIdx) {
         if p != PostIdx::PLAIN {
-            self.acc = R::float(program.post(p).apply(self.acc.f32()));
+            self.acc = R::float(program.post(p).apply(program.platform, self.acc.f32()));
         }
     }
 
@@ -406,7 +441,7 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                 let slot = self.temps.get(usize::from(t.0)).ok_or(Deopt::At(at))?;
                 Ok(slot.as_ref().map(|slot| match p {
                     PostIdx::PLAIN => slot.clone(),
-                    _ => R::float(program.post(p).apply(slot.f32())),
+                    _ => R::float(program.post(p).apply(program.platform, slot.f32())),
                 }))
             }
         }
@@ -457,7 +492,7 @@ mod tests {
     use super::*;
     use crate::compile::program::ConstIdx;
     use crate::compile::{CompileOptions, compile};
-    use crate::numeric::PostOp;
+    use crate::numeric::{Platform, PostOp};
     use crate::rng::{Xorshift128, sample};
     use crate::version::{MolangVersion, RawVersion};
     use crate::vm::eval::test_support::*;
@@ -473,9 +508,9 @@ mod tests {
         let mut env = NoHostEnv::new();
         set(&mut env, &[("x", 30.0), ("y", 7.0)]);
         let value = expr.eval_f32(&mut env.cx());
-        let sin = math::sin(30.0, PostOp::IDENTITY);
-        let max = math::max(30.0, 7.0, PostOp::new(0.3, 0.0));
-        let sum = numeric::add(max, sin, PostOp::IDENTITY);
+        let sin = math::sin(Platform::default(), 30.0, PostOp::IDENTITY);
+        let max = math::max(Platform::default(), 30.0, 7.0, PostOp::new(0.3, 0.0));
+        let sum = numeric::add(Platform::default(), max, sin, PostOp::IDENTITY);
         assert_eq!(value.to_bits(), sum.to_bits());
     }
 
@@ -665,21 +700,39 @@ mod tests {
         let r = ran("math.random(10, 20)", |_| {});
         assert_eq!(
             r.value,
-            NV::Float(math::random(10.0, 20.0, sample, PostOp::IDENTITY))
+            NV::Float(math::random(
+                Platform::default(),
+                10.0,
+                20.0,
+                sample,
+                PostOp::IDENTITY
+            ))
         );
         let r = ran("math.random(v.lo, v.hi)", |env| {
             set(env, &[("lo", 10.0), ("hi", 20.0)]);
         });
         assert_eq!(
             r.value,
-            NV::Float(math::random(10.0, 20.0, sample, PostOp::IDENTITY))
+            NV::Float(math::random(
+                Platform::default(),
+                10.0,
+                20.0,
+                sample,
+                PostOp::IDENTITY
+            ))
         );
         let r = ran("math.random_integer(v.lo, v.hi)", |env| {
             set(env, &[("lo", 10.0), ("hi", 20.0)]);
         });
         assert_eq!(
             r.value,
-            NV::Float(math::random_integer(10.0, 20.0, sample, PostOp::IDENTITY))
+            NV::Float(math::random_integer(
+                Platform::default(),
+                10.0,
+                20.0,
+                sample,
+                PostOp::IDENTITY
+            ))
         );
     }
 

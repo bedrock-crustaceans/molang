@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 
 use super::{Aborted, Deopt, Frame, Slot, Stop, Vm};
 use crate::compile::program::{Instr, NameIdx, Program, TempIdx};
-use crate::numeric;
+use crate::numeric::{self, Platform};
 use crate::vm::{cx::EvalCx, host::Host, sink::RuntimeMsg, value::Value};
 
 /// The variable a `for_each` binds each actor to.
@@ -17,17 +17,17 @@ pub(super) enum LoopVar {
 // `ControlFlow::Continue`: the loop makes a pass; `ControlFlow::Break`: it is left.
 #[allow(clippy::inline_always)] // each instruction method has one call site, in the hot loop `Vm::run`, which must not call it
 impl<H: Host, R: Slot<H>> Vm<H, R> {
-    /// Leaves the loop when the count is at most zero by the architecture's `<=`. On `Arm64` a
-    /// NaN count is, so the loop makes no pass; on `X86_64` it is not and never runs out
+    /// Leaves the loop when the count is at most zero. A NaN count is not, and never runs out
     /// (`NaN − 1` is NaN): `loop(math.sqrt(-1), …)` runs until something else ends it.
     #[inline(always)]
-    pub(super) fn loop_begin(&mut self) -> ControlFlow<()> {
+    pub(super) fn loop_begin(&mut self, platform: Platform) -> ControlFlow<()> {
         let count = self.acc.f32();
         if spent(count, numeric::le) {
             return ControlFlow::Break(());
         }
         // The counter lives on the operand stack, where the check reads it.
-        self.stack.push(R::float(numeric::arith::add(count, -1.0)));
+        self.stack
+            .push(R::float(numeric::arith::add(platform, count, -1.0)));
         self.loops.push(Frame::Count { iterations: 1 });
         ControlFlow::Continue(())
     }
@@ -36,11 +36,12 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
     #[inline(always)]
     pub(super) fn loop_check(
         &mut self,
+        platform: Platform,
         cx: &mut EvalCx<'_, '_, H>,
         loop_limit: Option<u32>,
     ) -> Result<ControlFlow<()>, Aborted> {
         // Counts down the top of the operand stack: the counter, unless a `continue` left an
-        // operand pending above it. A NaN goes round again on `X86_64`.
+        // operand pending above it. A NaN goes round again.
         if self.stack.len() > OPERAND_STACK_CAP {
             self.operand_stack_spent(cx);
             return Err(Aborted);
@@ -51,7 +52,7 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
         {
             if next_iteration(iterations, loop_limit) {
                 if let Some(slot) = self.stack.last_mut() {
-                    *slot = R::float(numeric::arith::add(top, -1.0));
+                    *slot = R::float(numeric::arith::add(platform, top, -1.0));
                 }
                 return Ok(ControlFlow::Continue(()));
             }
@@ -211,9 +212,8 @@ mod tests {
     use super::*;
     use crate::compile::program::{ConstIdx, PostIdx};
     use crate::compile::{CompileOptions, compile};
-    use crate::numeric::PostOp;
-    use crate::numeric::arch::{arm64, x86_64};
-    use crate::numeric::test_support::per_arch;
+    use crate::numeric::test_support::PLATFORMS;
+    use crate::numeric::{Platform, PostOp};
     use crate::version::MolangVersion;
     use crate::vm::eval::test_support::*;
     use crate::vm::eval::{Base, Stop};
@@ -222,22 +222,13 @@ mod tests {
     use crate::vm::{EvalLimits, HostEnv, NoHost, NoHostEnv, StructValue};
 
     #[test]
-    fn each_architecture_decides_whether_a_count_is_spent() {
+    fn a_count_is_spent_at_zero_or_below_and_a_nan_count_never_is() {
         for count in [0.0, -0.0, -1.0, f32::NEG_INFINITY] {
-            assert!(
-                spent(count, x86_64::le) && spent(count, arm64::le),
-                "{count}"
-            );
+            assert!(spent(count, numeric::le), "{count}");
         }
-        for count in [f32::from_bits(1), 1.0, f32::INFINITY] {
-            assert!(
-                !spent(count, x86_64::le) && !spent(count, arm64::le),
-                "{count}"
-            );
+        for count in [f32::from_bits(1), 1.0, f32::INFINITY, f32::NAN] {
+            assert!(!spent(count, numeric::le), "{count}");
         }
-        assert!(!spent(f32::NAN, x86_64::le));
-        assert!(spent(f32::NAN, arm64::le));
-        assert_eq!(spent(f32::NAN, numeric::le), per_arch(false, true));
     }
 
     #[test]
@@ -299,41 +290,49 @@ mod tests {
         }
     }
 
+    fn run_on(platform: Platform, src: &str, count: f32) -> (NV, Vec<String>) {
+        let options = CompileOptions {
+            platform,
+            ..CompileOptions::server(MolangVersion::LATEST)
+        };
+        let expr = compile(src, &options).expr().cloned().expect("compiles");
+        let mut env = server_env();
+        set(&mut env, &[("c", count), ("n", 0.0)]);
+        let value = expr.eval(&mut env.cx());
+        (value, env.sink.take())
+    }
+
     #[test]
-    fn a_nan_count_never_runs_out_on_x86_64_and_makes_no_pass_on_arm64() {
+    fn a_nan_count_never_runs_out_on_any_platform() {
         let escaping = "loop(v.c, { v.n = v.n + 1; v.n > 8 ? {break;} : 0; }); return v.n;";
-        let (escaped, guarded) = per_arch((9.0, 1024.0), (0.0, 0.0));
-        let options = CompileOptions::server(MolangVersion::LATEST);
-        let run = |src: &str| {
-            let expr = compile(src, &options).expr().cloned().expect("compiles");
-            let mut env = server_env();
-            set(&mut env, &[("c", f32::NAN), ("n", 0.0)]);
-            let value = expr.eval(&mut env.cx());
-            (value, env.sink.take())
-        };
-        assert_eq!(run(escaping), (NV::Float(escaped), vec![]));
-        // Without an escape the loop guard ends it on `X86_64`.
-        let guard = if guarded > 0.0 {
-            vec!["molang: loop stopped after its budget of 1024 iterations".to_owned()]
-        } else {
-            vec![]
-        };
-        assert_eq!(run(COUNT_LOOP), (NV::Float(guarded), guard));
+        let budget = vec!["molang: loop stopped after its budget of 1024 iterations".to_owned()];
+        for platform in PLATFORMS {
+            assert_eq!(
+                run_on(platform, escaping, f32::NAN),
+                (NV::Float(9.0), vec![]),
+                "{platform:?}"
+            );
+            // Without an escape the loop guard ends it.
+            assert_eq!(
+                run_on(platform, COUNT_LOOP, f32::NAN),
+                (NV::Float(1024.0), budget.clone()),
+                "{platform:?}"
+            );
+        }
     }
 
     /// A `continue` leaves a NaN operand above the counter, so the re-check reads a NaN.
     #[test]
-    fn the_re_check_of_a_nan_counter_follows_the_architectures_less_equal() {
+    fn the_re_check_of_a_nan_counter_goes_round_again() {
         let src = "v.k = math.sqrt(-1); v.n = 0; loop(5, { v.n = v.n + 1; v.t = v.k * (v.n > 0 ? {continue;} : 0); }); return v.n;";
         let budget = vec!["molang: loop stopped after its budget of 1024 iterations".to_owned()];
-        let expected = per_arch((NV::Float(1024.0), budget), (NV::Float(1.0), vec![]));
-        let expr = compile(src, &CompileOptions::server(MolangVersion::LATEST))
-            .expr()
-            .cloned()
-            .expect("compiles");
-        let mut env = server_env();
-        let value = expr.eval(&mut env.cx());
-        assert_eq!((value, env.sink.take()), expected);
+        for platform in PLATFORMS {
+            assert_eq!(
+                run_on(platform, src, 0.0),
+                (NV::Float(1024.0), budget.clone()),
+                "{platform:?}"
+            );
+        }
     }
 
     #[test]
