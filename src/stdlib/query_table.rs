@@ -246,7 +246,7 @@ queries! {
     ARMOR_TEXTURE_SLOT = "armor_texture_slot", F, ACTOR => args(1, 1);
     AVERAGE_FRAME_TIME = "average_frame_time", F, CLIENT_STATE => args(0, 1).client();
     BASE_SWING_DURATION = "base_swing_duration", F, ACTOR;
-    BLOCK_FACE = "block_face", F, VARIABLES;
+    BLOCK_FACE = "block_face", F, VARIABLES => default(DefaultReturn::float(6.0));
     BLOCK_HAS_ALL_TAGS = "block_has_all_tags", B, BLOCK => min_args(4);
     BLOCK_HAS_ANY_TAG = "block_has_any_tag", B, BLOCK => min_args(4);
     BLOCK_NEIGHBOR_HAS_ALL_TAGS = "block_neighbor_has_all_tags", B, BLOCK => min_args(1);
@@ -271,7 +271,7 @@ queries! {
     CAN_SWIM = "can_swim", B, ACTOR;
     CAN_WALK = "can_walk", B, ACTOR;
     CAPE_FLAP_AMOUNT = "cape_flap_amount", F, ACTOR => split(7);
-    CARDINAL_BLOCK_FACE_PLACED_ON = "cardinal_block_face_placed_on", F, VARIABLES;
+    CARDINAL_BLOCK_FACE_PLACED_ON = "cardinal_block_face_placed_on", F, VARIABLES => default(DefaultReturn::float(6.0));
     CARDINAL_FACING = "cardinal_facing", F, ACTOR;
     CARDINAL_FACING_2D = "cardinal_facing_2d", F, ACTOR;
     CARDINAL_PLAYER_FACING = "cardinal_player_facing", F, ACTOR;
@@ -476,7 +476,7 @@ queries! {
     MAX_TRADE_TIER = "max_trade_tier", F, ACTOR;
     MAXIMUM_FRAME_TIME = "maximum_frame_time", F, CLIENT_STATE => args(0, 1).client();
     MINIMUM_FRAME_TIME = "minimum_frame_time", F, CLIENT_STATE => args(0, 1).client();
-    MODEL_SCALE = "model_scale", F, RENDER => client();
+    MODEL_SCALE = "model_scale", F, RENDER => client().default(DefaultReturn::ONE);
     MODIFIED_DISTANCE_MOVED = "modified_distance_moved", F, ACTOR.union(RENDER);
     MODIFIED_MOVE_SPEED = "modified_move_speed", F, ACTOR;
     MODIFIED_SWING_DURATION = "modified_swing_duration", F, ACTOR;
@@ -753,6 +753,12 @@ mod tests {
                 query::TICKS_SINCE_LAST_KINETIC_WEAPON_HIT,
                 DefaultReturn::NEG_ONE,
             ),
+            (query::BLOCK_FACE, DefaultReturn::float(6.0)),
+            (
+                query::CARDINAL_BLOCK_FACE_PLACED_ON,
+                DefaultReturn::float(6.0),
+            ),
+            (query::MODEL_SCALE, DefaultReturn::ONE),
             (query::OWNER_IDENTIFIER, DefaultReturn::EmptyString),
             (query::GET_EQUIPPED_ITEM_NAME, DefaultReturn::EmptyString),
             (query::COMBINE_ENTITIES, DefaultReturn::EmptyActorArray),
