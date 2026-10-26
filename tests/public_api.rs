@@ -368,6 +368,20 @@ mod compiler {
         );
     }
 
+    /// A property or block state may be compared with a string or used as a number.
+    #[test]
+    fn enum_valued_queries_compile_as_strings_and_numbers() {
+        let options = CompileOptions::server(MolangVersion::LATEST);
+        for source in [
+            "q.property('x') == 'a'",
+            "q.property('x') + 1",
+            "q.block_state('x') == 'a'",
+            "q.block_state('x') + 1",
+        ] {
+            assert_eq!(compile(source, &options).failure(), None, "{source}");
+        }
+    }
+
     /// The options and their parts are plain data, set with struct-update syntax.
     #[test]
     fn options_are_set_by_struct_update() {
@@ -1916,6 +1930,7 @@ mod catalog_and_tables {
                 (ReturnType::ACTOR_ARRAY, "actor array"),
                 (ReturnType::STRUCT, "struct"),
                 (ReturnType::MATRIX, "matrix"),
+                (ReturnType::NUMBER | ReturnType::STRING, "number or string"),
             ]
             .into_iter()
             .find(|&(k, _)| k == ty)
@@ -1932,8 +1947,9 @@ mod catalog_and_tables {
             BTreeMap::from([
                 ("actor", 1),
                 ("actor array", 1),
-                ("bool", 152),
-                ("float", 151),
+                ("bool", 150),
+                ("float", 150),
+                ("number or string", 3),
                 ("matrix", 5),
                 ("string", 4),
                 ("struct", 7)
@@ -2254,6 +2270,23 @@ mod catalog_and_tables {
             DefaultReturn::float(6.0),
             DefaultReturn::Float(FloatBits::new(6.0))
         );
+    }
+
+    #[test]
+    fn enum_valued_queries_return_a_number_or_a_string() {
+        for name in [
+            "query.property",
+            "query.block_property",
+            "query.block_state",
+        ] {
+            let returns = catalog()
+                .iter()
+                .find(|d| d.name() == name)
+                .unwrap()
+                .shape()
+                .returns;
+            assert_eq!(returns, ReturnType::NUMBER | ReturnType::STRING, "{name}");
+        }
     }
 
     #[test]

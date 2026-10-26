@@ -195,6 +195,8 @@ pub(super) fn catalog(side: Side, release: Option<&Version>) -> QueryCatalog {
 const F: ReturnType = ReturnType::FLOAT;
 const B: ReturnType = ReturnType::BOOL;
 const HASH: ReturnType = ReturnType::STRING;
+/// A number or a boolean, or a string where the stored value is an enum.
+const NUMBER_OR_HASH: ReturnType = ReturnType::NUMBER.union(ReturnType::STRING);
 const MATRIX: ReturnType = ReturnType::MATRIX;
 const STRUCT: ReturnType = ReturnType::STRUCT;
 const ACTOR_REF: ReturnType = ReturnType::ACTOR;
@@ -251,8 +253,8 @@ queries! {
     BLOCK_HAS_ANY_TAG = "block_has_any_tag", B, BLOCK => min_args(4);
     BLOCK_NEIGHBOR_HAS_ALL_TAGS = "block_neighbor_has_all_tags", B, BLOCK => min_args(1);
     BLOCK_NEIGHBOR_HAS_ANY_TAG = "block_neighbor_has_any_tag", B, BLOCK => min_args(1);
-    BLOCK_PROPERTY = "block_property", B, BLOCK => args(1, 1).until(9);
-    BLOCK_STATE = "block_state", B, BLOCK => args(1, 1);
+    BLOCK_PROPERTY = "block_property", NUMBER_OR_HASH, BLOCK => args(1, 1).until(9);
+    BLOCK_STATE = "block_state", NUMBER_OR_HASH, BLOCK => args(1, 1);
     BLOCKING = "blocking", B, ACTOR;
     BODY_X_ROTATION = "body_x_rotation", F, ACTOR.union(RENDER);
     BODY_Y_ROTATION = "body_y_rotation", F, ACTOR.union(RENDER);
@@ -492,7 +494,7 @@ queries! {
     POSITION = "position", F, ACTOR => args(1, 1);
     POSITION_DELTA = "position_delta", F, ACTOR => args(1, 1);
     PREVIOUS_SQUISH_VALUE = "previous_squish_value", F, ACTOR;
-    PROPERTY = "property", F, ACTOR => args(1, 1);
+    PROPERTY = "property", NUMBER_OR_HASH, ACTOR => args(1, 1);
     RELATIVE_BLOCK_HAS_ALL_TAGS = "relative_block_has_all_tags", B, ACTOR.union(BLOCK) => min_args(1);
     RELATIVE_BLOCK_HAS_ANY_TAG = "relative_block_has_any_tag", B, ACTOR.union(BLOCK) => min_args(1);
     REMAINING_DURABILITY = "remaining_durability", F, ITEM => args(0, 0);
@@ -646,6 +648,10 @@ mod tests {
                 (ReturnType::ACTOR_ARRAY, "actor array"),
                 (ReturnType::STRUCT, "struct"),
                 (ReturnType::MATRIX, "matrix"),
+                (
+                    ReturnType::NUMBER.union(ReturnType::STRING),
+                    "number or string",
+                ),
             ]
             .into_iter()
             .find(|&(k, _)| k == ty)
@@ -665,8 +671,9 @@ mod tests {
             BTreeMap::from([
                 ("actor", 1),
                 ("actor array", 1),
-                ("bool", 152),
-                ("float", 151),
+                ("bool", 150),
+                ("float", 150),
+                ("number or string", 3),
                 ("matrix", 5),
                 ("string", 4),
                 ("struct", 7)
@@ -773,6 +780,17 @@ mod tests {
                     .unwrap_or(DefaultReturn::ZERO),
                 "{}",
                 decl.name()
+            );
+        }
+    }
+
+    #[test]
+    fn enum_valued_queries_return_a_number_or_a_string() {
+        for name in [query::PROPERTY, query::BLOCK_PROPERTY, query::BLOCK_STATE] {
+            assert_eq!(
+                get(name).shape().returns,
+                ReturnType::NUMBER.union(ReturnType::STRING),
+                "{name}"
             );
         }
     }
