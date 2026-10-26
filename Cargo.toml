@@ -98,4 +98,5 @@ required-features = ["compiler", "stdlib"]
 
 [[test]]
 name = "glibc_oracle"
+# The ports are crate-private; the test reaches them through the hidden `internals` module.
 required-features = ["fuzz", "compiler"]

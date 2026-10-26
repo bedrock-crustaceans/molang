@@ -5,11 +5,12 @@
 //! different glibc or a CPU without FMA can fail here without the port being wrong.
 //!
 //! The ignored `exhaustive` test sweeps every `f32` through each one-argument function and 2³²
-//! random pairs through `powf` and `atan2f` (run it with `--release -- --ignored`); setting
-//! `MOLANG_EXHAUSTIVE` to a comma-separated list of names, such as `sinf,powf`, limits it to those.
+//! random pairs through `powf` and `atan2f`; `MOLANG_EXHAUSTIVE`, a comma-separated list of names
+//! such as `sinf,powf`, limits it to those.
 #![cfg(all(target_os = "linux", target_env = "gnu", target_arch = "x86_64"))]
 
 use std::ffi::{CStr, c_char, c_int, c_void};
+use std::hint::black_box;
 use std::sync::OnceLock;
 
 use molang::internals::glibc as port;
@@ -384,17 +385,25 @@ fn check_binary(index: usize) {
     m.assert_none();
 }
 
-/// The host functions are glibc's, not an `f64` body rounded once: they differ from one on
-/// `math.sin(13)` and on 893 entries of the sine table.
+/// The host functions are glibc's FMA build: they differ from an `f64` body rounded once on
+/// `math.sin(13)` and on 893 entries of the sine table, and from the build without FMA on
+/// `sinf(0x4255b0a9)`.
 #[test]
 fn the_oracle_is_glibc() {
-    let degrees = 13.0_f32 * f32::from_bits(0x3c8e_fa35);
+    // Opaque arguments: an optimised build folds a call on a constant itself.
+    let degrees = black_box(13.0_f32 * f32::from_bits(0x3c8e_fa35));
     assert_eq!(sinf(degrees).to_bits(), 0x3e66_5992);
     assert_eq!((f64::from(degrees).sin() as f32).to_bits(), 0x3e66_5991);
     let differing = sine_table_arguments()
         .filter(|&x| sinf(x).to_bits() != (f64::from(x).sin() as f32).to_bits())
         .count();
     assert_eq!(differing, 893, "glibc {}", glibc_version());
+    assert_eq!(
+        sinf(black_box(f32::from_bits(0x4255_b0a9))).to_bits(),
+        0xbc7d_08a9,
+        "the host's glibc {} is not running its FMA build",
+        glibc_version()
+    );
 }
 
 #[test]
@@ -462,7 +471,7 @@ fn atan2f_matches_the_host() {
 
 /// Every `f32` through each one-argument function, 2³² random pairs through each two-argument one.
 #[test]
-#[ignore = "takes minutes in release; run with `cargo test --release --test glibc_oracle -- --ignored`"]
+#[ignore = "a sweep of 2³² arguments per function; run it in release"]
 fn exhaustive() {
     let selected: Option<Vec<String>> = std::env::var("MOLANG_EXHAUSTIVE")
         .ok()

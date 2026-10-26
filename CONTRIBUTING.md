@@ -30,7 +30,11 @@ Hostile-input tests can allocate a lot; run them under a memory cap, for example
 
 ### The glibc oracle
 
-`src/stdlib/math/glibc/` ports glibc's single-precision `sinf`, `cosf`, `expf`, `exp2f`, `logf`, `log2f`, `powf`, `asinf`, `acosf`, `atanf` and `atan2f` bit for bit, as glibc 2.41 computes them on an x86-64 CPU with FMA (the build glibc selects there, whose fused multiply-adds each port mirrors with `mul_add`). Their unit tests pin known results on every host. `tests/glibc_oracle.rs` (features `fuzz` and `compiler`) compares them with the host's own glibc and so runs only on x86-64 Linux with glibc, the one test behind a `cfg`; a failure names the host's glibc version, since another version or a CPU without FMA can differ without the port being wrong. Its default run takes about a second; the ignored sweep of every `f32` through each one-argument function (and 2³² random pairs through `powf` and `atan2f`) takes some minutes in release, and `MOLANG_EXHAUSTIVE` limits it to a comma-separated list of names:
+`src/stdlib/math/glibc/` ports glibc's single-precision `sinf`, `cosf`, `expf`, `exp2f`, `logf`, `log2f`, `powf`, `asinf`, `acosf`, `atanf` and `atan2f` bit for bit, as glibc 2.41 computes them on an x86-64 CPU with FMA: the build glibc selects there, whose fused multiply-adds each port mirrors with `mul_add`. Their unit tests pin reference results on every host, among them arguments that glibc's build without FMA rounds the other way.
+
+`tests/glibc_oracle.rs` (features `fuzz` and `compiler`) compares the ports with the host's own glibc. The whole file is gated on x86-64 Linux with glibc. A failure names the host's glibc version, since another version or a CPU without FMA can differ without the port being wrong.
+
+An ignored test sweeps every `f32` through each one-argument function and 2³² random pairs through `powf` and `atan2f`; `MOLANG_EXHAUSTIVE` limits it to a comma-separated list of names:
 
 ```bash
 cargo test --release --features fuzz,compiler --test glibc_oracle -- --ignored
