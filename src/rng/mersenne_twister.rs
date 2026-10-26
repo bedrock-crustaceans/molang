@@ -17,12 +17,13 @@ const LOWER_MASK: u32 = 0x7fff_ffff;
 /// The 32-bit Mersenne Twister, MT19937: `init_genrand` seeding and `genrand_int32` output.
 ///
 /// A [`RandomSource::sample`] is one output `u` as `u · 2^-32` in `f64`, then rounded to `f32`:
-/// every output from `0xffff_ff80` up rounds to exactly 1.0, and below 0.5 the sample keeps 24
-/// significant bits where the 31-bit mapping keeps fewer. `next_u32` is one output; `next_u64` is
-/// two, the first in the low half; `fill_bytes` takes one per 4 bytes, little-endian.
+/// every output from `0xffff_ff80` up rounds to exactly 1.0. Unlike the 31-bit mapping, it uses
+/// all 32 bits of the output, on a 2^-32 grid. `next_u32` is one output; `next_u64` is two, the
+/// first in the low half; `fill_bytes` takes one per 4 bytes, little-endian.
 ///
-/// The constructors `for_*` seed the generators of world generation from the level seed; the
-/// per-chunk decoration generator is what a feature rule's `math.random` draws from.
+/// The constructors `for_*` seed the generators of world generation; the per-chunk decoration
+/// generator is what a feature rule's `math.random` draws from. A level seed is taken as its low
+/// 32 bits.
 ///
 /// ```
 /// use molang::rng::{MersenneTwister, RandomSource, rand_core::Rng};
@@ -43,6 +44,7 @@ pub struct MersenneTwister {
 impl MersenneTwister {
     /// The generator seeded with `seed` (`init_genrand`): `mt[0] = seed`, then
     /// `mt[i] = 1812433253 · (mt[i-1] ^ (mt[i-1] >> 30)) + i`, wrapping, for `i` up to 623.
+    #[must_use]
     pub const fn new(seed: u32) -> Self {
         let mut state = [0; N];
         state[0] = seed;
@@ -62,53 +64,66 @@ impl MersenneTwister {
     }
 
     /// The seed this generator was created with, whatever it has drawn since.
+    #[must_use]
     pub const fn seed(&self) -> u32 {
         self.seed
     }
 
     /// The generator of a chunk's feature-rule pass: `MersenneTwister::new((cx·a + cz·b) ^ S)`,
-    /// wrapping, with `S` the level seed, `(cx, cz)` the chunk coordinates, and `a`, `b` the first
-    /// two [`next_int`](Self::next_int)s of `MersenneTwister::new(S)`, each with its low bit set.
+    /// wrapping, with `S` the low 32 bits of the level seed, `(cx, cz)` the chunk coordinates, and
+    /// `a`, `b` the first two [`next_int`](Self::next_int)s of `MersenneTwister::new(S)`, each with
+    /// its low bit set.
     ///
     /// It drives the `math.random` of every rule's expressions in the pass, sharing one state
-    /// across the rules; [`for_feature_rule`](Self::for_feature_rule) builds each rule's own.
-    pub fn for_chunk_decoration(level_seed: u32, chunk_x: i32, chunk_z: i32) -> Self {
+    /// across the rules; [`for_feature_rule`](Self::for_feature_rule) of its
+    /// [`seed`](Self::seed) builds each rule's own.
+    #[must_use]
+    pub const fn for_chunk_decoration(level_seed: u32, chunk_x: i32, chunk_z: i32) -> Self {
         Self::new(chunk_seed(level_seed, chunk_x, chunk_z))
     }
 
     /// The generator of a structure start in a chunk: seeded as
     /// [`for_chunk_decoration`](Self::for_chunk_decoration), then one
     /// [`next_int`](Self::next_int) discarded.
-    pub fn for_structure_start(level_seed: u32, chunk_x: i32, chunk_z: i32) -> Self {
+    #[must_use]
+    pub const fn for_structure_start(level_seed: u32, chunk_x: i32, chunk_z: i32) -> Self {
         let mut mt = Self::for_chunk_decoration(level_seed, chunk_x, chunk_z);
         mt.next_int();
         mt
     }
 
-    /// The generator of one feature rule placed with `self`, the pass's generator:
-    /// `MersenneTwister::new(((s << 6) + (s >> 2) + h + 0x9e3779b9) ^ s)`, wrapping, with `s` the
-    /// [`seed`](Self::seed) of `self` (not its state) and `h` the low 32 bits of the rule's
-    /// identifier hash.
+    /// The generator of one feature rule: `MersenneTwister::new(((s << 6) + (s >> 2) + h +
+    /// 0x9e3779b9) ^ s)`, wrapping, with `s` the [`seed`](Self::seed) of the pass's generator (not
+    /// its state) and `h` the low 32 bits of the rule's identifier hash. The host supplies the
+    /// hash; the crate does not define it.
     ///
-    /// It draws the rule's chance, iterations and coordinate distributions; the placed feature
-    /// gets a second generator equal to a fresh one of these.
+    /// It draws the rule's chance, iterations and coordinate distributions. When the iterations
+    /// are more than 0, the placed feature gets a second generator equal to a fresh one of these.
+    ///
+    /// ```
+    /// use molang::rng::MersenneTwister;
+    ///
+    /// let chunk = MersenneTwister::for_chunk_decoration(12_345, 3, -7);
+    /// let rule = MersenneTwister::for_feature_rule(chunk.seed(), 0xf7a7_6dfd);
+    /// assert_eq!(rule.seed(), 3_348_516_332);
+    /// ```
     #[must_use]
-    pub const fn for_feature_rule(&self, identifier_hash: u64) -> Self {
-        let s = self.seed;
+    pub const fn for_feature_rule(chunk_seed: u32, identifier_hash: u32) -> Self {
+        let s = chunk_seed;
         let mixed = (s << 6)
             .wrapping_add(s >> 2)
-            .wrapping_add(identifier_hash as u32)
+            .wrapping_add(identifier_hash)
             .wrapping_add(0x9e37_79b9);
         Self::new(mixed ^ s)
     }
 
     /// One output shifted right by 1: in `[0, 2^31)`.
-    pub fn next_int(&mut self) -> u32 {
+    pub const fn next_int(&mut self) -> u32 {
         self.next_word() >> 1
     }
 
     /// One output modulo `bound`, or 0 with no draw when `bound` is 0.
-    pub fn next_int_below(&mut self, bound: u32) -> u32 {
+    pub const fn next_int_below(&mut self, bound: u32) -> u32 {
         if bound == 0 {
             0
         } else {
@@ -117,7 +132,7 @@ impl MersenneTwister {
     }
 
     /// `genrand_int32`: the next tempered word.
-    fn next_word(&mut self) -> u32 {
+    const fn next_word(&mut self) -> u32 {
         if self.index >= N {
             self.twist();
         }
@@ -130,18 +145,20 @@ impl MersenneTwister {
     }
 
     /// Regenerates all `N` words.
-    fn twist(&mut self) {
-        for i in 0..N {
+    const fn twist(&mut self) {
+        let mut i = 0;
+        while i < N {
             let y = (self.state[i] & UPPER_MASK) | (self.state[(i + 1) % N] & LOWER_MASK);
             let mag = if y & 1 == 0 { 0 } else { MATRIX_A };
             self.state[i] = self.state[(i + M) % N] ^ (y >> 1) ^ mag;
+            i += 1;
         }
         self.index = 0;
     }
 }
 
 /// `(cx·a + cz·b) ^ S` with `a`, `b` the first two `next_int`s of `MT(S)`, low bit set.
-fn chunk_seed(level_seed: u32, chunk_x: i32, chunk_z: i32) -> u32 {
+const fn chunk_seed(level_seed: u32, chunk_x: i32, chunk_z: i32) -> u32 {
     let mut level = MersenneTwister::new(level_seed);
     let a = level.next_int() | 1;
     let b = level.next_int() | 1;
@@ -255,7 +272,7 @@ mod tests {
                 4_156_218_106
             ]
         );
-        // The 10000th output, which the C++ standard requires of `std::mt19937`.
+        // The 10000th output, one of the published reference outputs.
         assert_eq!(outputs(5489, 10_000)[9_999], 4_123_659_995);
     }
 
@@ -336,7 +353,8 @@ mod tests {
         assert_eq!(bits32(0x8000_0000), 0.5);
         assert_eq!(bits32(1).to_bits(), 0x2f80_0000);
         assert_eq!(bits32(0).to_bits(), 0.0_f32.to_bits());
-        // The low bit breaks a tie that `next_int` (2^24 + 1) under the 31-bit mapping rounds to even.
+        // 2^25 + 3 rounds up under the 32-bit mapping; g >> 1 = 2^24 + 1 under the 31-bit mapping
+        // is a tie and rounds to even.
         assert_eq!(bits32((1 << 25) + 3).to_bits(), 0x3c00_0001);
         assert_eq!(
             Bits31(FixedRng((1 << 24) + 1)).sample().to_bits(),
@@ -395,28 +413,33 @@ mod tests {
     #[test]
     fn the_feature_rule_seed_mixes_the_chunk_seed_not_its_state() {
         let mut chunk = MersenneTwister::for_chunk_decoration(12_345, 3, -7);
-        let hash = 0x3ac1_86ed_f7a7_6dfd;
+        let hash = 0xf7a7_6dfd;
         let s = chunk.seed();
         let by_hand = ((s << 6)
             .wrapping_add(s >> 2)
-            .wrapping_add(0xf7a7_6dfd)
+            .wrapping_add(hash)
             .wrapping_add(0x9e37_79b9))
             ^ s;
         assert_eq!(by_hand, 3_348_516_332);
-        let fresh = chunk.for_feature_rule(hash);
+        let fresh = MersenneTwister::for_feature_rule(chunk.seed(), hash);
         assert_eq!(fresh, MersenneTwister::new(by_hand));
         chunk.next_u32();
         assert_eq!(
-            chunk.for_feature_rule(hash),
+            MersenneTwister::for_feature_rule(chunk.seed(), hash),
             fresh,
             "drawing changes nothing"
         );
         assert_eq!(fresh.clone().next_u32(), 760_173_523);
-        assert_eq!(
-            chunk.for_feature_rule(hash ^ (1 << 40)),
-            fresh,
-            "only the low 32 bits count"
-        );
+    }
+
+    #[test]
+    fn the_constructors_run_at_compile_time() {
+        const CHUNK: MersenneTwister = MersenneTwister::for_chunk_decoration(12_345, 3, -7);
+        const START: MersenneTwister = MersenneTwister::for_structure_start(12_345, 3, -7);
+        const RULE: MersenneTwister = MersenneTwister::for_feature_rule(CHUNK.seed(), 0xf7a7_6dfd);
+        assert_eq!(CHUNK.seed(), 1_197_795_863);
+        assert_eq!(START.clone().next_u32(), 244_950_694);
+        assert_eq!(RULE.seed(), 3_348_516_332);
     }
 
     #[test]

@@ -267,6 +267,15 @@ mod tests {
     }
 
     #[test]
+    fn the_sources_are_send_and_sync() {
+        fn send_sync<T: Send + Sync>() {}
+        send_sync::<MersenneTwister>();
+        send_sync::<Bits31<Xorshift128>>();
+        send_sync::<FixedRng>();
+        send_sync::<Xorshift128>();
+    }
+
+    #[test]
     fn fixed_sources() {
         for (mut source, expected) in [
             (FixedRng::ZERO, 0.0),

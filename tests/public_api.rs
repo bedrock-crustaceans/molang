@@ -1147,7 +1147,7 @@ mod rng {
             (start.seed(), start.next_u32()),
             (1_197_795_863, 244_950_694)
         );
-        let rule = chunk.for_feature_rule(0x3ac1_86ed_f7a7_6dfd);
+        let rule = MersenneTwister::for_feature_rule(chunk.seed(), 0xf7a7_6dfd);
         assert_eq!(rule.seed(), 3_348_516_332);
         assert!(format!("{rule:?}").starts_with("MersenneTwister { seed: 3348516332"));
     }
