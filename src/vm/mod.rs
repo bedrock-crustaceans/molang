@@ -30,6 +30,17 @@
 //!
 //! Structs share members, so walk stored values with [`Value::distinct_structs`] or bound the walk.
 //!
+//! # Contexts
+//!
+//! How the game wires an evaluation up differs by site; the host builds each one.
+//!
+//! | Context | What the host does |
+//! |---|---|
+//! | Ambient-sound and anger-sound conditions | No variable store: use [`NoVariables`], so `variable.*` reads are missing and end the evaluation with 0 |
+//! | `context.*` | The game keeps one map per thread, shared by every evaluation; some sites clear it afterwards and others do not, so a later evaluation may see a stale value. A host that wants that keeps one [`ContextMap`] across evaluations, otherwise it fills a fresh one each time |
+//! | Particles | One `variable.*` map per emitter, shared by the emitter's expressions and all its particles, never the owner actor's map |
+//! | Client rotation and walk queries | Body and head rotations (including rider and ride), `walk_distance`, `modified_distance_moved`, `modified_move_speed`, `swell_amount`, `head_roll_angle` and `shield_blocking_bob` are interpolated by the frame alpha; the query implementation applies it |
+//!
 //! # Deviations
 //!
 //! | Behaviour | Default | Alternative |
