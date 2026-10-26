@@ -6,9 +6,7 @@
 //! NaN the caller passes, or `0xffc00000` for the remainder. [`Libm`] selects between those bodies
 //! and the ports of glibc's single-precision functions.
 
-use std::sync::LazyLock;
-
-use super::{arch::SIN_INDEX_SCALE, glibc};
+use super::glibc;
 
 /// The quiet NaN with the sign bit clear.
 pub(crate) const POSITIVE_NAN: f32 = f32::from_bits(0x7fc0_0000);
@@ -123,21 +121,51 @@ pub(crate) fn rem(a: f32, b: f32) -> f32 {
     }
 }
 
-/// The library whose bodies compute `sin` … `pow` and the easings' sine table.
+/// The library whose bodies compute `sin` … `pow` and fill the easings' sine table.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(dead_code, reason = "the platform dispatch chooses a library")]
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the platform dispatch chooses a library")
+)]
 pub(crate) enum Libm {
-    /// The free functions of this module: `f64` rounded once, with the caller's `invalid` NaN.
-    RoundedF64,
-    /// glibc's single-precision functions as its FMA build on x86-64 computes them. They choose
-    /// their own NaNs and ignore `invalid`.
+    /// The free functions of this module: `f64` rounded once. `invalid` is the NaN of every invalid
+    /// operation, `asin` and `acos` of `|x| > 1` included.
+    RoundedF64 { invalid: InvalidNan },
+    /// glibc's single-precision functions as its FMA build on x86-64 computes them, with their own
+    /// NaNs: `0xffc00000` for `sin`/`cos` of ±∞ and an invalid `pow`, `0x7fc00000` for `asin`/
+    /// `acos` of `|x| > 1`, and for `ln` of a negative the one of the bound `logf` symbol.
     Glibc(LogfSymbol),
+}
+
+/// The NaN an invalid operation of [`Libm::RoundedF64`] gives.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the platform dispatch chooses a NaN")
+)]
+pub(crate) enum InvalidNan {
+    /// `0x7fc00000`.
+    Positive,
+    /// `0xffc00000`.
+    Negative,
+}
+
+impl InvalidNan {
+    fn nan(self) -> f32 {
+        match self {
+            Self::Positive => POSITIVE_NAN,
+            Self::Negative => NEGATIVE_NAN,
+        }
+    }
 }
 
 /// The `logf` symbol a build linked against glibc binds; the other functions give the same values
 /// through either version.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(dead_code, reason = "the platform dispatch chooses a symbol")]
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the platform dispatch chooses a symbol")
+)]
 pub(crate) enum LogfSymbol {
     /// `logf@GLIBC_2.2.5`, the compatibility wrapper: `ln` of a negative is `0x7fc00000`.
     Compat,
@@ -145,93 +173,95 @@ pub(crate) enum LogfSymbol {
     Current,
 }
 
-#[allow(dead_code, reason = "the platform dispatch calls these")]
+/// The easings' sine table: 65,536 entries.
+pub(crate) type SinTable = Box<[f32; 65_536]>;
+
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the platform dispatch calls these")
+)]
 impl Libm {
-    pub(crate) fn sin(self, x: f32, invalid: f32) -> f32 {
+    pub(crate) fn sin(self, x: f32) -> f32 {
         match self {
-            Self::RoundedF64 => sin(x, invalid),
+            Self::RoundedF64 { invalid } => sin(x, invalid.nan()),
             Self::Glibc(_) => glibc::sinf(x),
         }
     }
 
-    pub(crate) fn cos(self, x: f32, invalid: f32) -> f32 {
+    pub(crate) fn cos(self, x: f32) -> f32 {
         match self {
-            Self::RoundedF64 => cos(x, invalid),
+            Self::RoundedF64 { invalid } => cos(x, invalid.nan()),
             Self::Glibc(_) => glibc::cosf(x),
         }
     }
 
-    /// `|x| > 1` gives [`POSITIVE_NAN`].
     pub(crate) fn asin(self, x: f32) -> f32 {
         match self {
-            Self::RoundedF64 => asin(x),
+            Self::RoundedF64 { invalid } if x.abs() > 1.0 => invalid.nan(),
+            Self::RoundedF64 { .. } => asin(x),
             Self::Glibc(_) => glibc::asinf(x),
         }
     }
 
-    /// `|x| > 1` gives [`POSITIVE_NAN`].
     pub(crate) fn acos(self, x: f32) -> f32 {
         match self {
-            Self::RoundedF64 => acos(x),
+            Self::RoundedF64 { invalid } if x.abs() > 1.0 => invalid.nan(),
+            Self::RoundedF64 { .. } => acos(x),
             Self::Glibc(_) => glibc::acosf(x),
         }
     }
 
     pub(crate) fn atan(self, x: f32) -> f32 {
         match self {
-            Self::RoundedF64 => atan(x),
+            Self::RoundedF64 { .. } => atan(x),
             Self::Glibc(_) => glibc::atanf(x),
         }
     }
 
     pub(crate) fn atan2(self, y: f32, x: f32) -> f32 {
         match self {
-            Self::RoundedF64 => atan2(y, x),
+            Self::RoundedF64 { .. } => atan2(y, x),
             Self::Glibc(_) => glibc::atan2f(y, x),
         }
     }
 
     pub(crate) fn exp(self, x: f32) -> f32 {
         match self {
-            Self::RoundedF64 => exp(x),
+            Self::RoundedF64 { .. } => exp(x),
             Self::Glibc(_) => glibc::expf(x),
         }
     }
 
     pub(crate) fn exp2(self, x: f32) -> f32 {
         match self {
-            Self::RoundedF64 => exp2(x),
+            Self::RoundedF64 { .. } => exp2(x),
             Self::Glibc(_) => glibc::exp2f(x),
         }
     }
 
-    pub(crate) fn ln(self, x: f32, invalid: f32) -> f32 {
+    pub(crate) fn ln(self, x: f32) -> f32 {
         match self {
-            Self::RoundedF64 => ln(x, invalid),
+            Self::RoundedF64 { invalid } => ln(x, invalid.nan()),
             Self::Glibc(LogfSymbol::Compat) => glibc::logf_compat(x),
             Self::Glibc(LogfSymbol::Current) => glibc::logf(x),
         }
     }
 
-    pub(crate) fn pow(self, a: f32, b: f32, invalid: f32) -> f32 {
+    pub(crate) fn pow(self, a: f32, b: f32) -> f32 {
         match self {
-            Self::RoundedF64 => pow(a, b, invalid),
+            Self::RoundedF64 { invalid } => pow(a, b, invalid.nan()),
             Self::Glibc(_) => glibc::powf(a, b),
         }
     }
 
-    /// Entry `index` of the easings' sine table, `sin(index / SIN_INDEX_SCALE)` with the quotient
-    /// in `f32`. glibc's table is filled on first use.
-    pub(crate) fn sin_table_entry(self, index: u16) -> f32 {
-        static GLIBC: LazyLock<Box<[f32]>> = LazyLock::new(|| {
-            (0..=u16::MAX)
-                .map(|i| glibc::sinf(f32::from(i) / SIN_INDEX_SCALE))
-                .collect()
-        });
-        match self {
-            Self::RoundedF64 => sin(f32::from(index) / SIN_INDEX_SCALE, POSITIVE_NAN),
-            Self::Glibc(_) => GLIBC[usize::from(index)],
-        }
+    /// The sine table whose entry `i` is `sin(argument(i))`; the platform gives the argument and
+    /// keeps the table, built once, in a static.
+    pub(crate) fn sin_table(self, argument: impl Fn(u16) -> f32) -> SinTable {
+        let entries: Vec<f32> = (0..=u16::MAX).map(|i| self.sin(argument(i))).collect();
+        entries
+            .into_boxed_slice()
+            .try_into()
+            .expect("65,536 entries")
     }
 }
 
@@ -393,6 +423,68 @@ mod tests {
         assert_eq!(bits(asin(at(0x3bf8_b588))), 0x3bf8_b625);
         assert_eq!(bits(exp2(at(0xb59b_cfa6))), 0x3f7f_fff3);
         assert_eq!(bits(pow(at(0x3f8e_147b), -10.0, INVALID)), 0x3eb4_5185);
+    }
+
+    #[test]
+    fn each_library_chooses_its_nans() {
+        let rounded = |invalid| Libm::RoundedF64 { invalid };
+        for (libm, sin_inf, ln_negative, asin_beyond) in [
+            (
+                rounded(InvalidNan::Positive),
+                0x7fc0_0000,
+                0x7fc0_0000,
+                0x7fc0_0000,
+            ),
+            (
+                rounded(InvalidNan::Negative),
+                0xffc0_0000,
+                0xffc0_0000,
+                0xffc0_0000,
+            ),
+            (
+                Libm::Glibc(LogfSymbol::Compat),
+                0xffc0_0000,
+                0x7fc0_0000,
+                0x7fc0_0000,
+            ),
+            (
+                Libm::Glibc(LogfSymbol::Current),
+                0xffc0_0000,
+                0xffc0_0000,
+                0x7fc0_0000,
+            ),
+        ] {
+            assert_eq!(bits(libm.sin(INF)), sin_inf, "{libm:?}");
+            assert_eq!(bits(libm.cos(-INF)), sin_inf, "{libm:?}");
+            assert_eq!(bits(libm.ln(-1.0)), ln_negative, "{libm:?}");
+            assert_eq!(bits(libm.asin(1.001)), asin_beyond, "{libm:?}");
+            assert_eq!(bits(libm.acos(-INF)), asin_beyond, "{libm:?}");
+            assert_eq!(bits(libm.asin(SIGNALLING)), 0x7fc0_0001, "{libm:?}");
+            assert_eq!(bits(libm.acos(NEGATIVE_NAN)), 0xffc0_0000, "{libm:?}");
+            assert_eq!(bits(libm.pow(-8.0, 0.5)), sin_inf, "{libm:?}");
+            assert_eq!(bits(libm.atan(SIGNALLING)), 0x7fc0_0001, "{libm:?}");
+            assert_eq!(bits(libm.atan2(1.0, 0.0)), 0x3fc9_0fdb, "{libm:?}");
+            assert_eq!(libm.exp(0.0), 1.0, "{libm:?}");
+            assert_eq!(libm.exp2(-3.0), 0.125, "{libm:?}");
+        }
+    }
+
+    #[test]
+    fn the_glibc_sine_table_differs_from_the_rounded_one_in_893_entries() {
+        let scale = f32::from_bits(0x4622_f983);
+        let argument = |i| f32::from(i) / scale;
+        let glibc = Libm::Glibc(LogfSymbol::Compat).sin_table(argument);
+        let rounded = Libm::RoundedF64 {
+            invalid: InvalidNan::Negative,
+        }
+        .sin_table(argument);
+        let differing = glibc
+            .iter()
+            .zip(rounded.iter())
+            .filter(|(a, b)| a != b)
+            .count();
+        assert_eq!(differing, 893);
+        assert_eq!(bits(glibc[1]), bits(glibc::sinf(argument(1))));
     }
 
     #[test]
