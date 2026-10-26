@@ -9,7 +9,7 @@ use super::Aborted;
 use super::loops::LoopVar;
 use super::{Base, Deopt, Slot, Stop, Vm};
 use crate::catalog::{MAX_MATH_ARGS, MathImpl, MathRef};
-use crate::compile::program::{Divisor, Instr, PostIdx, Program, TempIdx};
+use crate::compile::program::{Divisor, Instr, NameIdx, PostIdx, Program, TempIdx};
 use crate::hash::HashedStr;
 use crate::numeric::{self, arith};
 #[cfg(feature = "stdlib")]
@@ -85,6 +85,10 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
                     }
                     None => pc = self.missing(cx, base, program.name_text(n))?,
                 },
+                Instr::ArrayElement { n, p } => {
+                    let element = self.array_element(program, cx, n);
+                    self.acc = Self::with_post(program, &element, p).ok_or(Deopt::At(at))?;
+                }
                 Instr::Member { m, p } => {
                     let entry = program.member(m);
                     let base_value = self.acc.to_value();
@@ -407,6 +411,24 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
             MathImpl::Volatile(call) => call(program.platform, &mut *cx.rng, &values[..count]),
         };
         program.post(p).apply(program.platform, value)
+    }
+
+    /// The element `array.<n>[acc]` reads, without its post-op.
+    #[inline(never)]
+    fn array_element(&self, program: &Program, cx: &mut EvalCx<'_, '_, H>, n: NameIdx) -> Value<H> {
+        let Some(elements) = cx.arrays.array(program.array_name(n)) else {
+            let name = program.name_text(n);
+            cx.sink.runtime(RuntimeMsg::UnknownArray { name });
+            return Value::ZERO;
+        };
+        match numeric::array_index(program.platform, self.acc.f32(), elements.len()) {
+            Some(i) => Value::Resource(elements[i]),
+            None => {
+                let name = program.name_text(n);
+                cx.sink.runtime(RuntimeMsg::EmptyArray { name });
+                Value::ZERO
+            }
+        }
     }
 
     #[inline]
@@ -890,5 +912,113 @@ mod tests {
             expected.sample();
         }
         assert_eq!(env.rng, expected);
+    }
+
+    fn textures(count: usize) -> Vec<ResourceRef> {
+        (0..count)
+            .map(|i| ResourceRef::new(&format!("texture.t{i}")))
+            .collect()
+    }
+
+    /// `array.a[v.i]` on `platform`, with `array.a` holding `len` textures (none: unknown).
+    fn element(platform: Platform, index: f32, len: Option<usize>) -> (NV, Vec<String>) {
+        let options = CompileOptions {
+            platform,
+            arrays: crate::compile::ArrayAccess::FromHost,
+            ..CompileOptions::server(MolangVersion::LATEST)
+        };
+        let expr = compile("array.a[v.i]", &options).expr().cloned().unwrap();
+        let mut env = NoHostEnv::new();
+        if let Some(len) = len {
+            env.arrays
+                .set(crate::vm::ArrayName::new("a"), textures(len));
+        }
+        set(&mut env, &[("i", index)]);
+        let value = expr.eval(&mut env.cx());
+        (value, env.sink.take())
+    }
+
+    fn texture(i: usize) -> NV {
+        NV::Resource(textures(i + 1)[i])
+    }
+
+    #[test]
+    fn an_array_index_truncates_clamps_and_wraps_on_every_platform() {
+        use crate::numeric::test_support::PLATFORMS;
+        for platform in PLATFORMS {
+            for (index, at) in [
+                (0.0, 0),
+                (1.9, 1),
+                (-0.9, 0),
+                (-3.0, 0),
+                (5.0, 2),
+                (6.0, 0),
+                (f32::NAN, 0),
+                (f32::NEG_INFINITY, 0),
+                (-3.0e9, 0),
+            ] {
+                assert_eq!(
+                    element(platform, index, Some(3)),
+                    (texture(at), vec![]),
+                    "{platform:?} {index}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_index_past_the_int_range_is_converted_as_the_platform_converts() {
+        use crate::numeric::test_support::{PLATFORMS, servers_or_android};
+        for platform in PLATFORMS {
+            // The servers make `i32::MIN` (then 0), Android saturates to `i32::MAX`, 1 mod 3.
+            let at = servers_or_android(platform, 0, 1);
+            for index in [3.0e9, f32::INFINITY] {
+                assert_eq!(
+                    element(platform, index, Some(3)).0,
+                    texture(at),
+                    "{platform:?} {index}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_unknown_or_empty_array_reads_zero_with_a_message() {
+        assert_eq!(
+            element(Platform::default(), 1.0, None),
+            (NV::ZERO, vec!["molang: unknown array 'array.a'".to_owned()])
+        );
+        assert_eq!(
+            element(Platform::default(), 1.0, Some(0)),
+            (
+                NV::ZERO,
+                vec!["molang: array 'array.a' has no elements".to_owned()]
+            )
+        );
+    }
+
+    #[test]
+    fn an_array_element_takes_the_post_op_as_a_float() {
+        let mut p = with_names(
+            asm(vec![
+                Instr::Const { c: ConstIdx(0) },
+                Instr::ArrayElement {
+                    n: NameIdx(0),
+                    p: PostIdx(1),
+                },
+                Instr::End,
+            ]),
+            &["array.a"],
+            &[],
+        );
+        p.consts = vec![1.0].into_boxed_slice();
+        p.posts = vec![PostOp::IDENTITY, PostOp::new(2.0, 1.0)].into_boxed_slice();
+        let mut env = NoHostEnv::new();
+        env.arrays.set(crate::vm::ArrayName::new("a"), textures(2));
+        let mut cx = env.cx();
+        let mut vm = Vm::<NoHost, NV>::new(&p, Some(100));
+        vm.run(&p, &mut cx, 0, Base::ROOT).unwrap();
+        // A resource reads as 0, so the element with `2x + 1` is 1.
+        assert_eq!(vm.acc, NV::Float(1.0));
     }
 }

@@ -140,6 +140,28 @@ fn main() -> Result<(), molang::compile::CompileError> {
 }
 ```
 
+## Render-controller arrays
+
+`array.<name>[index]` reads an element of a render controller's `arrays` section. With `CompileOptions::client` (`arrays: ArrayAccess::FromHost`) it compiles to a read at evaluation: the index is truncated toward zero as the platform converts a float to an int, a negative index is 0, and the index wraps by the array's length. The element is a `Value::Resource`, and math on it is the compile error `MathOnArray`. `NoHostEnv` and the default `HostEnv` hold an `ArrayTable`; `HostEnv::with_arrays` swaps in any `ArrayProvider`. An unknown or empty array reads as 0 and logs a `molang:` message. Under `CompileOptions::server` (`ArrayAccess::Unresolved`), and for a bare `array.<name>` under either, the compile ends with `CompileOutcome::UsesArrays` and no program.
+
+```rust
+use molang::compile::{CompileOptions, compile};
+use molang::version::MolangVersion;
+use molang::vm::{ArrayName, NoHostEnv, ResourceRef, Value};
+
+fn main() -> Result<(), molang::compile::CompileError> {
+    let options = CompileOptions::client(MolangVersion::LATEST);
+    let (expr, _) = compile("array.skins[v.variant]", &options).into_result()?;
+
+    let mut env = NoHostEnv::new();
+    let skins = [ResourceRef::new("texture.default"), ResourceRef::new("texture.red")];
+    env.arrays.set(ArrayName::new("skins"), skins);
+    env.variables.set(molang::vm::VariableName::new("variant"), Value::Float(3.0));
+    assert_eq!(expr.eval(&mut env.cx()), Value::Resource(skins[1]));
+    Ok(())
+}
+```
+
 ## Math functions of your own
 
 Declare them in a `MathCatalog` and pass it in `CompileOptions::math`; `math.<name>(…)` then calls them like the standard functions, with float arguments (at most `MAX_MATH_ARGS`) and the argument count checked at compile time. A pure function must be deterministic: a call of constants is folded at compile time and equal calls are merged. A volatile function gets the evaluation's random source (`&mut dyn RandomSource`; its `sample()` draws a sample as the standard functions do), is never folded or merged, and is forbidden by `OpSet::without_assignments_or_random`. A function must not panic. A function may take a standard function's name (all but the constant `math.pi`) and then replaces the standard function while the catalogue is in the options, as an ordinary host call.

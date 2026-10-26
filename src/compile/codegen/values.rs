@@ -42,6 +42,21 @@ impl Builder<'_, '_> {
         Ok(())
     }
 
+    /// `array.<name>[index]`: the index, then the element read by name at evaluation.
+    #[inline(never)]
+    pub(super) fn array_element(&mut self, node: &Node) -> Build {
+        let (Payload::ArrayVariable(name), [index]) = (&node.value, node.children.as_slice())
+        else {
+            return Err(LinkError::Failed);
+        };
+        self.expr(index)?;
+        let n = self.name(name)?;
+        let p = self.post(node)?;
+        self.code.emit(Instr::ArrayElement { n, p });
+        self.not_float_only();
+        Ok(())
+    }
+
     #[inline(never)]
     pub(super) fn this(&mut self, node: &Node) -> Build {
         let p = self.post(node)?;
@@ -685,5 +700,74 @@ mod tests {
                 .all(|d| d.language_message() != Some(Msg::WriteToOtherMob))
         );
         assert_eq!(c.expr_or_zero().cloned().unwrap().as_constant(), Some(0.0));
+    }
+
+    fn from_host(raw: i16) -> crate::compile::CompileOptions {
+        crate::compile::CompileOptions {
+            arrays: crate::compile::ArrayAccess::FromHost,
+            ..opts(raw)
+        }
+    }
+
+    #[test]
+    fn an_array_access_from_the_host_reads_the_element_after_its_index() {
+        let c = compile("array.skins[v.i + 1]", &from_host(13));
+        assert_eq!(c.failure(), None);
+        let p = c.expr().unwrap().program().unwrap();
+        assert_eq!(
+            p.disassemble(),
+            numbered(&["load variable.i *1+1", "array-element array.skins", "end"])
+        );
+        assert!(!p.float_loop && !p.flags.contains(ProgramFlags::FLOAT_ONLY));
+        let constant = compile("array.skins[2]", &from_host(13));
+        assert_eq!(
+            constant.expr().unwrap().program().unwrap().disassemble(),
+            numbered(&["const 2", "array-element array.skins", "end"])
+        );
+    }
+
+    #[test]
+    fn only_an_indexed_array_compiles_from_the_host() {
+        for src in ["array.a", "array.a[0]"] {
+            assert_eq!(
+                compile(src, &opts(13)).failure(),
+                Some(CompileFailure::UsesArrays),
+                "{src}"
+            );
+        }
+        assert_eq!(
+            compile("array.a", &from_host(13)).failure(),
+            Some(CompileFailure::UsesArrays)
+        );
+        assert_eq!(
+            compile("geometry.a / array.b[0]", &from_host(2)).failure(),
+            Some(CompileFailure::UsesResources)
+        );
+        // A second index section is rejected.
+        assert_eq!(
+            compile("array.a[0][1]", &from_host(13)).failure(),
+            Some(CompileFailure::Rejected)
+        );
+        let options = from_host(13);
+        let mut cx = Cx::for_test("", &options);
+        let expression_array = node(Op::ExpressionArray, Payload::None, vec![]);
+        assert_eq!(
+            build(&mut cx, &expression_array).unwrap_err(),
+            LinkError::UsesArrays
+        );
+    }
+
+    #[test]
+    fn math_on_an_array_element_is_still_rejected_from_the_host() {
+        for src in ["array.a[0] * 2", "array.a[0] + 1", "-array.a[0]"] {
+            let c = compile(src, &from_host(13));
+            assert_eq!(c.failure(), Some(CompileFailure::Rejected), "{src}");
+            assert!(
+                c.diagnostics()
+                    .iter()
+                    .any(|d| d.language_message() == Some(Msg::MathOnArray)),
+                "{src}"
+            );
+        }
     }
 }

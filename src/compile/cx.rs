@@ -2,7 +2,7 @@
 
 use crate::catalog::{MathCatalog, QueryAdmission, QueryCatalog, QueryDecl, QueryIndex, Side};
 use crate::compile::{
-    CompileOptions, Deviations, MAX_DIAGNOSTICS,
+    ArrayAccess, CompileOptions, Deviations, MAX_DIAGNOSTICS,
     ast::{Friendly, Node, Span},
 };
 use crate::diag::{DiagCode, Diagnostic, LanguageMessage, Severity};
@@ -27,6 +27,7 @@ pub(super) struct Settings<'o> {
     pub(super) math: Option<&'o MathCatalog>,
     pub(super) deviations: Deviations,
     pub(super) platform: Platform,
+    pub(super) arrays: ArrayAccess,
 }
 
 impl<'o> Settings<'o> {
@@ -41,6 +42,7 @@ impl<'o> Settings<'o> {
             keep_source: _,
             deviations,
             platform,
+            arrays,
         } = opts;
         Self {
             catalog,
@@ -50,6 +52,7 @@ impl<'o> Settings<'o> {
             math: math.as_ref(),
             deviations: *deviations,
             platform: *platform,
+            arrays: *arrays,
         }
     }
 }

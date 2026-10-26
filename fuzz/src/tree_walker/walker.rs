@@ -164,9 +164,10 @@ impl<H: Host> Walker<H> {
             Op::Assignment => self.assignment(n, cx),
             Op::Pointer => self.pointer(n, cx),
             Op::LeftBracket | Op::LeftParenthesis => self.node(child(n, 0), cx),
+            // In a tree that linked only with the arrays from the host.
+            Op::Array => self.array_element(n, cx),
             // Never in a tree that linked (the link stops at them).
             Op::ArrayVariable
-            | Op::Array
             | Op::ExpressionArray
             | Op::GeometryVariable
             | Op::MaterialVariable
@@ -567,7 +568,6 @@ mod tests {
         let mut env = Env::new();
         for op in [
             Op::ArrayVariable,
-            Op::Array,
             Op::ExpressionArray,
             Op::GeometryVariable,
             Op::MaterialVariable,

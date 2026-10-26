@@ -6,8 +6,9 @@ use molang::hash::HashedStr;
 use molang::internals::{
     Name, Node, Payload, member_store_check, public_variable, storable, store_cost,
 };
+use molang::numeric::array_index;
 use molang::ops::ExpressionOp as Op;
-use molang::vm::{ContextName, EvalCx, Host, ResourceRef, RuntimeMsg, Value};
+use molang::vm::{ArrayName, ContextName, EvalCx, Host, ResourceRef, RuntimeMsg, Value};
 
 impl<H: Host> Walker<H> {
     /// A literal, a resource or `this`.
@@ -32,6 +33,34 @@ impl<H: Host> Walker<H> {
                 Value::Resource(ResourceRef::from_raw_hash(hash))
             }
         })
+    }
+
+    /// `array.<name>[index]`: the index, then one step for the element read.
+    #[inline(never)]
+    pub(super) fn array_element(&mut self, n: &Node, cx: &mut EvalCx<'_, '_, H>) -> Eval<H> {
+        let Payload::ArrayVariable(name) = n.value() else {
+            return Ok(Value::ZERO);
+        };
+        let index = self.node(child(n, 0), cx)?.as_f32();
+        self.step(cx)?;
+        let element = self.element_of(cx, name, index);
+        Ok(with_post(self.platform, element, n.post()))
+    }
+
+    /// The element `name[index]`, or 0 with its message for an unknown or empty array.
+    fn element_of(&self, cx: &mut EvalCx<'_, '_, H>, name: &Name, index: f32) -> Value<H> {
+        let name_text = name.as_str();
+        let Some(elements) = cx.arrays.array(ArrayName::from_raw_hash(name.hash())) else {
+            cx.sink
+                .runtime(RuntimeMsg::UnknownArray { name: name_text });
+            return Value::ZERO;
+        };
+        if let Some(i) = array_index(self.platform, index, elements.len()) {
+            Value::Resource(elements[i])
+        } else {
+            cx.sink.runtime(RuntimeMsg::EmptyArray { name: name_text });
+            Value::ZERO
+        }
     }
 
     /// `base.name`: the outermost accessor of a read path.
@@ -176,6 +205,42 @@ mod tests {
     use crate::tree_walker::test_support::*;
     use molang::numeric::PostOp;
     use molang::vm::{StructValue, TempMap};
+
+    #[test]
+    fn array_elements_agree_with_the_vm_on_every_platform() {
+        use molang::compile::{ArrayAccess, CompileOptions, compile};
+        let mut start = Env::new();
+        start.arrays.set(
+            ArrayName::new("a"),
+            [ResourceRef::new("texture.x"), ResourceRef::new("texture.y")],
+        );
+        start.arrays.set(ArrayName::new("empty"), []);
+        for platform in PLATFORMS {
+            let options = CompileOptions {
+                arrays: ArrayAccess::FromHost,
+                ..on(platform, 13)
+            };
+            for src in [
+                "array.a[v.x]",
+                "array.a[-v.x]",
+                "array.a[v.x * 1e10]",
+                "array.a[math.sqrt(-1)]",
+                "array.a[v.s]",
+                "array.missing[0]",
+                "array.empty[v.x]",
+                "v.x ? array.a[1] : 0",
+                "t.r = array.a[v.y]; return t.r;",
+            ] {
+                let expr = compile(src, &options).expr().cloned().expect(src);
+                for budget in [None, Some(0), Some(1), Some(2), Some(3)] {
+                    let mut env = start.clone();
+                    env.limits.total_steps = budget;
+                    let what = format!("{src} on {platform:?} with {budget:?} steps");
+                    assert_agree(&what, &vm_run(&expr, &env), &walker_run(&expr, &env));
+                }
+            }
+        }
+    }
 
     #[test]
     fn a_missing_read_outside_a_handler_logs_and_ends_the_evaluation_with_zero() {

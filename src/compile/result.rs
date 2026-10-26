@@ -24,8 +24,9 @@ pub enum CompileOutcome {
     /// The parse or the link failed; the expression in its place evaluates to 0
     /// ([`Expr::is_rejected`]). At least one diagnostic says why.
     Rejected(Expr),
-    /// The expression uses render-controller arrays (`array.x[i]`), which this crate cannot
-    /// evaluate.
+    /// The expression uses render-controller arrays the options leave unresolved: `array.x[i]`
+    /// under [`ArrayAccess::Unresolved`](super::ArrayAccess::Unresolved), a bare `array.x` or an
+    /// expression array.
     UsesArrays,
     /// The expression uses `geometry.` / `material.` / `texture.` variables, which this crate
     /// cannot evaluate.

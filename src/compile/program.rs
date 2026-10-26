@@ -23,7 +23,7 @@ use crate::ops::ExpressionOp as Op;
 use crate::stdlib::math;
 use crate::version::MolangVersion;
 #[cfg(feature = "vm")]
-use crate::vm::{ContextName, TempName, VariableName};
+use crate::vm::{ArrayName, ContextName, TempName, VariableName};
 use std::fmt::{self, Write as _};
 
 /// Index into [`Program::posts`]; [`PostIdx::PLAIN`] (0) is the identity.
@@ -388,6 +388,9 @@ pub(crate) enum Instr {
     LoadTemp { t: TempIdx, p: PostIdx },
     /// `acc = post(context.<n>)`.
     LoadCtx { n: NameIdx, p: PostIdx },
+    /// `acc = post(array.<n>[acc])`, the element of the evaluation's array; unknown or empty
+    /// → `post(0)`.
+    ArrayElement { n: NameIdx, p: PostIdx },
     /// `acc = post(acc.<member m>)`.
     Member { m: MemberIdx, p: PostIdx },
     /// `variable.<n> = acc`; then `acc = post(acc)`.
@@ -728,6 +731,12 @@ impl Program {
 
     #[cfg(feature = "vm")]
     #[inline]
+    pub(crate) fn array_name(&self, n: NameIdx) -> ArrayName {
+        ArrayName::from_raw_hash(self.name(n).hash)
+    }
+
+    #[cfg(feature = "vm")]
+    #[inline]
     pub(crate) fn temp_name(&self, t: TempIdx) -> TempName {
         TempName::from_raw_hash(self.name(self.temps[usize::from(t.0)]).hash)
     }
@@ -776,6 +785,9 @@ impl Program {
                 write!(out, "load {}{}", self.name_text(n), post(p))
             }
             Instr::LoadTemp { t, p } => write!(out, "load {}{}", self.temp_text(t), post(p)),
+            Instr::ArrayElement { n, p } => {
+                write!(out, "array-element {}{}", self.name_text(n), post(p))
+            }
             Instr::Member { m, p } => write!(out, "member {}{}", self.member(m).text, post(p)),
             Instr::StoreVar { n, p } => write!(out, "store {}{}", self.name_text(n), post(p)),
             Instr::StoreTemp { t, p } => write!(out, "store {}{}", self.temp_text(t), post(p)),

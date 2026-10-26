@@ -5,7 +5,8 @@
 //! evaluates the **divisor** first, runs its guard, then the numerator.
 //!
 //! The first render-controller array or resource reference met in that order ends the build
-//! without a program (`geometry.a / array.b[0]` uses arrays). An assignment whose target the
+//! without a program (`geometry.a / array.b[0]` uses arrays); with
+//! [`ArrayAccess::FromHost`] an indexed array builds instead. An assignment whose target the
 //! validator kept cannot be built: the link fails and [`compile`](crate::compile::compile()) logs
 //! `expression '{}' compile failed`, after `Error: You cannot write to a variable on another mob.`
 //! for a target behind `->`.
@@ -14,7 +15,7 @@
 //! builder, so nothing is restored on the way out of an error.
 
 use crate::compile::{
-    Cx,
+    ArrayAccess, Cx,
     ast::{Node, Payload},
     program::{
         CmpOp, Depths, Divisor, EqOp, FLOAT_LOOP_TEMPS, Instr, MemberEntry, MemberStore, NameEntry,
@@ -171,6 +172,7 @@ impl<'c, 'o> Builder<'c, 'o> {
     fn expr(&mut self, node: &Node) -> Build {
         let op = node.op;
         match op {
+            Op::Array if self.cx.opts.arrays == ArrayAccess::FromHost => self.array_element(node),
             Op::ArrayVariable | Op::Array | Op::ExpressionArray => Err(LinkError::UsesArrays),
             Op::GeometryVariable | Op::MaterialVariable | Op::TextureVariable => {
                 Err(LinkError::UsesResources)

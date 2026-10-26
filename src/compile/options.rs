@@ -72,6 +72,23 @@ impl Default for Deviations {
     }
 }
 
+/// What `array.<name>[index]` compiles to.
+///
+/// A bare `array.<name>` and an expression array end the compile with
+/// [`CompileOutcome::UsesArrays`](super::CompileOutcome::UsesArrays) either way.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub enum ArrayAccess {
+    /// No program: the compile ends with
+    /// [`CompileOutcome::UsesArrays`](super::CompileOutcome::UsesArrays), for a caller that
+    /// resolves the arrays first. Arrays exist only in client rendering.
+    #[default]
+    Unresolved,
+    /// An instruction that reads the element at evaluation, from
+    /// [`EvalCx::arrays`](crate::vm::EvalCx::arrays) by the array's name. The array need not be
+    /// known when compiling.
+    FromHost,
+}
+
 /// How an expression is compiled: query catalogue, version, admitted queries, allowed operations,
 /// host math functions, deviations and the platform whose float behaviour it reproduces.
 ///
@@ -132,12 +149,14 @@ pub struct CompileOptions {
     /// The platform whose float behaviour constant folding and evaluation reproduce (by default
     /// [`Platform::default`]).
     pub platform: Platform,
+    /// What `array.<name>[index]` compiles to (by default [`ArrayAccess::Unresolved`]).
+    pub arrays: ArrayAccess,
 }
 
 impl CompileOptions {
     /// Default settings at `version` against `catalog`: the `default` query set, every operation
     /// allowed, no experiments, no host math functions, source not kept, [`Deviations::DEFAULT`],
-    /// [`Platform::default`].
+    /// [`Platform::default`], [`ArrayAccess::Unresolved`].
     pub const fn new(catalog: QueryCatalog, version: MolangVersion) -> Self {
         Self::from_raw_version(catalog, RawVersion(version.as_i16()))
     }
@@ -156,6 +175,7 @@ impl CompileOptions {
             keep_source: false,
             deviations: Deviations::DEFAULT,
             platform: Platform::DEFAULT,
+            arrays: ArrayAccess::Unresolved,
         }
     }
 
@@ -183,9 +203,13 @@ impl CompileOptions {
         Self::new(crate::stdlib::queries(Side::Server).clone(), version)
     }
 
-    /// [`CompileOptions::new`] against the standard library's client queries.
+    /// [`CompileOptions::new`] against the standard library's client queries, with
+    /// [`ArrayAccess::FromHost`].
     pub fn client(version: MolangVersion) -> Self {
-        Self::new(crate::stdlib::queries(Side::Client).clone(), version)
+        Self {
+            arrays: ArrayAccess::FromHost,
+            ..Self::new(crate::stdlib::queries(Side::Client).clone(), version)
+        }
     }
 }
 

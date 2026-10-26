@@ -24,7 +24,7 @@ mod result;
 mod sema;
 
 use cx::{Cx, Failed, Pass};
-pub use options::{CompileOptions, Deviations};
+pub use options::{ArrayAccess, CompileOptions, Deviations};
 pub use program::ProgramFlags;
 #[cfg(feature = "vm")]
 pub(crate) use result::Evaluation;
