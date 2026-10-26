@@ -13,6 +13,12 @@ use super::value::ResourceRef;
 /// [`Platform`](crate::numeric::Platform), reads a negative index as 0, then wraps it by the
 /// array's length ([`numeric::array_index`](crate::numeric::array_index)). The element is a
 /// [`Value::Resource`](super::Value::Resource).
+///
+/// An x86-64 platform converts the index as the servers convert floats; only the arm64 client's
+/// conversion was observed (the crate's choice).
+///
+/// The trait takes no [`Host`](super::Host) parameter: an element is a resource handle, in which
+/// no host type appears.
 pub trait ArrayProvider {
     /// The elements of the array `name`; `None` for an unknown array, which reads as 0 with a
     /// [`RuntimeMsg::UnknownArray`](super::RuntimeMsg::UnknownArray).
@@ -52,7 +58,8 @@ impl ArrayTable {
     }
 
     /// Sets the elements of an array, returning the previous ones. An empty array reads as 0
-    /// with a [`RuntimeMsg::EmptyArray`](super::RuntimeMsg::EmptyArray).
+    /// with a [`RuntimeMsg::EmptyArray`](super::RuntimeMsg::EmptyArray) (the crate's choice: what
+    /// an empty array gives is unknown).
     pub fn set(
         &mut self,
         name: ArrayName,
@@ -61,7 +68,7 @@ impl ArrayTable {
         self.arrays.insert(name, elements.into_iter().collect())
     }
 
-    /// The elements of an array.
+    /// The elements of an array; [`ArrayProvider::array`] answers with them.
     pub fn get(&self, name: ArrayName) -> Option<&[ResourceRef]> {
         self.arrays.get(&name).map(|elements| &**elements)
     }

@@ -413,7 +413,7 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
         program.post(p).apply(program.platform, value)
     }
 
-    /// The element `array.<n>[acc]` reads, without its post-op.
+    /// The element `array.<n>[acc]` reads, before its post-op.
     #[inline(never)]
     fn array_element(&self, program: &Program, cx: &mut EvalCx<'_, '_, H>, n: NameIdx) -> Value<H> {
         let Some(elements) = cx.arrays.array(program.array_name(n)) else {

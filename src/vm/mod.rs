@@ -145,6 +145,8 @@ mod tests {
         assert_send_sync::<VariableMap<TestHost>>();
         assert_send_sync::<VariableStorage<TestHost>>();
         assert_send_sync::<ContextMap<TestHost>>();
+        assert_send_sync::<ArrayTable>();
+        assert_send_sync::<NoArrays>();
         assert_send_sync::<QueryTable<TestHost>>();
         assert_send_sync::<Subjects<TestHost>>();
         assert_send_sync::<EvalLimits>();

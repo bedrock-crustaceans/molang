@@ -56,6 +56,7 @@ pub mod namespace {
 
     impl Sealed for Array {
         const LONG: &'static str = "array.";
+        // `array.` has no short spelling.
         const SHORT: &'static str = "array.";
         const KEY_NAME: &'static str = "ArrayName";
     }
