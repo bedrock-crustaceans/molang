@@ -190,13 +190,25 @@ assert_eq!(options.version(), MolangVersion::LATEST);
 
 ## Float behaviour
 
-The target architecture chooses the float behaviour when the crate is built (`numeric::ARCH`); there is no option for it.
+The host chooses whose float behaviour an expression reproduces with `CompileOptions::platform`, a `numeric::Platform`: `BdsLinux` (by release), `BdsWindows` or `AndroidArm64`. The default is `BdsLinux` at its latest release. The compiled expression records it, constant folding and evaluation both follow it, and the same expression gives the same bits on every host.
 
-On `aarch64` (`Arch::Arm64`), `x·S + O` and the other multiply-adds are rounded once, `math.min` / `math.max` ignore a NaN operand, `<` / `<=` are true for a NaN operand (so a `loop` with a NaN count makes no pass), a NaN divisor gives 0 and a NaN `math.asin` / `math.acos` argument counts as −1. An arithmetic operation with NaN operands returns the first signalling one quietened, else the first quiet one; an invalid one gives `0x7fc00000`.
+```rust
+use molang::compile::{CompileOptions, compile};
+use molang::numeric::Platform;
+use molang::version::MolangVersion;
 
-On x86-64 and every other target (`Arch::X86_64`), every multiply, add and divide is rounded on its own in formula order, every comparison with a NaN is false and `math.min` / `math.max` return their second operand when either is NaN. An arithmetic operation with NaN operands returns its left NaN operand quietened; an invalid one gives `0xffc00000`. `math.max` / `math.min`, the comparisons and the sorting of random and die-roll bounds are not arithmetic operations and treat a NaN by their own rules.
+let options = CompileOptions {
+    platform: Platform::BdsWindows,
+    ..CompileOptions::server(MolangVersion::LATEST)
+};
+let expr = compile("math.copy_sign(1, math.ln(-1))", &options).into_result().unwrap().0;
+assert_eq!(expr.platform(), Platform::BdsWindows);
+assert_eq!(expr.as_constant(), Some(-1.0));
+```
 
-The easings, `math.hermite_blend`, the random interpolation and the inverse-trigonometric degree conversion also differ in shape. A target other than x86-64 and aarch64 (wasm32, riscv64, 32-bit arm, 32-bit x86 with SSE2, …) has the `X86_64` behaviour and gives the same bits for every result that is not a NaN; 32-bit x86 without SSE2 does not compile. The arithmetic and the standard functions choose the sign and payload of the NaNs they return, so those match too, except where an instruction of the target makes the NaN: `math.floor`, `math.ceil`, `math.round` and `math.trunc` of a NaN, a NaN bound of `math.die_roll` / `math.die_roll_integer` (floored), and the result of a comparison or logical node whose folded post-op holds a NaN. On 32-bit x86 a value returned through the x87 register may have a signalling NaN quietened.
+Every platform rounds each multiply, add and divide on its own in formula order, makes every comparison with a NaN false and returns the second operand from `math.min` / `math.max` when either is NaN. The servers return the left NaN operand of an arithmetic operation quietened and `0xffc00000` for an invalid one; Android returns the first signalling NaN operand quietened, else the first quiet one, `0x7fc00000` for an invalid one, and saturates a float → int conversion (`loop` and die counts, array indices) with NaN as 0 where the servers give `i32::MIN`. The NaN of an invalid standard function differs too: `math.ln` of a negative number changed sign between Linux releases. `numeric::Platform` lists every difference.
+
+The arithmetic and the standard functions choose the sign and payload of the NaNs they return, so those are the same on every host too, except where an instruction of the host makes the NaN: `math.floor`, `math.ceil`, `math.round` and `math.trunc` of a NaN, a NaN bound of `math.die_roll` / `math.die_roll_integer` (floored), and the result of a comparison or logical node whose folded post-op holds a NaN. On 32-bit x86 a value returned through the x87 register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
 
 ## Evaluation
 
