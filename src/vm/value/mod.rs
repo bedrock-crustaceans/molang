@@ -349,9 +349,7 @@ impl<H: Host> From<StructValue<H>> for Value<H> {
 impl<H: Host> From<DefaultReturn> for Value<H> {
     fn from(default: DefaultReturn) -> Self {
         match default {
-            DefaultReturn::Float0 => Self::Float(0.0),
-            DefaultReturn::Float1 => Self::Float(1.0),
-            DefaultReturn::FloatNeg1 => Self::Float(-1.0),
+            DefaultReturn::Float(bits) => Self::Float(bits.to_f32()),
             DefaultReturn::EmptyString => Self::Hash(HashedStr::EMPTY),
             DefaultReturn::EmptyActorArray => Self::ActorArray(Arc::new(Vec::new())),
             DefaultReturn::StructRgba0 => Self::structure(StructValue::rgba(0.0, 0.0, 0.0, 0.0)),
@@ -607,9 +605,9 @@ mod tests {
 
     #[test]
     fn default_return_values() {
-        assert_eq!(V::from(DefaultReturn::Float0), V::Float(0.0));
-        assert_eq!(V::from(DefaultReturn::Float1), V::Float(1.0));
-        assert_eq!(V::from(DefaultReturn::FloatNeg1), V::Float(-1.0));
+        assert_eq!(V::from(DefaultReturn::ZERO), V::Float(0.0));
+        assert_eq!(V::from(DefaultReturn::ONE), V::Float(1.0));
+        assert_eq!(V::from(DefaultReturn::NEG_ONE), V::Float(-1.0));
         assert_eq!(V::from(DefaultReturn::EmptyString), V::string(""));
         assert_eq!(
             V::from(DefaultReturn::EmptyActorArray).as_actor_array(),
@@ -621,9 +619,9 @@ mod tests {
         }
         // The float view agrees with the metadata's own.
         for d in [
-            DefaultReturn::Float0,
-            DefaultReturn::Float1,
-            DefaultReturn::FloatNeg1,
+            DefaultReturn::ZERO,
+            DefaultReturn::ONE,
+            DefaultReturn::NEG_ONE,
             DefaultReturn::EmptyString,
             DefaultReturn::EmptyActorArray,
             DefaultReturn::StructRgba0,

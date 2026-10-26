@@ -1216,7 +1216,7 @@ mod tests {
             .extended([decl(
                 "query.my_thing",
                 ReturnType::FLOAT,
-                DefaultReturn::Float1,
+                DefaultReturn::ONE,
             )])
             .unwrap();
         let mut world = World { babies: &[] };
@@ -1267,8 +1267,8 @@ mod tests {
 
     #[test]
     fn a_call_from_another_catalogue_gets_the_tables_own_declaration() {
-        let expr_catalog = catalogue_of(&[(0, 7), (8, 13)], DefaultReturn::Float1);
-        let table_catalog = catalogue_of(&[(0, 13)], DefaultReturn::Float0);
+        let expr_catalog = catalogue_of(&[(0, 7), (8, 13)], DefaultReturn::ONE);
+        let table_catalog = catalogue_of(&[(0, 13)], DefaultReturn::ZERO);
         let table = table_of(&table_catalog, &[("query.x", reports_its_context)]);
         let mut world = World { babies: &[] };
         let mut vm = MockVm::new(&mut world, Subjects::none(), vec![]);
@@ -1294,8 +1294,8 @@ mod tests {
 
     #[test]
     fn a_version_the_tables_declaration_does_not_serve_runs_nothing() {
-        let expr_catalog = catalogue_of(&[(0, 13)], DefaultReturn::Float1);
-        let table_catalog = catalogue_of(&[(0, 3)], DefaultReturn::FloatNeg1);
+        let expr_catalog = catalogue_of(&[(0, 13)], DefaultReturn::ONE);
+        let table_catalog = catalogue_of(&[(0, 3)], DefaultReturn::NEG_ONE);
         let table = table_of(&table_catalog, &[("query.x", reports_its_context)]);
         let mut world = World { babies: &[] };
         let mut vm = MockVm::new(&mut world, Subjects::none(), vec![]);
@@ -1322,7 +1322,7 @@ mod tests {
         };
         let mut world = World { babies: &[] };
         let mut vm = MockVm::new(&mut world, Subjects::none(), vec![]);
-        let expr_catalog = declare(ReturnType::FLOAT, DefaultReturn::Float1);
+        let expr_catalog = declare(ReturnType::FLOAT, DefaultReturn::ONE);
         let strings = declare(ReturnType::STRING, DefaultReturn::EmptyString);
         let table = table_of(&strings, &[("query.x", reports_its_context)]);
         let mut cx =
@@ -1332,7 +1332,7 @@ mod tests {
             V::Float(1.0),
             "the expression's default"
         );
-        let numbers = declare(ReturnType::NUMBER, DefaultReturn::Float0);
+        let numbers = declare(ReturnType::NUMBER, DefaultReturn::ZERO);
         let table = table_of(&numbers, &[("query.x", reports_its_context)]);
         let mut cx =
             QueryCx::new(&expr_catalog, "query.x", MolangVersion::LATEST, &mut vm).unwrap();
@@ -1341,8 +1341,8 @@ mod tests {
             V::Float(1.0),
             "a bool the expression does not expect"
         );
-        let wide = declare(ReturnType::NUMBER, DefaultReturn::Float0);
-        let narrow = declare(ReturnType::FLOAT, DefaultReturn::Float0);
+        let wide = declare(ReturnType::NUMBER, DefaultReturn::ZERO);
+        let narrow = declare(ReturnType::FLOAT, DefaultReturn::ZERO);
         let table = table_of(&narrow, &[("query.x", reports_its_context)]);
         let mut cx = QueryCx::new(&wide, "query.x", MolangVersion::LATEST, &mut vm).unwrap();
         assert_eq!(
@@ -1355,8 +1355,8 @@ mod tests {
 
     #[test]
     fn an_error_across_catalogues_yields_the_tables_default() {
-        let expr_catalog = catalogue_of(&[(0, 13)], DefaultReturn::Float1);
-        let table_catalog = catalogue_of(&[(0, 13)], DefaultReturn::FloatNeg1);
+        let expr_catalog = catalogue_of(&[(0, 13)], DefaultReturn::ONE);
+        let table_catalog = catalogue_of(&[(0, 13)], DefaultReturn::NEG_ONE);
         let table = table_of(&table_catalog, &[("query.x", needs_item)]);
         let mut world = World { babies: &[] };
         let mut vm = MockVm::new(&mut world, Subjects::none(), vec![]);

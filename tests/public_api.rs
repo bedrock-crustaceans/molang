@@ -1634,8 +1634,8 @@ mod catalog_and_tables {
     use std::collections::{BTreeMap, BTreeSet};
 
     use molang::catalog::{
-        Arity, DefaultReturn, ParseQuerySetError, QueryAdmission, QueryCatalog, QueryDecl,
-        QuerySetMask, QuerySide, Reads, ReturnType, Side,
+        Arity, DefaultReturn, FloatBits, ParseQuerySetError, QueryAdmission, QueryCatalog,
+        QueryDecl, QuerySetMask, QuerySide, Reads, ReturnType, Side,
     };
     use molang::ops::{ExpressionOp, OpFlags, OpSet};
     use molang::stdlib::{MATH_META, MathFn, query};
@@ -2128,7 +2128,7 @@ mod catalog_and_tables {
             (MolangVersion::V0, MolangVersion::V13)
         );
         assert_eq!(fuse.shape().reads, Reads::ACTOR);
-        assert_eq!(fuse.shape().default_return, DefaultReturn::Float0);
+        assert_eq!(fuse.shape().default_return, DefaultReturn::ZERO);
         for (name, set) in [
             ("query.has_all_biome_tags", QuerySetMask::WORLD_GEN),
             ("query.has_any_biome_tags", QuerySetMask::WORLD_GEN),
@@ -2215,14 +2215,14 @@ mod catalog_and_tables {
     #[test]
     fn no_subject_defaults() {
         let exceptions = BTreeMap::from([
-            ("query.armor_color_slot", DefaultReturn::Float1),
+            ("query.armor_color_slot", DefaultReturn::ONE),
             (
                 "query.time_since_last_vibration_detection",
-                DefaultReturn::FloatNeg1,
+                DefaultReturn::NEG_ONE,
             ),
             (
                 "query.ticks_since_last_kinetic_weapon_hit",
-                DefaultReturn::FloatNeg1,
+                DefaultReturn::NEG_ONE,
             ),
             ("query.owner_identifier", DefaultReturn::EmptyString),
             ("query.get_equipped_item_name", DefaultReturn::EmptyString),
@@ -2233,12 +2233,18 @@ mod catalog_and_tables {
             let expected = exceptions
                 .get(decl.name())
                 .copied()
-                .unwrap_or(DefaultReturn::Float0);
+                .unwrap_or(DefaultReturn::ZERO);
             assert_eq!(decl.shape().default_return, expected, "{}", decl.name());
         }
-        assert_eq!(DefaultReturn::Float1.as_f32(), 1.0);
-        assert_eq!(DefaultReturn::FloatNeg1.as_f32(), -1.0);
+        assert_eq!(DefaultReturn::ONE.as_f32(), 1.0);
+        assert_eq!(DefaultReturn::NEG_ONE.as_f32(), -1.0);
         assert_eq!(DefaultReturn::EmptyString.as_f32(), 0.0);
+        assert_eq!(DefaultReturn::float(6.0).as_f32(), 6.0);
+        assert_eq!(FloatBits::new(6.0).to_f32(), 6.0);
+        assert_eq!(
+            DefaultReturn::float(6.0),
+            DefaultReturn::Float(FloatBits::new(6.0))
+        );
     }
 
     #[test]
@@ -2689,7 +2695,7 @@ mod api_surface {
         assert!(decl.shape().experiments == molang::version::ExperimentMask::empty());
         assert!(reads.contains(Reads::ACTOR));
         assert_eq!(side, QuerySide::BOTH);
-        assert_eq!(default, DefaultReturn::Float0);
+        assert_eq!(default, DefaultReturn::ZERO);
         assert!(decl.on_dedicated_server());
         assert_eq!(decl.shape().first_release, None);
     }
@@ -2773,7 +2779,7 @@ mod api_surface {
         );
         let fits = QueryShape {
             returns: ReturnType::STRING,
-            default_return: DefaultReturn::Float1,
+            default_return: DefaultReturn::ONE,
             ..QueryShape::DEFAULT
         };
         assert!(matches!(
@@ -3067,7 +3073,7 @@ mod registry_conformance {
         );
         assert!(decl.shape().experiments == molang::version::ExperimentMask::empty());
         assert!(decl.shape().reads.contains(Reads::ACTOR));
-        assert_eq!(decl.shape().default_return, DefaultReturn::Float0);
+        assert_eq!(decl.shape().default_return, DefaultReturn::ZERO);
         assert_eq!(decl.shape().side, QuerySide::BOTH);
         assert_eq!(
             get(query::CLIENT_MEMORY_TIER).shape().side,

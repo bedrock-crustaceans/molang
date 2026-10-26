@@ -211,7 +211,7 @@ const RENDER: Reads = Reads::RENDER;
 const CLIENT_STATE: Reads = Reads::CLIENT_STATE;
 const VARIABLES: Reads = Reads::VARIABLES;
 
-use DefaultReturn::{EmptyActorArray, EmptyString, Float1, FloatNeg1, StructRgba0};
+use DefaultReturn::{EmptyActorArray, EmptyString, StructRgba0};
 
 macro_rules! queries {
     ($($konst:ident = $suffix:literal, $returns:ident, $reads:expr $(=> $($modifier:ident($($arg:expr),*)).+)?;)*) => {
@@ -240,7 +240,7 @@ queries! {
     ANY_ANIMATION_FINISHED = "any_animation_finished", B, RENDER => client();
     ANY_TAG = "any_tag", F, ITEM.union(BLOCK) => tags();
     APPROX_EQ = "approx_eq", B, NONE => min_args(2);
-    ARMOR_COLOR_SLOT = "armor_color_slot", F, ACTOR => args(2, 2).default(Float1);
+    ARMOR_COLOR_SLOT = "armor_color_slot", F, ACTOR => args(2, 2).default(DefaultReturn::ONE);
     ARMOR_DAMAGE_SLOT = "armor_damage_slot", F, ACTOR => args(1, 1);
     ARMOR_MATERIAL_SLOT = "armor_material_slot", F, ACTOR => args(1, 1);
     ARMOR_TEXTURE_SLOT = "armor_texture_slot", F, ACTOR => args(1, 1);
@@ -530,9 +530,9 @@ queries! {
     TARGET_X_ROTATION = "target_x_rotation", F, CLIENT_STATE => client();
     TARGET_Y_ROTATION = "target_y_rotation", F, CLIENT_STATE => client();
     TEXTURE_FRAME_INDEX = "texture_frame_index", F, ACTOR;
-    TICKS_SINCE_LAST_KINETIC_WEAPON_HIT = "ticks_since_last_kinetic_weapon_hit", F, ACTOR => default(FloatNeg1);
+    TICKS_SINCE_LAST_KINETIC_WEAPON_HIT = "ticks_since_last_kinetic_weapon_hit", F, ACTOR => default(DefaultReturn::NEG_ONE);
     TIME_OF_DAY = "time_of_day", F, ACTOR => args(0, 0);
-    TIME_SINCE_LAST_VIBRATION_DETECTION = "time_since_last_vibration_detection", F, ACTOR => args(0, 0).client().default(FloatNeg1);
+    TIME_SINCE_LAST_VIBRATION_DETECTION = "time_since_last_vibration_detection", F, ACTOR => args(0, 0).client().default(DefaultReturn::NEG_ONE);
     TIME_STAMP = "time_stamp", F, ACTOR;
     TIMER_FLAG_1 = "timer_flag_1", B, ACTOR => args(0, 0);
     TIMER_FLAG_2 = "timer_flag_2", B, ACTOR => args(0, 0);
@@ -697,7 +697,7 @@ mod tests {
                 QuerySetMask::DEFAULT,
                 ReturnType::FLOAT,
                 Reads::ACTOR,
-                DefaultReturn::Float0
+                DefaultReturn::ZERO
             )
         );
         assert_eq!(fuse.args(), Arity::ANY);
@@ -744,14 +744,14 @@ mod tests {
     #[test]
     fn no_subject_defaults() {
         let exceptions = BTreeMap::from([
-            (query::ARMOR_COLOR_SLOT, DefaultReturn::Float1),
+            (query::ARMOR_COLOR_SLOT, DefaultReturn::ONE),
             (
                 query::TIME_SINCE_LAST_VIBRATION_DETECTION,
-                DefaultReturn::FloatNeg1,
+                DefaultReturn::NEG_ONE,
             ),
             (
                 query::TICKS_SINCE_LAST_KINETIC_WEAPON_HIT,
-                DefaultReturn::FloatNeg1,
+                DefaultReturn::NEG_ONE,
             ),
             (query::OWNER_IDENTIFIER, DefaultReturn::EmptyString),
             (query::GET_EQUIPPED_ITEM_NAME, DefaultReturn::EmptyString),
@@ -764,7 +764,7 @@ mod tests {
                 exceptions
                     .get(decl.name())
                     .copied()
-                    .unwrap_or(DefaultReturn::Float0),
+                    .unwrap_or(DefaultReturn::ZERO),
                 "{}",
                 decl.name()
             );

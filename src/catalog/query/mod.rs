@@ -19,7 +19,8 @@ use thiserror::Error;
 use super::{ByName, MAX_DECLS};
 
 pub use decl::{
-    DeclError, DefaultReturn, QueryDecl, QueryShape, QuerySide, VersionRange, VersionRanges,
+    DeclError, DefaultReturn, FloatBits, QueryDecl, QueryShape, QuerySide, VersionRange,
+    VersionRanges,
 };
 pub use resolve::{AllowListError, QueryAdmission, QueryAllowList};
 pub use returns_and_reads::{Reads, ReturnType};

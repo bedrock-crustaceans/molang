@@ -503,7 +503,7 @@ mod tests {
             [QueryDecl::new(
                 "query.own",
                 QueryShape {
-                    default_return: DefaultReturn::FloatNeg1,
+                    default_return: DefaultReturn::NEG_ONE,
                     ..QueryShape::DEFAULT
                 },
             )

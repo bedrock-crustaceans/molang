@@ -81,17 +81,43 @@ impl fmt::Display for QuerySide {
     }
 }
 
+/// An `f32` compared and hashed by its bit pattern, so that a default of any value is
+/// `Eq + Hash`: −0.0 differs from +0.0, and NaNs with different payloads differ.
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct FloatBits(u32);
+
+impl FloatBits {
+    /// The bits of `value`.
+    #[must_use]
+    pub const fn new(value: f32) -> Self {
+        Self(value.to_bits())
+    }
+
+    /// The float these bits are.
+    #[must_use]
+    pub const fn to_f32(self) -> f32 {
+        f32::from_bits(self.0)
+    }
+}
+
+impl fmt::Debug for FloatBits {
+    /// The float; a NaN as its hex bits, since NaN prints without its payload.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = self.to_f32();
+        if value.is_nan() {
+            write!(f, "NaN({:#010x})", self.0)
+        } else {
+            write!(f, "{value:?}")
+        }
+    }
+}
+
 /// The value a query returns when it has no subject to read or no implementation.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum DefaultReturn {
-    /// Float 0.0.
-    #[default]
-    Float0,
-    /// Float 1.0.
-    Float1,
-    /// Float −1.0.
-    FloatNeg1,
+    /// A float; see [`DefaultReturn::float`].
+    Float(FloatBits),
     /// The hash of `""`.
     EmptyString,
     /// An empty actor array.
@@ -100,23 +126,40 @@ pub enum DefaultReturn {
     StructRgba0,
 }
 
+impl Default for DefaultReturn {
+    /// [`DefaultReturn::ZERO`].
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
 impl DefaultReturn {
+    /// Float 0.0.
+    pub const ZERO: Self = Self::float(0.0);
+    /// Float 1.0.
+    pub const ONE: Self = Self::float(1.0);
+    /// Float −1.0.
+    pub const NEG_ONE: Self = Self::float(-1.0);
+
+    /// A float default.
+    pub const fn float(value: f32) -> Self {
+        Self::Float(FloatBits::new(value))
+    }
+
     /// The float the default reads as in arithmetic; 0 for the non-float defaults (the empty
     /// string hashes to 0).
     pub const fn as_f32(self) -> f32 {
         match self {
-            Self::Float1 => 1.0,
-            Self::FloatNeg1 => -1.0,
-            Self::Float0 | Self::EmptyString | Self::EmptyActorArray | Self::StructRgba0 => 0.0,
+            Self::Float(bits) => bits.to_f32(),
+            Self::EmptyString | Self::EmptyActorArray | Self::StructRgba0 => 0.0,
         }
     }
 
-    /// Whether a query returning `returns` may have this default. `Float0` fits every type;
-    /// `Float1` and `FloatNeg1` fit a number or a boolean.
+    /// Whether a query returning `returns` may have this default. Float 0.0 (positive zero)
+    /// fits every type; any other float fits a number or a boolean.
     pub const fn fits(self, returns: ReturnType) -> bool {
         match self {
-            Self::Float0 => true,
-            Self::Float1 | Self::FloatNeg1 => returns.intersects(ReturnType::NUMBER),
+            Self::Float(bits) => bits.0 == 0 || returns.intersects(ReturnType::NUMBER),
             Self::EmptyString => returns.intersects(ReturnType::STRING),
             Self::EmptyActorArray => returns.intersects(ReturnType::ACTOR_ARRAY),
             Self::StructRgba0 => returns.intersects(ReturnType::STRUCT),
@@ -379,7 +422,7 @@ impl QueryShape {
         experiments: ExperimentMask::empty(),
         reads: Reads::empty(),
         side: QuerySide::BOTH,
-        default_return: DefaultReturn::Float0,
+        default_return: DefaultReturn::ZERO,
         first_release: None,
     };
 }
@@ -519,16 +562,26 @@ mod tests {
     #[test]
     fn default_return_as_f32_for_every_variant() {
         for (default, value) in [
-            (DefaultReturn::Float0, 0.0f32),
-            (DefaultReturn::Float1, 1.0),
-            (DefaultReturn::FloatNeg1, -1.0),
+            (DefaultReturn::ZERO, 0.0f32),
+            (DefaultReturn::ONE, 1.0),
+            (DefaultReturn::NEG_ONE, -1.0),
+            (DefaultReturn::float(6.0), 6.0),
+            (DefaultReturn::float(f32::INFINITY), f32::INFINITY),
             (DefaultReturn::EmptyString, 0.0),
             (DefaultReturn::EmptyActorArray, 0.0),
             (DefaultReturn::StructRgba0, 0.0),
         ] {
             assert_eq!(default.as_f32().to_bits(), value.to_bits(), "{default:?}");
         }
-        assert_eq!(DefaultReturn::default(), DefaultReturn::Float0);
+        assert_eq!(DefaultReturn::default(), DefaultReturn::ZERO);
+        assert_eq!(format!("{:?}", DefaultReturn::float(6.0)), "Float(6.0)");
+        assert_eq!(
+            format!("{:?}", FloatBits::new(f32::from_bits(0x7fc0_0001))),
+            "NaN(0x7fc00001)"
+        );
+        let nan = DefaultReturn::float(f32::NAN);
+        assert_eq!(nan, nan);
+        assert_ne!(DefaultReturn::float(-0.0), DefaultReturn::ZERO);
         assert_eq!(QuerySide::default(), QuerySide::BOTH);
     }
 
@@ -642,7 +695,7 @@ mod tests {
             );
             let misfit = QueryShape {
                 returns: ReturnType::STRING,
-                default_return: DefaultReturn::Float1,
+                default_return: DefaultReturn::ONE,
                 ..shape()
             };
             assert_eq!(
@@ -685,7 +738,7 @@ mod tests {
         assert_eq!(d.shape().experiments, ExperimentMask::empty());
         assert_eq!(
             (d.shape().reads, d.shape().side, d.shape().default_return),
-            (Reads::empty(), QuerySide::BOTH, DefaultReturn::Float0)
+            (Reads::empty(), QuerySide::BOTH, DefaultReturn::ZERO)
         );
         assert!(d.on_dedicated_server());
         assert_eq!(d.shape().first_release, None);
@@ -707,7 +760,7 @@ mod tests {
             side: QuerySide::Client {
                 on_dedicated_server: false,
             },
-            default_return: DefaultReturn::Float1,
+            default_return: DefaultReturn::ONE,
             first_release: Some(Version::new(1, 26, 30)),
         })
         .unwrap();
@@ -732,7 +785,7 @@ mod tests {
                 QuerySide::Client {
                     on_dedicated_server: false
                 },
-                DefaultReturn::Float1
+                DefaultReturn::ONE
             )
         );
         assert!(!d.on_dedicated_server());
@@ -765,18 +818,18 @@ mod tests {
             })
         );
         assert_eq!(
-            with(ReturnType::STRING, DefaultReturn::Float1)
+            with(ReturnType::STRING, DefaultReturn::ONE)
                 .err()
                 .map(|e| e.to_string()),
-            Some("the default Float1 is not a value of the return type {String}".to_owned())
+            Some("the default Float(1.0) is not a value of the return type {String}".to_owned())
         );
         for (returns, default) in [
             (ReturnType::STRING, DefaultReturn::EmptyString),
             (ReturnType::ACTOR_ARRAY, DefaultReturn::EmptyActorArray),
             (ReturnType::STRUCT, DefaultReturn::StructRgba0),
-            (ReturnType::BOOL, DefaultReturn::Float1),
-            (ReturnType::FLOAT, DefaultReturn::FloatNeg1),
-            (ReturnType::MATRIX, DefaultReturn::Float0),
+            (ReturnType::BOOL, DefaultReturn::ONE),
+            (ReturnType::FLOAT, DefaultReturn::NEG_ONE),
+            (ReturnType::MATRIX, DefaultReturn::ZERO),
             (
                 ReturnType::STRING.union(ReturnType::ACTOR_ARRAY),
                 DefaultReturn::EmptyActorArray,
@@ -785,15 +838,19 @@ mod tests {
             assert!(with(returns, default).is_ok(), "{returns:?} {default:?}");
         }
         for default in [
-            DefaultReturn::Float1,
-            DefaultReturn::FloatNeg1,
+            DefaultReturn::ONE,
+            DefaultReturn::NEG_ONE,
             DefaultReturn::EmptyString,
             DefaultReturn::EmptyActorArray,
             DefaultReturn::StructRgba0,
         ] {
             assert!(!default.fits(ReturnType::MATRIX), "{default:?}");
         }
-        assert!(DefaultReturn::Float0.fits(ReturnType::ACTOR));
+        assert!(DefaultReturn::ZERO.fits(ReturnType::ACTOR));
+        assert!(DefaultReturn::float(6.0).fits(ReturnType::FLOAT));
+        assert!(DefaultReturn::float(6.0).fits(ReturnType::BOOL));
+        assert!(!DefaultReturn::float(6.0).fits(ReturnType::STRING));
+        assert!(!DefaultReturn::float(-0.0).fits(ReturnType::STRING));
     }
 
     #[test]

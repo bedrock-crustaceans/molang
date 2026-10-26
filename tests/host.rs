@@ -1758,9 +1758,9 @@ mod value_type {
 
     #[test]
     fn default_return_values() {
-        assert_eq!(V::from(DefaultReturn::Float0), V::Float(0.0));
-        assert_eq!(V::from(DefaultReturn::Float1), V::Float(1.0));
-        assert_eq!(V::from(DefaultReturn::FloatNeg1), V::Float(-1.0));
+        assert_eq!(V::from(DefaultReturn::ZERO), V::Float(0.0));
+        assert_eq!(V::from(DefaultReturn::ONE), V::Float(1.0));
+        assert_eq!(V::from(DefaultReturn::NEG_ONE), V::Float(-1.0));
         assert_eq!(V::from(DefaultReturn::EmptyString), V::string(""));
         assert_eq!(
             V::from(DefaultReturn::EmptyActorArray).as_actor_array(),
@@ -1772,9 +1772,9 @@ mod value_type {
         }
         // The float view agrees with the metadata's own.
         for d in [
-            DefaultReturn::Float0,
-            DefaultReturn::Float1,
-            DefaultReturn::FloatNeg1,
+            DefaultReturn::ZERO,
+            DefaultReturn::ONE,
+            DefaultReturn::NEG_ONE,
             DefaultReturn::EmptyString,
             DefaultReturn::EmptyActorArray,
             DefaultReturn::StructRgba0,

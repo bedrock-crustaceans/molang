@@ -33,9 +33,9 @@ pub(crate) use query::QueryIndex;
 #[cfg(all(test, feature = "compiler", feature = "stdlib"))]
 pub(crate) use query::stdlib_index;
 pub use query::{
-    AllowListError, CatalogError, DeclError, DefaultReturn, ParseQuerySetError, QueryAdmission,
-    QueryAllowList, QueryCatalog, QueryDecl, QuerySetMask, QueryShape, QuerySide, Reads,
-    ReturnType, Side, VersionRange, VersionRanges,
+    AllowListError, CatalogError, DeclError, DefaultReturn, FloatBits, ParseQuerySetError,
+    QueryAdmission, QueryAllowList, QueryCatalog, QueryDecl, QuerySetMask, QueryShape, QuerySide,
+    Reads, ReturnType, Side, VersionRange, VersionRanges,
 };
 
 /// The most declarations a catalogue holds: a position fits a `u16`.
@@ -102,7 +102,7 @@ mod tests {
     #[test]
     fn value_type_re_exports_are_usable() {
         assert_eq!(QuerySide::default(), QuerySide::BOTH);
-        assert_eq!(DefaultReturn::Float0.as_f32().to_bits(), 0.0_f32.to_bits());
+        assert_eq!(DefaultReturn::ZERO.as_f32().to_bits(), 0.0_f32.to_bits());
         assert!(ReturnType::NUMBER.contains(ReturnType::BOOL));
         assert!(Reads::empty().is_empty());
         assert_eq!(VersionRange::ALWAYS.sets(), QuerySetMask::DEFAULT);
