@@ -55,7 +55,7 @@ fn main() -> Result<(), CompileError> {
     for platform in [Platform::default(), Platform::AndroidArm64] {
         println!(
             "1e10 as an int property in 0..=10 on {platform:?} = {}",
-            value.to_property_int(0..=10, platform)
+            value.to_property_int(0..=10, platform).unwrap()
         );
     }
     Ok(())

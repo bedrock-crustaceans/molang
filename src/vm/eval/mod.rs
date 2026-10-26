@@ -85,7 +85,7 @@ impl Expr {
     /// allocate.
     ///
     /// This is one reading of a result among several: a field that converts it otherwise takes
-    /// [`Expr::eval`] and one of the readings on [`Value`] (see `Value::rounds_to_nonzero`).
+    /// [`Expr::eval`] and one of the readings on [`Value`] (see [`Value::rounds_to_nonzero`]).
     ///
     /// A string result becomes the **low 32 bits of its hash as an `f32`** (often a NaN or a
     /// denormal, not 0); any other handle becomes 0.0. Needs the stack [`Expr::eval`] needs.

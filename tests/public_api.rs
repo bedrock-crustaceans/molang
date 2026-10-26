@@ -613,10 +613,13 @@ mod vm {
         assert!(v(0.5).rounds_to_nonzero(Platform::AndroidArm64));
         assert_eq!(v(-2.5).round_to_int(Platform::default()), -3);
         assert_eq!(v(2.9).to_int(Platform::BdsWindows), 2);
-        assert_eq!(v(1.0e10).to_property_int(0..=10, Platform::default()), 0);
+        assert_eq!(
+            v(1.0e10).to_property_int(0..=10, Platform::default()),
+            Some(0)
+        );
         assert_eq!(
             v(1.0e10).to_property_int(0..=10, Platform::AndroidArm64),
-            10
+            Some(10)
         );
         assert!(Value::<NoHost>::string("a").is_nonzero());
     }

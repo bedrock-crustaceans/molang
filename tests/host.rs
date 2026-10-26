@@ -1651,7 +1651,7 @@ mod value_type {
         assert_eq!(V::Resource(ResourceRef::new("geometry.x")).as_f32(), 0.0);
     }
 
-    /// Truthy is `x != 0.0`: NaN is true, −0.0 false.
+    /// `is_nonzero` is `x != 0.0`: NaN is true, −0.0 false.
     #[test]
     fn truthiness() {
         assert!(V::Float(1.0).is_nonzero());

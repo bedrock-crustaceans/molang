@@ -50,11 +50,12 @@ fn main() -> Result<(), molang::compile::CompileError> {
 | Field | Reading |
 | --- | --- |
 | block permutation conditions, block and item event trigger conditions, `bone_visibility` | `rounds_to_nonzero(platform)`: `(int)round(x) != 0`, so 0.4 is false and 0.5 true |
-| item and block descriptor `tags` | `is_nonzero()`: `x != 0` |
+| item and block descriptor `tags`, bool entity-property defaults | `is_nonzero()`: `x != 0` |
 | ambient-sound conditions | `exceeds_epsilon()`: `x > 2^-23` |
 | anger-sound conditions | `is_positive()`: `x > 0` |
 | experience reward entries | `round_to_int(platform)` per entry, which the caller sums |
 | int entity-property defaults | `to_property_int(min..=max, platform)`: `clamp(trunc(x + 2^-23), min, max)` |
+| float entity-property defaults | `to_property_float(min..=max)`: `x > max ? max : (x > min ? x : min)`, so NaN is `min` |
 | animation values, render-controller colours and the other float fields | `as_f32()` |
 
 ```rust
@@ -71,8 +72,8 @@ assert!(!value.rounds_to_nonzero(expr.platform()));
 
 let (expr, _) = compile("1e10", &options).into_result().unwrap();
 let value = expr.eval(&mut NoHostEnv::new().cx());
-assert_eq!(value.to_property_int(0..=10, Platform::default()), 0);
-assert_eq!(value.to_property_int(0..=10, Platform::AndroidArm64), 10);
+assert_eq!(value.to_property_int(0..=10, Platform::default()), Some(0));
+assert_eq!(value.to_property_int(0..=10, Platform::AndroidArm64), Some(10));
 ```
 
 ## Versions and sides
