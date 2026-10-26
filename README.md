@@ -43,6 +43,38 @@ fn main() -> Result<(), molang::compile::CompileError> {
 }
 ```
 
+## Reading a result
+
+`Expr::eval` returns a `Value` and the field it came from decides how to read it; `eval_f32` is the plain float reading. The readings the game's fields use are named on `Value`. The ones that truncate to an int take the `numeric::Platform` the expression was compiled for (`Expr::platform`), because out of range or NaN gives `i32::MIN` on a server and saturates (NaN to 0) on Android.
+
+| Field | Reading |
+| --- | --- |
+| block permutation conditions, block and item event trigger conditions, `bone_visibility` | `rounds_to_nonzero(platform)`: `(int)round(x) != 0`, so 0.4 is false and 0.5 true |
+| item and block descriptor `tags` | `is_nonzero()`: `x != 0` |
+| ambient-sound conditions | `exceeds_epsilon()`: `x > 2^-23` |
+| anger-sound conditions | `is_positive()`: `x > 0` |
+| experience reward entries | `round_to_int(platform)` per entry, which the caller sums |
+| int entity-property defaults | `to_property_int(min..=max, platform)`: `clamp(trunc(x + 2^-23), min, max)` |
+| animation values, render-controller colours and the other float fields | `as_f32()` |
+
+```rust
+use molang::compile::{CompileOptions, compile};
+use molang::numeric::Platform;
+use molang::version::MolangVersion;
+use molang::vm::NoHostEnv;
+
+let options = CompileOptions::server(MolangVersion::LATEST);
+let (expr, _) = compile("0.4", &options).into_result().unwrap();
+let value = expr.eval(&mut NoHostEnv::new().cx());
+assert!(value.is_nonzero());
+assert!(!value.rounds_to_nonzero(expr.platform()));
+
+let (expr, _) = compile("1e10", &options).into_result().unwrap();
+let value = expr.eval(&mut NoHostEnv::new().cx());
+assert_eq!(value.to_property_int(0..=10, Platform::default()), 0);
+assert_eq!(value.to_property_int(0..=10, Platform::AndroidArm64), 10);
+```
+
 ## Versions and sides
 
 `MolangVersion` covers `-1` (`Invalid`) and `V0` to `V13`. `MolangVersion::from_engine_version_str` maps an engine-version text (`"1.18.10"` is `V5`), and an `EngineVersion` is `"*"` or a `semver::Version`. Queries resolve against the raw version (`RawVersion`): above 13 a text parses like 13 and resolves no query.
