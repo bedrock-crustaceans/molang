@@ -4,7 +4,7 @@ use super::flow::{Jump, Logic};
 use super::{Eval, Scope, Unwind, Walker};
 use molang::compile::Expr;
 use molang::internals::{Node, Payload, storable};
-use molang::numeric::PostOp;
+use molang::numeric::{Platform, PostOp};
 use molang::ops::ExpressionOp as Op;
 use molang::vm::{EvalCx, Host, RuntimeMsg, TempMap, TempName, Temps, Value, VariableName};
 
@@ -12,6 +12,7 @@ impl<H: Host> Walker<H> {
     pub(super) fn new(expr: &Expr) -> Self {
         Self {
             version: expr.version(),
+            platform: expr.platform(),
             catalog: expr.catalog().clone(),
             math: expr.math().cloned(),
             signed_division: expr.version().signed_division_fix(),
@@ -196,11 +197,11 @@ impl Slot {
 
 /// `value` with a node's post-op: the value itself for the plain form, else the float `x·S + O`
 /// (a non-float is read as its float).
-pub(super) fn with_post<H: Host>(value: Value<H>, post: PostOp) -> Value<H> {
+pub(super) fn with_post<H: Host>(platform: Platform, value: Value<H>, post: PostOp) -> Value<H> {
     if post.is_identity() {
         value
     } else {
-        Value::Float(post.apply(value.as_f32()))
+        Value::Float(post.apply(platform, value.as_f32()))
     }
 }
 
@@ -431,7 +432,7 @@ mod tests {
 
     #[test]
     fn post_applies_only_a_non_identity_post_op() {
-        let post = with_post::<World>;
+        let post = |value, post| with_post::<World>(Platform::default(), value, post);
         assert_eq!(
             post(Value::string("a"), PostOp::IDENTITY),
             Value::string("a")
@@ -443,7 +444,7 @@ mod tests {
         );
         // A non-float is read as its float first.
         let hash = Value::<World>::string("a");
-        let expected = PostOp::new(2.0, 1.0).apply(hash.as_f32());
+        let expected = PostOp::new(2.0, 1.0).apply(Platform::default(), hash.as_f32());
         assert_eq!(
             bits(post(hash, PostOp::new(2.0, 1.0)).as_f32()),
             bits(expected)

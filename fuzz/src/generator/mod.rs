@@ -19,6 +19,7 @@ pub use style::Style;
 use arbitrary::{Arbitrary, Result, Unstructured};
 use env::{FuzzRng, Subject, TempLifetime};
 use molang::json::{JsonScalar, MolangSource, MolangValueRepr, OtherJson, ReaderKind, SourceForm};
+use molang::numeric::{LinuxRelease, Platform};
 use molang::rng::{FixedRng, Xorshift128};
 use molang::version::RawVersion;
 use molang::vm::EvalLimits;
@@ -37,6 +38,8 @@ pub struct FuzzCase {
     pub style: Style,
     /// The raw `MolangVersion` (−2 … 15: below, within and above the defined range).
     pub version: i16,
+    /// The platform it is compiled for.
+    pub platform: Platform,
     /// How long `temp.*` lives.
     pub temps: TempLifetime,
     /// The per-evaluation step budget.
@@ -58,8 +61,7 @@ pub struct FuzzCase {
 impl<'a> Arbitrary<'a> for FuzzCase {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         let version = u.int_in_range(-2..=15i16)?;
-        // Drawn and unused, so a recorded input keeps giving the same case.
-        let _: bool = u.arbitrary()?;
+        let platform = platform(u)?;
         let temps = u.arbitrary()?;
         let steps = steps(u)?;
         let loop_iterations = loop_iterations(u)?;
@@ -73,6 +75,7 @@ impl<'a> Arbitrary<'a> for FuzzCase {
             program,
             style,
             version,
+            platform,
             temps,
             steps,
             loop_iterations,
@@ -82,6 +85,16 @@ impl<'a> Arbitrary<'a> for FuzzCase {
             subject,
         })
     }
+}
+
+/// One byte, as the flag it replaces, so a recorded input keeps giving the same program.
+fn platform(u: &mut Unstructured<'_>) -> Result<Platform> {
+    Ok(match u.int_in_range(0..=3u8)? {
+        0 => Platform::BdsLinux(LinuxRelease::V1_26_52),
+        1 => Platform::BdsLinux(LinuxRelease::V1_26_36),
+        2 => Platform::BdsWindows,
+        _ => Platform::AndroidArm64,
+    })
 }
 
 fn steps(u: &mut Unstructured<'_>) -> Result<u64> {
@@ -423,6 +436,18 @@ mod tests {
         );
         assert_eq!(seen_steps, [true; 3]);
         assert_eq!(seen_loops, [true; 3]);
+    }
+
+    #[test]
+    fn every_platform_is_generated() {
+        let mut seen = Vec::new();
+        for seed in 0..300 {
+            let platform = case_of(&buffer(seed, 40)).platform;
+            if !seen.contains(&platform) {
+                seen.push(platform);
+            }
+        }
+        assert_eq!(seen.len(), 4, "{seen:?}");
     }
 
     #[test]

@@ -105,7 +105,11 @@ impl<H: Host> Walker<H> {
                 Value::ZERO
             };
             self.step(cx)?;
-            return Err(Unwind::Return(with_post(value, statement.post())));
+            return Err(Unwind::Return(with_post(
+                self.platform,
+                value,
+                statement.post(),
+            )));
         }
         self.step(cx)?;
         Ok(Value::Float(n.post().offset))
@@ -132,7 +136,7 @@ impl<H: Host> Walker<H> {
         let target = self.node(child(n, 0), cx)?;
         self.step(cx)?;
         let Some(subjects) = arrow_target(cx, &target) else {
-            return Ok(Value::Float(n.post().apply(0.0)));
+            return Ok(Value::Float(n.post().apply(self.platform, 0.0)));
         };
         let caller = std::mem::replace(&mut cx.subjects, subjects);
         self.arrows.push(caller);
@@ -144,7 +148,7 @@ impl<H: Host> Walker<H> {
             Some(caller) => cx.subjects = caller,
             None => cx.sink.runtime(RuntimeMsg::PublicAccessUnderflow),
         }
-        Ok(with_post(value, n.post()))
+        Ok(with_post(self.platform, value, n.post()))
     }
 
     /// `loop(count, body)` under the loop guard: `ceil(count)` iterations for a
@@ -161,7 +165,7 @@ impl<H: Host> Walker<H> {
             self.step(cx)?;
         }
         self.step(cx)?;
-        Ok(Value::Float(n.post().apply(0.0)))
+        Ok(Value::Float(n.post().apply(self.platform, 0.0)))
     }
 
     /// The passes of a `loop` whose count is above zero.
@@ -211,7 +215,7 @@ impl<H: Host> Walker<H> {
             self.step(cx)?;
         }
         self.step(cx)?;
-        Ok(Value::Float(n.post().apply(0.0)))
+        Ok(Value::Float(n.post().apply(self.platform, 0.0)))
     }
 
     /// The passes of a `for_each` over the live actors among `entries`.
@@ -314,18 +318,19 @@ mod tests {
     }
 
     #[test]
-    fn a_nan_loop_count_follows_the_architectures_less_equal() {
+    fn a_nan_loop_count_loops_on_every_platform() {
         use molang::compile::compile;
-        use molang::numeric::{ARCH, Arch};
         let src =
             "v.n = 0; loop(math.sqrt(-1), { v.n = v.n + 1; v.n > 8 ? {break;} : 0; }); return v.n;";
-        let expr = compile(src, &options(13))
-            .expr()
-            .cloned()
-            .expect("compiles");
-        let (vm, walker) = (vm_run(&expr, &Env::new()), walker_run(&expr, &Env::new()));
-        assert_agree(src, &vm, &walker);
-        assert_eq!(walker.f(), if ARCH == Arch::X86_64 { 9.0 } else { 0.0 });
+        for platform in PLATFORMS {
+            let expr = compile(src, &on(platform, 13))
+                .expr()
+                .cloned()
+                .expect("compiles");
+            let (vm, walker) = (vm_run(&expr, &Env::new()), walker_run(&expr, &Env::new()));
+            assert_agree(src, &vm, &walker);
+            assert_eq!(walker.f(), 9.0, "{platform:?}");
+        }
     }
 
     #[test]

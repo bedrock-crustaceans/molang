@@ -4,7 +4,7 @@ use super::FuzzEnv;
 use super::compare::{same_value, state_difference};
 use crate::generator::FuzzCase;
 use crate::tree_walker;
-use molang::compile::compile;
+use molang::compile::{CompileOptions, compile};
 use molang::internals::reference_catalog;
 
 /// What [`differential`] concluded about one case (when the VM and the tree walker do not simply
@@ -29,7 +29,11 @@ pub enum Verdict {
 /// variable's value, access and public snapshot), the temps, the messages and the random source.
 pub fn differential(case: &FuzzCase) -> Result<Verdict, String> {
     let source = case.source();
-    let compiled = compile(&source, &reference_catalog::options(case.version));
+    let options = CompileOptions {
+        platform: case.platform,
+        ..reference_catalog::options(case.version)
+    };
+    let compiled = compile(&source, &options);
     // A rejected text is compared too: both sides evaluate the constant 0.
     let Some(expr) = compiled.expr_or_zero() else {
         return Ok(Verdict::NotCompiled);
@@ -133,8 +137,8 @@ mod tests {
         env::{FuzzActor, FuzzRng, Subject, TempLifetime, test_support::*},
     };
     use molang::catalog::Side;
-    use molang::compile::{CompileOptions, compile};
-    use molang::numeric::{ARCH, Arch};
+    use molang::compile::compile;
+    use molang::numeric::Platform;
     use molang::rng::Xorshift128;
     use molang::rng::{FixedRng, sample};
     use molang::version::RawVersion;
@@ -152,6 +156,7 @@ mod tests {
             program,
             style: Style::default(),
             version: 13,
+            platform: Platform::default(),
             temps: TempLifetime::PerEvaluation,
             steps: 5000,
             loop_iterations: 64,
@@ -879,14 +884,11 @@ mod tests {
     }
 
     #[test]
-    fn the_nan_divisor_rule_is_the_architectures() {
-        // v.n is a NaN: the division gives NaN on `X86_64` and 0 on `Arm64`.
+    fn a_nan_divisor_passes_the_guard() {
+        // v.n is a NaN: the division gives NaN.
         let (verdict, value, _) = observe(&simple(Ex::Bin(BinOp::Div, b(n(1)), b(entity(2)))));
         assert_eq!(verdict, Ok(Verdict::Agree));
-        assert_eq!(value.as_f32().is_nan(), ARCH == Arch::X86_64);
-        if ARCH == Arch::Arm64 {
-            assert_eq!(value.as_f32(), 0.0);
-        }
+        assert!(value.as_f32().is_nan());
     }
 
     #[test]

@@ -21,7 +21,7 @@ impl<H: Host> Walker<H> {
                 Payload::Hash(hash) => hash,
                 _ => 0,
             })),
-            Op::This => Value::Float(n.post().apply(cx.subjects.this)),
+            Op::This => Value::Float(n.post().apply(self.platform, cx.subjects.this)),
             _ => {
                 let hash = match n.value() {
                     Payload::Geometry(name) | Payload::Material(name) | Payload::Texture(name) => {
@@ -62,7 +62,7 @@ impl<H: Host> Walker<H> {
             cx.sink.runtime(RuntimeMsg::MissingMember { name: &text });
             return Err(self.missing(cx, &text));
         };
-        Ok(with_post(value.clone(), n.post()))
+        Ok(with_post(self.platform, value.clone(), n.post()))
     }
 
     #[inline(never)]
@@ -81,7 +81,7 @@ impl<H: Host> Walker<H> {
             None => cx.context(ContextName::from_raw_hash(name.hash())),
         };
         match found {
-            Some(value) => Ok(with_post(value, n.post())),
+            Some(value) => Ok(with_post(self.platform, value, n.post())),
             None => Err(self.missing(cx, name.as_str())),
         }
     }
@@ -110,7 +110,7 @@ impl<H: Host> Walker<H> {
             // Any other target fails the link; nothing reaches here.
             None => {}
         }
-        Ok(with_post(value, n.post()))
+        Ok(with_post(self.platform, value, n.post()))
     }
 
     /// `v.a.b.c = x` / `t.a.b = x`: the root variable's value (0 when unset)

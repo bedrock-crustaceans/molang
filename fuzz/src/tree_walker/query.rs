@@ -35,7 +35,7 @@ impl<H: Host> Walker<H> {
         if self.stopped {
             return Err(Unwind::Stop);
         }
-        Ok(with_post(result, n.post()))
+        Ok(with_post(self.platform, result, n.post()))
     }
 }
 

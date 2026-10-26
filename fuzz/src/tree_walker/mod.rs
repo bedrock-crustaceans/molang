@@ -26,6 +26,7 @@ use molang::catalog::{MathCatalog, QueryCatalog};
 use molang::compile::Expr;
 use molang::hash::HashedStr;
 use molang::internals::{Payload, tree};
+use molang::numeric::Platform;
 use molang::ops::ExpressionOp as Op;
 use molang::version::MolangVersion;
 use molang::vm::{EvalCx, Host, Subjects, TempMap, Value};
@@ -101,6 +102,8 @@ struct Scope {
 
 struct Walker<H: Host> {
     version: MolangVersion,
+    /// The platform the expression was compiled for.
+    platform: Platform,
     /// The catalogue the expression was compiled against, which its query leaves index into.
     catalog: QueryCatalog,
     /// The host math functions the expression was compiled with, which its host math nodes index
@@ -137,6 +140,23 @@ pub(crate) mod test_support {
     use molang::compile::{Expr, compile};
     use molang::internals::reference_catalog;
     pub(crate) use molang::internals::reference_catalog::options;
+    use molang::numeric::{LinuxRelease, Platform};
+
+    /// Every platform.
+    pub(crate) const PLATFORMS: [Platform; 4] = [
+        Platform::BdsLinux(LinuxRelease::V1_26_52),
+        Platform::BdsLinux(LinuxRelease::V1_26_36),
+        Platform::BdsWindows,
+        Platform::AndroidArm64,
+    ];
+
+    /// The options of `version` on `platform`.
+    pub(crate) fn on(platform: Platform, version: i16) -> molang::compile::CompileOptions {
+        molang::compile::CompileOptions {
+            platform,
+            ..options(version)
+        }
+    }
     pub(crate) use molang::internals::tree;
     use molang::internals::{Node, Payload};
     use molang::numeric::PostOp;

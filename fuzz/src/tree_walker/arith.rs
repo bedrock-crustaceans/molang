@@ -5,17 +5,17 @@ use super::{Eval, Unwind, Walker};
 use molang::catalog::{MAX_MATH_ARGS, MathImpl};
 use molang::hash::HashedStr;
 use molang::internals::{Node, Payload, math_decl};
-use molang::numeric::{self, PostOp, arith};
+use molang::numeric::{self, Platform, PostOp, arith};
 use molang::ops::ExpressionOp as Op;
 use molang::rng;
 use molang::stdlib::math;
 use molang::vm::{EvalCx, Host, Value};
 
-type Unary = fn(f32, PostOp) -> f32;
+type Unary = fn(Platform, f32, PostOp) -> f32;
 
-type Binary = fn(f32, f32, PostOp) -> f32;
+type Binary = fn(Platform, f32, f32, PostOp) -> f32;
 
-type Ternary = fn(f32, f32, f32, PostOp) -> f32;
+type Ternary = fn(Platform, f32, f32, f32, PostOp) -> f32;
 
 /// `math.random` or `math.random_integer`.
 #[derive(Copy, Clone)]
@@ -64,7 +64,9 @@ impl<H: Host> Walker<H> {
                 // take the generic constant path: the node's value with its post-op.
                 (None, None) => {
                     self.step(cx)?;
-                    Ok(Value::Float(n.post().apply(moved_constant(n))))
+                    Ok(Value::Float(
+                        n.post().apply(self.platform, moved_constant(n)),
+                    ))
                 }
             },
         }
@@ -75,7 +77,7 @@ impl<H: Host> Walker<H> {
     fn mul(&mut self, n: &Node, cx: &mut EvalCx<'_, '_, H>) -> Eval<H> {
         // Which operand is scaled first is shared with the VM.
         let (a, b) = self.two(n, cx)?;
-        Ok(Value::Float(numeric::mul(b, a, n.post())))
+        Ok(Value::Float(numeric::mul(self.platform, b, a, n.post())))
     }
 
     /// `a / b` (`Div`): the divisor first, then the guard; the numerator only if it passes.
@@ -88,7 +90,12 @@ impl<H: Host> Walker<H> {
             Some(divisor) => {
                 let a = self.node(child(n, 0), cx)?.as_f32();
                 self.step(cx)?;
-                Ok(Value::Float(numeric::div(a, divisor, n.post())))
+                Ok(Value::Float(numeric::div(
+                    self.platform,
+                    a,
+                    divisor,
+                    n.post(),
+                )))
             }
         }
     }
@@ -98,7 +105,7 @@ impl<H: Host> Walker<H> {
     #[inline(never)]
     fn binary_math(&mut self, f: Binary, n: &Node, cx: &mut EvalCx<'_, '_, H>) -> Eval<H> {
         let (a, b) = self.operands(n, cx)?;
-        Ok(Value::Float(f(a, b, n.post())))
+        Ok(Value::Float(f(self.platform, a, b, n.post())))
     }
 
     /// A prefix operator or a one-operand math function.
@@ -106,7 +113,7 @@ impl<H: Host> Walker<H> {
     fn unary_math(&mut self, f: Unary, n: &Node, cx: &mut EvalCx<'_, '_, H>) -> Eval<H> {
         let x = self.node(child(n, 0), cx)?.as_f32();
         self.step(cx)?;
-        Ok(Value::Float(f(x, n.post())))
+        Ok(Value::Float(f(self.platform, x, n.post())))
     }
 
     /// `clamp`, the interpolations and the easings: three operands in order.
@@ -115,7 +122,7 @@ impl<H: Host> Walker<H> {
         let (a, b) = self.two(n, cx)?;
         let c = self.node(child(n, 2), cx)?.as_f32();
         self.step(cx)?;
-        Ok(Value::Float(function(a, b, c, n.post())))
+        Ok(Value::Float(function(self.platform, a, b, c, n.post())))
     }
 
     /// A host math function: every argument but the last pushed, in order, then the call; the
@@ -136,7 +143,7 @@ impl<H: Host> Walker<H> {
             MathImpl::Pure(call) => call(&args[..count]),
             MathImpl::Volatile(call) => call(&mut *cx.rng, &args[..count]),
         };
-        Ok(Value::Float(n.post().apply(value)))
+        Ok(Value::Float(n.post().apply(self.platform, value)))
     }
 
     /// `math.die_roll` / `math.die_roll_integer`, whose roll `start` begins: one sample per roll,
@@ -144,14 +151,14 @@ impl<H: Host> Walker<H> {
     #[inline(never)]
     fn die_roll(
         &mut self,
-        start: fn(f32, f32, f32) -> math::DieRoll,
+        start: fn(Platform, f32, f32, f32) -> math::DieRoll,
         n: &Node,
         cx: &mut EvalCx<'_, '_, H>,
     ) -> Eval<H> {
         let (count, a) = self.two(n, cx)?;
         let b = self.node(child(n, 2), cx)?.as_f32();
         self.step(cx)?;
-        let mut roll = start(count, a, b);
+        let mut roll = start(self.platform, count, a, b);
         while roll.remaining() > 0 {
             self.step(cx)?;
             roll.roll(rng::sample(cx.rng));
@@ -216,7 +223,7 @@ impl<H: Host> Walker<H> {
             return Ok(value);
         }
         self.step(cx)?;
-        Ok(with_post(value, post))
+        Ok(with_post(self.platform, value, post))
     }
 
     /// The two operands of a binary node as floats: `a`, (push), `b`, (the operation).
@@ -246,11 +253,11 @@ impl<H: Host> Walker<H> {
         for term in middle {
             let value = self.node(term, cx)?.as_f32();
             self.step(cx)?;
-            sum = arith::add(sum, value);
+            sum = arith::add(self.platform, sum, value);
         }
         let value = self.node(last, cx)?.as_f32();
         self.step(cx)?;
-        Ok(Value::Float(numeric::add(value, sum, post)))
+        Ok(Value::Float(numeric::add(self.platform, value, sum, post)))
     }
 
     /// `math.random` / `math.random_integer`: one sample, drawn after both bounds are
@@ -262,17 +269,19 @@ impl<H: Host> Walker<H> {
         if a.is(Op::Float) && b.is(Op::Float) {
             self.step(cx)?;
             let sample = rng::sample(cx.rng);
-            let (a, b) = (a.float(), b.float());
+            let (p, a, b) = (self.platform, a.float(), b.float());
             return Ok(Value::Float(match draw {
-                Draw::Float => math::random_folded(sample, math::random_const_bounds(a, b, post)),
-                Draw::Integer => math::random_integer_const_bounds(a, b, sample, post),
+                Draw::Float => {
+                    math::random_folded(p, sample, math::random_const_bounds(p, a, b, post))
+                }
+                Draw::Integer => math::random_integer_const_bounds(p, a, b, sample, post),
             }));
         }
         let (a, b) = self.two(n, cx)?;
         let sample = rng::sample(cx.rng);
         Ok(Value::Float(match draw {
-            Draw::Float => math::random(a, b, sample, post),
-            Draw::Integer => math::random_integer(a, b, sample, post),
+            Draw::Float => math::random(self.platform, a, b, sample, post),
+            Draw::Integer => math::random_integer(self.platform, a, b, sample, post),
         }))
     }
 }
@@ -281,7 +290,7 @@ impl<H: Host> Walker<H> {
 fn unary(op: Op) -> Option<Unary> {
     Some(match op {
         Op::Negate => numeric::negate,
-        Op::LogicalNot => numeric::not,
+        Op::LogicalNot => |_, x, post| numeric::not(x, post),
         Op::Abs => math::abs,
         Op::Acos => math::acos,
         Op::Asin => math::asin,
@@ -295,7 +304,7 @@ fn unary(op: Op) -> Option<Unary> {
         Op::MinAngle => math::min_angle,
         Op::Round => math::round,
         Op::Sin => math::sin,
-        Op::Sign => math::sign,
+        Op::Sign => |_, x, post| math::sign(x, post),
         Op::Sqrt => math::sqrt,
         Op::Trunc => math::trunc,
         _ => return None,
@@ -348,7 +357,7 @@ mod tests {
     use super::*;
     use crate::tree_walker::test_support::*;
     use molang::compile::compile;
-    use molang::numeric::{ARCH, Arch};
+    use molang::numeric::Platform;
     use molang::rng::{Xorshift128, sample};
 
     #[test]
@@ -401,14 +410,15 @@ mod tests {
     }
 
     #[test]
-    fn a_nan_divisor_follows_the_architecture() {
-        // A NaN divisor gives NaN on `X86_64` and 0 on `Arm64`.
+    fn a_nan_divisor_passes_the_guard_on_every_platform() {
         let start = Env::new().with_var("d", Value::Float(f32::NAN));
-        let compiled = compile("v.x / v.d", &options(13));
-        let expr = compiled.expr().cloned().expect("compiles");
-        let (vm, walker) = (vm_run(&expr, &start), walker_run(&expr, &start));
-        assert_agree("x / NaN", &vm, &walker);
-        assert_eq!(walker.f().is_nan(), ARCH == Arch::X86_64);
+        for platform in PLATFORMS {
+            let compiled = compile("v.x / v.d", &on(platform, 13));
+            let expr = compiled.expr().cloned().expect("compiles");
+            let (vm, walker) = (vm_run(&expr, &start), walker_run(&expr, &start));
+            assert_agree("x / NaN", &vm, &walker);
+            assert!(walker.f().is_nan(), "{platform:?}");
+        }
     }
 
     #[test]
@@ -624,6 +634,7 @@ mod tests {
 
     #[test]
     fn the_unary_table_names_the_matching_math_function() {
+        let sign: Unary = |_, x, post| math::sign(x, post);
         let table: [(Op, Unary); 16] = [
             (Op::Abs, math::abs),
             (Op::Acos, math::acos),
@@ -638,14 +649,14 @@ mod tests {
             (Op::MinAngle, math::min_angle),
             (Op::Round, math::round),
             (Op::Sin, math::sin),
-            (Op::Sign, math::sign),
+            (Op::Sign, sign),
             (Op::Sqrt, math::sqrt),
             (Op::Trunc, math::trunc),
         ];
-        for (op, expected) in table {
+        for ((op, expected), p) in table.into_iter().zip(PLATFORMS.into_iter().cycle()) {
             for x in [-0.5f32, 0.25, 0.75, 2.5, -7.0] {
-                let got = unary(op).expect("a unary function")(x, PostOp::IDENTITY);
-                let want = expected(x, PostOp::IDENTITY);
+                let got = unary(op).expect("a unary function")(p, x, PostOp::IDENTITY);
+                let want = expected(p, x, PostOp::IDENTITY);
                 assert_eq!(
                     got.to_bits(),
                     want.to_bits(),
@@ -658,7 +669,9 @@ mod tests {
     #[test]
     fn the_unary_table_distinguishes_its_functions() {
         // Guards the table above against a degenerate "every entry is trunc": these differ at -0.5.
-        let at = |op: Op| unary(op).expect("a unary function")(-0.5, PostOp::IDENTITY);
+        let at = |op: Op| {
+            unary(op).expect("a unary function")(Platform::default(), -0.5, PostOp::IDENTITY)
+        };
         assert_eq!(at(Op::Abs), 0.5);
         assert_eq!(at(Op::Ceil), -0.0);
         assert_eq!(at(Op::Floor), -1.0);
@@ -714,19 +727,25 @@ mod tests {
 
     #[test]
     fn the_ternary_table_computes_what_its_name_says() {
-        let id = PostOp::IDENTITY;
-        assert_eq!(ternary(Op::Clamp).map(|f| f(5.0, 0.0, 2.0, id)), Some(2.0));
-        assert_eq!(ternary(Op::Lerp).map(|f| f(0.0, 10.0, 0.5, id)), Some(5.0));
+        let (p, id) = (Platform::default(), PostOp::IDENTITY);
         assert_eq!(
-            ternary(Op::InverseLerp).map(|f| f(0.0, 10.0, 5.0, id)),
+            ternary(Op::Clamp).map(|f| f(p, 5.0, 0.0, 2.0, id)),
+            Some(2.0)
+        );
+        assert_eq!(
+            ternary(Op::Lerp).map(|f| f(p, 0.0, 10.0, 0.5, id)),
+            Some(5.0)
+        );
+        assert_eq!(
+            ternary(Op::InverseLerp).map(|f| f(p, 0.0, 10.0, 5.0, id)),
             Some(0.5)
         );
         assert_eq!(
-            ternary(Op::EaseInQuad).map(|f| f(0.0, 1.0, 0.5, id)),
+            ternary(Op::EaseInQuad).map(|f| f(p, 0.0, 1.0, 0.5, id)),
             Some(0.25)
         );
         assert_eq!(
-            ternary(Op::EaseOutQuad).map(|f| f(0.0, 1.0, 0.5, id)),
+            ternary(Op::EaseOutQuad).map(|f| f(p, 0.0, 1.0, 0.5, id)),
             Some(0.75)
         );
     }
