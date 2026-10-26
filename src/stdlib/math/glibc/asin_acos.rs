@@ -114,7 +114,7 @@ fn beyond_one(x: f32) -> f32 {
 }
 
 /// `asinf`.
-pub fn asinf(x: f32) -> f32 {
+pub(crate) fn asinf(x: f32) -> f32 {
     let xs = f64::from(x);
     let ax = x.to_bits() << 1;
     if ax > 0x7f << 24 {
@@ -149,7 +149,7 @@ pub fn asinf(x: f32) -> f32 {
 }
 
 /// `acosf`.
-pub fn acosf(x: f32) -> f32 {
+pub(crate) fn acosf(x: f32) -> f32 {
     let xs = f64::from(x);
     let t = x.to_bits();
     let ax = t << 1;
@@ -208,7 +208,7 @@ mod tests {
         check_rows("acosf", acosf, ACOSF);
     }
 
-    /// Recorded from glibc 2.41 on x86-64.
+    /// Reference results of glibc's `asinf`.
     const ASINF: &[(u32, u32)] = &[
         (0x0000_0000, 0x0000_0000),
         (0x8000_0000, 0x8000_0000),
@@ -248,7 +248,7 @@ mod tests {
         (0xbe95_dd94, 0xbe98_17af),
     ];
 
-    /// Recorded from glibc 2.41 on x86-64.
+    /// Reference results of glibc's `acosf`.
     const ACOSF: &[(u32, u32)] = &[
         (0x0000_0000, 0x3fc9_0fdb),
         (0x8000_0000, 0x3fc9_0fdb),

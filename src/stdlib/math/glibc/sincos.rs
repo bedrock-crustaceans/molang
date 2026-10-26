@@ -135,7 +135,7 @@ fn half(q: i32) -> (&'static Poly, f64) {
 }
 
 /// `sinf`; ±∞ gives `0xffc00000`.
-pub fn sinf(y: f32) -> f32 {
+pub(crate) fn sinf(y: f32) -> f32 {
     let x = f64::from(y);
     let top = abstop12(y);
     if top < abstop12(PIO4) {
@@ -158,7 +158,7 @@ pub fn sinf(y: f32) -> f32 {
 }
 
 /// `cosf`; ±∞ gives `0xffc00000`.
-pub fn cosf(y: f32) -> f32 {
+pub(crate) fn cosf(y: f32) -> f32 {
     let x = f64::from(y);
     let top = abstop12(y);
     if top < abstop12(PIO4) {
@@ -195,8 +195,12 @@ mod tests {
         check_rows("cosf", cosf, COSF);
     }
 
-    /// Recorded from glibc 2.41 on x86-64 with FMA.
+    /// Reference results of glibc's `sinf`.
     const SINF: &[(u32, u32)] = &[
+        // The build without FMA rounds these the other way.
+        (0x4255_b0a9, 0xbc7d_08a9),
+        (0x42a3_5c07, 0xbada_a3b4),
+        (0x42a3_5d44, 0x3a44_b889),
         (0x0000_0000, 0x0000_0000),
         (0x8000_0000, 0x8000_0000),
         (0x7f80_0000, 0xffc0_0000),
@@ -252,8 +256,12 @@ mod tests {
         (0x41ff_d698, 0x3f08_d1a4),
     ];
 
-    /// Recorded from glibc 2.41 on x86-64 with FMA.
+    /// Reference results of glibc's `cosf`.
     const COSF: &[(u32, u32)] = &[
+        // The build without FMA rounds these the other way.
+        (0x418a_3adb, 0xb7b4_f770),
+        (0x418a_3adc, 0xb7a4_f770),
+        (0x41bc_76d9, 0xbb80_3f6b),
         (0x0000_0000, 0x3f80_0000),
         (0x8000_0000, 0x3f80_0000),
         (0x7f80_0000, 0xffc0_0000),

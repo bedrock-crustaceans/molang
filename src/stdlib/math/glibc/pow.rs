@@ -72,7 +72,7 @@ fn is_signalling(x: f32) -> bool {
 
 /// `powf`. A signalling NaN is quietened even where a quiet one gives 1 (`pow(sNaN, 0)`); a finite
 /// negative `x` with a non-integer `y` gives `0xffc00000`.
-pub fn powf(x: f32, y: f32) -> f32 {
+pub(crate) fn powf(x: f32, y: f32) -> f32 {
     let mut ix = x.to_bits();
     let iy = y.to_bits();
     let mut sign_bias = 0;
@@ -186,8 +186,12 @@ mod tests {
         );
     }
 
-    /// `(x, y, powf(x, y))`, recorded from glibc 2.41 on x86-64 with FMA.
+    /// Reference results of glibc's `powf`, as `(x, y, powf(x, y))`.
     const POWF: &[(u32, u32, u32)] = &[
+        // The build without FMA rounds these the other way.
+        (0x4032_678b, 0xc1e6_0c30, 0x2a31_427e),
+        (0x4108_7801, 0xc1f5_c837, 0x0ffe_9a53),
+        (0x410e_9d3f, 0xc208_2bc9, 0x09bc_f57e),
         (0x0000_0000, 0x0000_0000, 0x3f80_0000),
         (0x0000_0000, 0x7f80_0000, 0x0000_0000),
         (0x0000_0000, 0xff80_0000, 0x7f80_0000),

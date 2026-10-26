@@ -81,7 +81,7 @@ pub(super) fn scale_poly(ki: u64, r: f64, poly: &[f64; 3]) -> f64 {
 }
 
 /// `expf`.
-pub fn expf(x: f32) -> f32 {
+pub(crate) fn expf(x: f32) -> f32 {
     let xd = f64::from(x);
     let abstop = top12(x) & 0x7ff;
     if abstop >= top12(88.0) {
@@ -110,7 +110,7 @@ pub fn expf(x: f32) -> f32 {
 }
 
 /// `exp2f`.
-pub fn exp2f(x: f32) -> f32 {
+pub(crate) fn exp2f(x: f32) -> f32 {
     let xd = f64::from(x);
     let abstop = top12(x) & 0x7ff;
     if abstop >= top12(128.0) {
@@ -152,8 +152,11 @@ mod tests {
         check_rows("exp2f", exp2f, EXP2F);
     }
 
-    /// Recorded from glibc 2.41 on x86-64 with FMA.
+    /// Reference results of glibc's `expf`.
     const EXPF: &[(u32, u32)] = &[
+        // The build without FMA rounds these the other way.
+        (0x4202_422f, 0x56fc_9f1c),
+        (0xc27c_65d9, 0x11fa_2993),
         (0x0000_0000, 0x3f80_0000),
         (0x8000_0000, 0x3f80_0000),
         (0x7f80_0000, 0x7f80_0000),
@@ -206,7 +209,7 @@ mod tests {
         (0x41d1_39e0, 0x5254_7aaa),
     ];
 
-    /// Recorded from glibc 2.41 on x86-64 with FMA.
+    /// Reference results of glibc's `exp2f`.
     const EXP2F: &[(u32, u32)] = &[
         (0x0000_0000, 0x3f80_0000),
         (0x8000_0000, 0x3f80_0000),

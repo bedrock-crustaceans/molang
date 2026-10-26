@@ -45,7 +45,7 @@ const ATAN_CD: [f64; 7] = [
 ];
 
 /// `atanf`.
-pub fn atanf(x: f32) -> f32 {
+pub(crate) fn atanf(x: f32) -> f32 {
     let t = x.to_bits();
     let e = (t >> 23) & 0xff;
     let gt = e >= 127;
@@ -195,7 +195,7 @@ fn atan2f_tiny(y: f32, x: f32) -> f32 {
 }
 
 /// `atan2f(y, x)`. Of two NaNs `y` wins.
-pub fn atan2f(y: f32, x: f32) -> f32 {
+pub(crate) fn atan2f(y: f32, x: f32) -> f32 {
     let ux = x.to_bits();
     let uy = y.to_bits();
     let ax = ux & 0x7fff_ffff;
@@ -304,7 +304,7 @@ mod tests {
         }
     }
 
-    /// Recorded from glibc 2.41 on x86-64.
+    /// Reference results of glibc's `atanf`.
     const ATANF: &[(u32, u32)] = &[
         (0x0000_0000, 0x0000_0000),
         (0x8000_0000, 0x8000_0000),
@@ -343,7 +343,7 @@ mod tests {
         (0xc16a_2a38, 0xbfc0_545c),
     ];
 
-    /// `(y, x, atan2f(y, x))`, recorded from glibc 2.41 on x86-64.
+    /// Reference results of glibc's `atan2f`, as `(y, x, atan2f(y, x))`.
     const ATAN2F: &[(u32, u32, u32)] = &[
         (0x0000_0000, 0x0000_0000, 0x0000_0000),
         (0x0000_0000, 0x7f80_0000, 0x0000_0000),

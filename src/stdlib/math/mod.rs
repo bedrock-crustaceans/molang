@@ -45,10 +45,6 @@ mod arch;
 mod arithmetic;
 mod ease;
 pub(crate) mod fold;
-#[allow(
-    dead_code,
-    reason = "the platform dispatch selects these bodies through `transcendental::Libm`"
-)]
 pub(crate) mod glibc;
 mod interpolation;
 mod random;

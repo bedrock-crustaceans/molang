@@ -6,9 +6,8 @@
 //! that build has a fused instruction, and every other operation is rounded on its own. `asinf`,
 //! `acosf`, `atanf` and `atan2f` have a single build and fuse only where their source calls `fma`.
 //!
-//! NaN results follow x86-64: a NaN argument comes back quiet (of two, the one glibc adds first),
-//! an invalid operation gives `0xffc00000` and a compatibility wrapper's error `0x7fc00000`. The
-//! functions are named after the symbols they reproduce; a `_compat` suffix marks the
+//! A NaN argument comes back quiet (of two, the one glibc adds first); an invalid operation gives
+//! `0xffc00000`, a compatibility wrapper's domain error `0x7fc00000`. A `_compat` suffix marks the
 //! `GLIBC_2.2.5` wrapper where its results differ from the current symbol's.
 
 mod asin_acos;
@@ -18,14 +17,14 @@ mod log;
 mod pow;
 mod sincos;
 
-pub use asin_acos::{acosf, asinf};
-pub use atan::{atan2f, atanf};
-pub use exp::{exp2f, expf};
-#[allow(unused_imports, reason = "only the oracle test takes `log2`")]
-pub use log::log2f;
-pub use log::{logf, logf_compat};
-pub use pow::powf;
-pub use sincos::{cosf, sinf};
+pub(crate) use asin_acos::{acosf, asinf};
+pub(crate) use atan::{atan2f, atanf};
+pub(crate) use exp::{exp2f, expf};
+#[cfg(feature = "fuzz")]
+pub(crate) use log::log2f;
+pub(crate) use log::{logf, logf_compat};
+pub(crate) use pow::powf;
+pub(crate) use sincos::{cosf, sinf};
 
 const QUIET_BIT: u32 = 0x0040_0000;
 

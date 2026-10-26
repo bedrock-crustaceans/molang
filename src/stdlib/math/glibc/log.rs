@@ -56,6 +56,7 @@ pub(super) const LOG2_TABLE: [(f64, f64); 16] = [
 ];
 
 /// The quartic of `log1p(r)/ln 2`, highest degree first, without a constant term.
+#[cfg(any(test, feature = "fuzz"))]
 const LOG2_POLY: [f64; 4] = [
     hex("-0x1.712b6f70a7e4dp-2"),
     hex("0x1.ecabf496832ep-2"),
@@ -92,7 +93,7 @@ pub(super) fn split(ix: u32) -> (usize, i32, f64) {
 }
 
 /// `logf@GLIBC_2.27`: a negative `x` gives `0xffc00000`.
-pub fn logf(x: f32) -> f32 {
+pub(crate) fn logf(x: f32) -> f32 {
     if x.to_bits() == 0x3f80_0000 {
         return 0.0;
     }
@@ -111,12 +112,13 @@ pub fn logf(x: f32) -> f32 {
 }
 
 /// `logf@GLIBC_2.2.5`, the compatibility wrapper: a negative `x` gives `0x7fc00000`.
-pub fn logf_compat(x: f32) -> f32 {
+pub(crate) fn logf_compat(x: f32) -> f32 {
     if x < 0.0 { WRAPPER_NAN } else { logf(x) }
 }
 
 /// `log2f@GLIBC_2.27`: a negative `x` gives `0xffc00000`.
-pub fn log2f(x: f32) -> f32 {
+#[cfg(any(test, feature = "fuzz"))]
+pub(crate) fn log2f(x: f32) -> f32 {
     if x.to_bits() == 0x3f80_0000 {
         return 0.0;
     }
@@ -171,7 +173,7 @@ mod tests {
         }
     }
 
-    /// Recorded from glibc 2.41 on x86-64 with FMA.
+    /// Reference results of glibc's `logf`.
     const LOGF: &[(u32, u32)] = &[
         (0x0000_0000, 0xff80_0000),
         (0x8000_0000, 0xff80_0000),
@@ -223,7 +225,7 @@ mod tests {
         (0x4288_7c5c, 0x4087_236b),
     ];
 
-    /// Recorded from glibc 2.41 on x86-64 with FMA.
+    /// Reference results of glibc's `log2f`.
     const LOG2F: &[(u32, u32)] = &[
         (0x0000_0000, 0xff80_0000),
         (0x8000_0000, 0xff80_0000),
