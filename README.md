@@ -142,12 +142,16 @@ fn main() -> Result<(), molang::compile::CompileError> {
 
 ## Render-controller arrays
 
-`array.<name>[index]` reads an element of a render controller's `arrays` section. With `CompileOptions::client` (`arrays: ArrayAccess::FromHost`) it compiles to a read at evaluation: the index is truncated toward zero as the platform converts a float to an int, a negative index is 0, and the index wraps by the array's length. The element is a `Value::Resource`, and math on it is the compile error `MathOnArray`. `NoHostEnv` and the default `HostEnv` hold an `ArrayTable`; `HostEnv::with_arrays` swaps in any `ArrayProvider`. An unknown or empty array reads as 0 and logs a `molang:` message. Under `CompileOptions::server` (`ArrayAccess::Unresolved`), and for a bare `array.<name>` under either, the compile ends with `CompileOutcome::UsesArrays` and no program.
+`array.<name>[index]` reads an element of one of a render controller's arrays: its `geometries`, `textures` or `materials`. With `CompileOptions::client` (`arrays: ArrayAccess::FromHost`) it compiles to a read at evaluation. The index is truncated toward zero as the platform converts a float to an int, a negative index is 0, and the index wraps by the array's length. An x86-64 platform converts as the servers do, since only the arm64 client's conversion was observed (the crate's choice).
+
+The element is a `Value::Resource`. Math on it is the compile error `MathOnArray` at the root; below the root it is only a diagnostic, the expression compiles and the element reads as 0. `NoHostEnv` and the default `HostEnv` hold an `ArrayTable`; `HostEnv::with_arrays` swaps in any `ArrayProvider`. An unknown array reads as 0 and logs a `molang:` message; so does an empty one (the crate's choice: what an empty array gives is unknown).
+
+A server has no render controllers, so under `CompileOptions::server` (`ArrayAccess::Unresolved`) the compile ends with `CompileOutcome::UsesArrays` and no program. A bare `array.<name>` does so under either.
 
 ```rust
 use molang::compile::{CompileOptions, compile};
 use molang::version::MolangVersion;
-use molang::vm::{ArrayName, NoHostEnv, ResourceRef, Value};
+use molang::vm::{ArrayName, NoHostEnv, ResourceRef, Value, VariableName};
 
 fn main() -> Result<(), molang::compile::CompileError> {
     let options = CompileOptions::client(MolangVersion::LATEST);
@@ -156,7 +160,7 @@ fn main() -> Result<(), molang::compile::CompileError> {
     let mut env = NoHostEnv::new();
     let skins = [ResourceRef::new("texture.default"), ResourceRef::new("texture.red")];
     env.arrays.set(ArrayName::new("skins"), skins);
-    env.variables.set(molang::vm::VariableName::new("variant"), Value::Float(3.0));
+    env.variables.set(VariableName::new("variant"), Value::Float(3.0));
     assert_eq!(expr.eval(&mut env.cx()), Value::Resource(skins[1]));
     Ok(())
 }

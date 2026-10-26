@@ -77,10 +77,11 @@ impl Default for Deviations {
 /// A bare `array.<name>` and an expression array end the compile with
 /// [`CompileOutcome::UsesArrays`](super::CompileOutcome::UsesArrays) either way.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ArrayAccess {
     /// No program: the compile ends with
-    /// [`CompileOutcome::UsesArrays`](super::CompileOutcome::UsesArrays), for a caller that
-    /// resolves the arrays first. Arrays exist only in client rendering.
+    /// [`CompileOutcome::UsesArrays`](super::CompileOutcome::UsesArrays), as on a server, which
+    /// has no render controllers.
     #[default]
     Unresolved,
     /// An instruction that reads the element at evaluation, from
