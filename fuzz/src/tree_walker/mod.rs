@@ -207,6 +207,7 @@ pub(crate) mod test_support {
         pub(crate) limits: EvalLimits,
         pub(crate) temps: Option<TempMap<World>>,
         pub(crate) subject: Option<u32>,
+        pub(crate) arrays: molang::vm::ArrayTable,
     }
 
     pub(crate) fn var(name: &str) -> VariableName {
@@ -275,6 +276,7 @@ pub(crate) mod test_support {
                 limits: EvalLimits::DEFAULT,
                 temps: None,
                 subject: None,
+                arrays: molang::vm::ArrayTable::new(),
             }
         }
 
@@ -306,6 +308,7 @@ pub(crate) mod test_support {
                 host: &mut self.host,
                 variables: &mut self.vars,
                 context: &self.context,
+                arrays: &self.arrays,
                 queries: Some(&self.queries),
                 rng: &mut self.rng,
                 sink: &mut self.sink,

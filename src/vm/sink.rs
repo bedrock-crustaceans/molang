@@ -80,6 +80,17 @@ pub enum RuntimeMsg<'a> {
         /// ([`EvalLimits::struct_members`](super::EvalLimits::struct_members)).
         limit: u32,
     },
+    /// `array.<name>[index]` named an array the [`ArrayProvider`](super::ArrayProvider) does not
+    /// have; the element reads as 0.
+    UnknownArray {
+        /// The full canonical name, e.g. `array.skins`.
+        name: &'a str,
+    },
+    /// `array.<name>[index]` indexed an array without elements; the element reads as 0.
+    EmptyArray {
+        /// The full canonical name, e.g. `array.skins`.
+        name: &'a str,
+    },
     /// A query argument would run deeper than
     /// [`EvalLimits::query_depth`](super::EvalLimits::query_depth); the evaluation ended with 0.
     QueryDepthLimit {
@@ -148,6 +159,8 @@ impl fmt::Display for RuntimeMsg<'_> {
                 f,
                 "molang: evaluation stopped: a struct would hold more than its budget of {limit} members"
             ),
+            Self::UnknownArray { name } => write!(f, "molang: unknown array '{name}'"),
+            Self::EmptyArray { name } => write!(f, "molang: array '{name}' has no elements"),
             Self::QueryDepthLimit { limit } => write!(
                 f,
                 "molang: evaluation stopped: query arguments would nest deeper than their budget of {limit} levels"
@@ -570,6 +583,18 @@ mod tests {
             (
                 RuntimeMsg::QueryDepthLimit { limit: 8 },
                 "molang: evaluation stopped: query arguments would nest deeper than their budget of 8 levels",
+            ),
+            (
+                RuntimeMsg::UnknownArray {
+                    name: "array.skins",
+                },
+                "molang: unknown array 'array.skins'",
+            ),
+            (
+                RuntimeMsg::EmptyArray {
+                    name: "array.skins",
+                },
+                "molang: array 'array.skins' has no elements",
             ),
         ];
         for (msg, text) in cases {

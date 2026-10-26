@@ -233,6 +233,7 @@ impl Env {
             host: &mut self.world,
             variables: &mut self.vars,
             context: &self.context,
+            arrays: &molang::vm::NoArrays,
             queries: Some(&self.queries),
             rng,
             sink,

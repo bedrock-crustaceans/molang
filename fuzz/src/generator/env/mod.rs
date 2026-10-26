@@ -299,6 +299,7 @@ impl FuzzEnv {
             host: &mut self.world,
             variables: &mut self.vars,
             context: &self.context,
+            arrays: &molang::vm::NoArrays,
             queries: Some(&self.queries),
             rng: &mut self.rng,
             sink: &mut self.sink,

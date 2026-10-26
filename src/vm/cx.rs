@@ -2,6 +2,7 @@
 
 use std::fmt::{self, Debug};
 
+use super::arrays::{ArrayProvider, ArrayTable};
 use super::host::{ContextMap, ContextProvider, Host, HostAccess, NoHost, Subjects};
 use super::limits::EvalLimits;
 use super::name::{ContextName, VariableName};
@@ -24,6 +25,9 @@ pub struct EvalCx<'a, 'w, H: Host> {
     pub variables: &'a mut dyn VariableStore<H>,
     /// Read-only `context.*`: [`ContextMap`] or [`NoContext`](super::NoContext).
     pub context: &'a dyn ContextProvider<H>,
+    /// The render-controller arrays `array.*` indexes: [`ArrayTable`] or
+    /// [`NoArrays`](super::NoArrays).
+    pub arrays: &'a dyn ArrayProvider,
     /// The host's query implementations; `None`: every call returns its declared default.
     pub queries: Option<&'a QueryTable<H>>,
     /// The random source: [`Xorshift128`], [`MersenneTwister`](crate::rng::MersenneTwister),
@@ -189,6 +193,8 @@ pub struct NoHostEnv {
     pub variables: VariableMap<NoHost>,
     /// `context.*`.
     pub context: ContextMap<NoHost>,
+    /// `array.*`.
+    pub arrays: ArrayTable,
     /// The query implementations; none by default (see [`EvalCx::queries`]).
     pub queries: Option<QueryTable<NoHost>>,
     /// The random source, from the standard seeds: the same sequence in every `NoHostEnv`.
@@ -211,6 +217,7 @@ impl NoHostEnv {
         Self {
             variables: VariableMap::new(),
             context: ContextMap::new(),
+            arrays: ArrayTable::new(),
             queries: None,
             rng: Xorshift128::new(),
             sink: BoundedSink::new(),
@@ -231,6 +238,7 @@ impl NoHostEnv {
             host: &mut self.host,
             variables: &mut self.variables,
             context: &self.context,
+            arrays: &self.arrays,
             queries: self.queries.as_ref(),
             rng: &mut self.rng,
             sink: &mut self.sink,
@@ -299,12 +307,20 @@ impl Default for NoHostEnv {
 /// # }
 /// # Ok::<(), molang::vm::UnknownQuery>(())
 /// ```
-pub struct HostEnv<H: Host, V = VariableMap<H>, C = ContextMap<H>, R = Xorshift128, S = BoundedSink>
-{
+pub struct HostEnv<
+    H: Host,
+    V = VariableMap<H>,
+    C = ContextMap<H>,
+    R = Xorshift128,
+    S = BoundedSink,
+    A = ArrayTable,
+> {
     /// `variable.*` storage.
     pub variables: V,
     /// `context.*`.
     pub context: C,
+    /// `array.*`.
+    pub arrays: A,
     /// The query implementations, if any (see [`EvalCx::queries`]).
     pub queries: Option<QueryTable<H>>,
     /// The random source. [`HostEnv::new`] starts it from the standard seeds, the same in every
@@ -338,6 +354,7 @@ impl<H: Host> Default for HostEnv<H> {
         Self {
             variables: VariableMap::new(),
             context: ContextMap::new(),
+            arrays: ArrayTable::new(),
             queries: None,
             rng: Xorshift128::new(),
             sink: BoundedSink::new(),
@@ -347,54 +364,72 @@ impl<H: Host> Default for HostEnv<H> {
     }
 }
 
-impl<H: Host, V, C, R, S> HostEnv<H, V, C, R, S> {
+impl<H: Host, V, C, R, S, A> HostEnv<H, V, C, R, S, A> {
     /// The same environment with another variable store.
-    pub fn with_variables<V2: VariableStore<H>>(self, variables: V2) -> HostEnv<H, V2, C, R, S> {
+    pub fn with_variables<V2: VariableStore<H>>(self, variables: V2) -> HostEnv<H, V2, C, R, S, A> {
         HostEnv {
             variables,
             context: self.context,
             queries: self.queries,
             rng: self.rng,
             sink: self.sink,
+            arrays: self.arrays,
             limits: self.limits,
             temps: self.temps,
         }
     }
 
     /// The same environment with another context provider.
-    pub fn with_context<C2: ContextProvider<H>>(self, context: C2) -> HostEnv<H, V, C2, R, S> {
+    pub fn with_context<C2: ContextProvider<H>>(self, context: C2) -> HostEnv<H, V, C2, R, S, A> {
         HostEnv {
             variables: self.variables,
             context,
             queries: self.queries,
             rng: self.rng,
             sink: self.sink,
+            arrays: self.arrays,
             limits: self.limits,
             temps: self.temps,
         }
     }
 
     /// The same environment with another random source.
-    pub fn with_rng<R2: RandomSource>(self, rng: R2) -> HostEnv<H, V, C, R2, S> {
+    pub fn with_rng<R2: RandomSource>(self, rng: R2) -> HostEnv<H, V, C, R2, S, A> {
         HostEnv {
             variables: self.variables,
             context: self.context,
             queries: self.queries,
             rng,
             sink: self.sink,
+            arrays: self.arrays,
             limits: self.limits,
             temps: self.temps,
         }
     }
 
     /// The same environment with another sink.
-    pub fn with_sink<S2: RuntimeSink>(self, sink: S2) -> HostEnv<H, V, C, R, S2> {
+    pub fn with_sink<S2: RuntimeSink>(self, sink: S2) -> HostEnv<H, V, C, R, S2, A> {
         HostEnv {
             variables: self.variables,
             context: self.context,
             queries: self.queries,
             rng: self.rng,
             sink,
+            arrays: self.arrays,
+            limits: self.limits,
+            temps: self.temps,
+        }
+    }
+
+    /// The same environment with other arrays.
+    pub fn with_arrays<A2: ArrayProvider>(self, arrays: A2) -> HostEnv<H, V, C, R, S, A2> {
+        HostEnv {
+            variables: self.variables,
+            context: self.context,
+            arrays,
+            queries: self.queries,
+            rng: self.rng,
+            sink: self.sink,
             limits: self.limits,
             temps: self.temps,
         }
@@ -411,12 +446,14 @@ impl<H: Host, V, C, R, S> HostEnv<H, V, C, R, S> {
         C: ContextProvider<H>,
         R: RandomSource,
         S: RuntimeSink,
+        A: ArrayProvider,
     {
         EvalCx {
             subjects,
             host,
             variables: &mut self.variables,
             context: &self.context,
+            arrays: &self.arrays,
             queries: self.queries.as_ref(),
             rng: &mut self.rng,
             sink: &mut self.sink,
@@ -426,11 +463,14 @@ impl<H: Host, V, C, R, S> HostEnv<H, V, C, R, S> {
     }
 }
 
-impl<H: Host, V: Debug, C: Debug, R: Debug, S: Debug> Debug for HostEnv<H, V, C, R, S> {
+impl<H: Host, V: Debug, C: Debug, R: Debug, S: Debug, A: Debug> Debug
+    for HostEnv<H, V, C, R, S, A>
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HostEnv")
             .field("variables", &self.variables)
             .field("context", &self.context)
+            .field("arrays", &self.arrays)
             .field("queries", &self.queries)
             .field("rng", &self.rng)
             .field("sink", &self.sink)
@@ -518,6 +558,7 @@ mod tests {
             host: &mut world,
             variables: vars,
             context: ctx,
+            arrays: &crate::vm::NoArrays,
             queries: None,
             rng: &mut rng,
             sink: &mut sink,

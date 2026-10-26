@@ -61,6 +61,7 @@
 //! | Operand-stack cap | operands left behind by `break` / `continue` past [`EvalLimits::OPERAND_STACK_CAP`] slots end the evaluation | none |
 //! | Random source | a generator per evaluator ([`Xorshift128`](crate::rng::Xorshift128)) | [`ProcessRng`]: one generator for the whole process; [`MersenneTwister`](crate::rng::MersenneTwister) for world generation |
 
+mod arrays;
 mod cx;
 mod error;
 mod eval;
@@ -73,6 +74,7 @@ mod sink;
 mod value;
 mod vars;
 
+pub use arrays::{ArrayProvider, ArrayTable, NoArrays};
 pub use cx::{EvalCx, HostEnv, NoHostEnv, Temps};
 pub use error::{DuplicateMember, QueryError};
 pub use global_rng::ProcessRng;
@@ -80,7 +82,9 @@ pub use host::{
     ContextMap, ContextProvider, Host, HostAccess, NoContext, NoHost, Subjects, WorldGenPos,
 };
 pub use limits::EvalLimits;
-pub use name::{AnyName, ContextName, Name, ParseNameError, TempName, VariableName, namespace};
+pub use name::{
+    AnyName, ArrayName, ContextName, Name, ParseNameError, TempName, VariableName, namespace,
+};
 pub use query::{Query, QueryBackend, QueryCx, QueryResult, QueryTable, UnknownQuery};
 pub use sink::{BoundedSink, CollectSink, LogLevel, LogOnce, NullSink, RuntimeMsg, RuntimeSink};
 #[cfg(feature = "fuzz")]
@@ -122,12 +126,13 @@ mod tests {
 
     use super::test_support::TestHost;
     use super::{
-        Access, AnyName, BoundedSink, CollectSink, ContextMap, ContextName, ContextProvider,
-        DistinctStructs, DuplicateMember, EvalCx, EvalLimits, Host, HostAccess, HostEnv, LogLevel,
-        LogOnce, Name, NoContext, NoHost, NoHostEnv, NoVariables, NullSink, ProcessRng, Query,
-        QueryBackend, QueryCx, QueryError, QueryTable, ResourceRef, RuntimeMsg, RuntimeSink,
-        StructValue, Subjects, TempMap, TempName, Value, ValueKind, VariableMap, VariableName,
-        VariableStorage, VariableStore, WorldGenPos,
+        Access, AnyName, ArrayName, ArrayProvider, ArrayTable, BoundedSink, CollectSink,
+        ContextMap, ContextName, ContextProvider, DistinctStructs, DuplicateMember, EvalCx,
+        EvalLimits, Host, HostAccess, HostEnv, LogLevel, LogOnce, Name, NoArrays, NoContext,
+        NoHost, NoHostEnv, NoVariables, NullSink, ProcessRng, Query, QueryBackend, QueryCx,
+        QueryError, QueryTable, ResourceRef, RuntimeMsg, RuntimeSink, StructValue, Subjects,
+        TempMap, TempName, Value, ValueKind, VariableMap, VariableName, VariableStorage,
+        VariableStore, WorldGenPos,
     };
 
     fn assert_send_sync<T: Send + Sync>() {}

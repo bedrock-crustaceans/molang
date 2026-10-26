@@ -1,4 +1,5 @@
-//! [`Name`]: the key of a `variable.` / `temp.` / `context.` name, typed by its namespace.
+//! [`Name`]: the key of a `variable.` / `temp.` / `context.` / `array.` name, typed by its
+//! namespace.
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -7,11 +8,11 @@ use std::marker::PhantomData;
 
 use crate::hash::{FNV1_OFFSET_BASIS, HashedStr, fnv1_step};
 
-/// The three namespaces of Molang names, as uninhabited marker types for [`Name`].
+/// The namespaces of Molang names, as uninhabited marker types for [`Name`].
 pub mod namespace {
     use super::sealed::Sealed;
 
-    /// A namespace of Molang names: [`Variable`], [`Temp`] or [`Context`]. Sealed.
+    /// A namespace of Molang names: [`Variable`], [`Temp`], [`Context`] or [`Array`]. Sealed.
     pub trait Namespace: Sealed + 'static {}
 
     /// `variable.` (`v.`): an entity variable.
@@ -26,9 +27,14 @@ pub mod namespace {
     #[derive(Debug)]
     pub enum Context {}
 
+    /// `array.`: a render-controller array. It has no short spelling.
+    #[derive(Debug)]
+    pub enum Array {}
+
     impl Namespace for Variable {}
     impl Namespace for Temp {}
     impl Namespace for Context {}
+    impl Namespace for Array {}
 
     impl Sealed for Variable {
         const LONG: &'static str = "variable.";
@@ -47,6 +53,12 @@ pub mod namespace {
         const SHORT: &'static str = "c.";
         const KEY_NAME: &'static str = "ContextName";
     }
+
+    impl Sealed for Array {
+        const LONG: &'static str = "array.";
+        const SHORT: &'static str = "array.";
+        const KEY_NAME: &'static str = "ArrayName";
+    }
 }
 
 mod sealed {
@@ -60,7 +72,7 @@ mod sealed {
     }
 }
 
-use namespace::{Context, Namespace, Temp, Variable};
+use namespace::{Array, Context, Namespace, Temp, Variable};
 
 /// The key of a name in namespace `N`: the [`HashedStr`] of its full canonical name with the
 /// long namespace (`variable.x`), so separately compiled programs agree on names.
@@ -112,6 +124,9 @@ pub type TempName = Name<Temp>;
 
 /// The key of a context variable, `context.<name>`.
 pub type ContextName = Name<Context>;
+
+/// The key of a render-controller array, `array.<name>`.
+pub type ArrayName = Name<Array>;
 
 /// FNV-1 over `prefix` then `name`, ASCII-lowered, as one string ending at its first NUL byte.
 pub(super) const fn hash_lowered(prefix: &str, name: &[u8]) -> HashedStr {
@@ -341,6 +356,17 @@ mod tests {
             ContextName::new("x").hashed()
         );
         assert_ne!(TempName::new("x").hashed(), ContextName::new("x").hashed());
+    }
+
+    #[test]
+    fn an_array_name_has_only_the_long_spelling() {
+        const SKINS: ArrayName = ArrayName::new("skins");
+        assert_eq!(SKINS.hashed(), HashedStr::new("array.skins"));
+        assert_eq!(ArrayName::parse("Array.Skins"), Some(SKINS));
+        assert_eq!(ArrayName::parse("a.skins"), None);
+        assert_eq!(ArrayName::parse("v.skins"), None);
+        assert_eq!(AnyName::parse("array.skins"), None);
+        assert!(format!("{SKINS:?}").starts_with("ArrayName(0x"));
     }
 
     #[test]

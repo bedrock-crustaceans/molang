@@ -712,6 +712,7 @@ mod vm {
             host: &mut world,
             variables: &mut store as &mut dyn VariableStore<Farm>,
             context: &context as &dyn ContextProvider<Farm>,
+            arrays: &molang::vm::NoArrays,
             queries: Some(&queries),
             rng: &mut rng as &mut dyn RandomSource,
             sink: &mut sink,
