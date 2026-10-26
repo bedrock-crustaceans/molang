@@ -272,10 +272,13 @@ The random source is any `rng::RandomSource`: each draw of `math.random*` and `m
 
 | Where | Generator | Sample from one 32-bit output `u` | Source |
 |---|---|---|---|
-| Entities, items, blocks, commands, scripting, UI, camera, and `math.random` in particles | one xorshift128 for the whole process, from the standard seeds | `(u & 0x7fff_ffff) · 2^-31` in `f32` | `ProcessRng`, or a `Xorshift128` per environment |
+| Entities, items, blocks, commands, scripting, camera, and `math.random` in particles | one xorshift128 for the whole process, from the standard seeds | `(u & 0x7fff_ffff) · 2^-31` in `f32` | `ProcessRng`, or a `Xorshift128` per environment |
+| The UI player preview (paper doll) | none: a constant | 0 | `FixedRng::ZERO` |
 | A feature rule's expressions | MT19937 seeded per chunk | `u · 2^-32` in `f64`, then rounded to `f32` | `MersenneTwister::for_chunk_decoration(level_seed, chunk_x, chunk_z)` |
-| A scatter feature placed by a feature rule | MT19937 seeded per rule, shared with the scatter's own placement draws | as above | `chunk.for_feature_rule(identifier_hash)` |
-| Saplings, `/place feature`, other helper-placed features | MT19937 seeded from the system's random device | as above | `MersenneTwister::new(seed)` |
+| A scatter feature placed by a feature rule | MT19937 seeded per rule, shared with the scatter's own placement draws | as above | `MersenneTwister::for_feature_rule(MersenneTwister::for_chunk_decoration(..).seed(), identifier_hash)` |
+| Expressions evaluated directly by sapling growth, `/place feature` and other helper-placed features | MT19937 seeded from the system's random device | as above | `MersenneTwister::new(seed)` |
+
+The rule's generator for a scatter exists only when the rule's iterations are more than 0. A scatter nested under a helper-placed feature draws from its own placement generator instead (the level's for `/place feature`), and `/place featurerule` runs the feature-rule pass with the level's generator in place of the per-chunk one. The identifier hash is the host's to supply; only its low 32 bits count, and a level seed is taken as its low 32 bits.
 
 Both mappings can give exactly 1. Each environment has its own `Xorshift128` started from the same standard seeds, so give each one `Xorshift128::seed_from_u64(...)` (`SeedableRng`) unless identical sequences are wanted; `HostEnv::with_rng(ProcessRng)` gives one process-wide generator, `HostEnv::with_rng(Bits31(generator))` a `rand_core` 0.10 generator of your own under the 31-bit mapping, and `FixedRng` the same sample on every draw. `rand_core` is re-exported as `molang::rng::rand_core` (a new major version of it is a breaking change of this crate).
 
