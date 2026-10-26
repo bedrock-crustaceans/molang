@@ -47,6 +47,7 @@ mod division_guard {
     //! (version ≤ 6) replaces by `|d|`. A literal divisor folds into a signed multiplication at
     //! every version.
 
+    use crate::common::P;
     use crate::common::{compile_support::compile_expr, nan_or_same_bits};
     use molang::compile::CompileOptions;
     use molang::numeric::{self, PostOp};
@@ -137,8 +138,8 @@ mod division_guard {
                 let after = run(source, new, a, d);
                 if negative_and_divides(d) {
                     // The old guard divides by |d|, the new one by d.
-                    prop_assert!(nan_or_same_bits(before, numeric::div(a, -d, post)), "{source} v{old:?}: {before}");
-                    prop_assert!(nan_or_same_bits(after, numeric::div(a, d, post)), "{source} v{new:?}: {after}");
+                    prop_assert!(nan_or_same_bits(before, numeric::div(P, a, -d, post)), "{source} v{old:?}: {before}");
+                    prop_assert!(nan_or_same_bits(after, numeric::div(P, a, d, post)), "{source} v{new:?}: {after}");
                 } else {
                     prop_assert!(nan_or_same_bits(before, after), "{source} with a = {a}, d = {d}: v{old:?} {before}, v{new:?} {after}");
                 }
@@ -184,9 +185,7 @@ mod folding {
     //! - A kept infinite factor: the fold is the constant product, the run NaN.
     //! - A kept divisor `d` of `x`: the fold is `x / d`, the run `x · (1/d)`; for `|d| < ε` the
     //!   fold is 0 and the run `x · 0`.
-    //! - `Arm64` only: a kept factor or term that the run applies inside its operand's instruction:
-    //!   with that constant behind a variable too, the run gives the folded bits.
-    //! - `X86_64` only: a NaN divisor: the fold gives +0, the run the quotient.
+    //! - A NaN divisor: the fold gives +0, the run the quotient.
     //! - `math.mod` with a zero divisor: the fold gives NaN, the run +0.
     //! - `math.mod` with a −0 remainder: the fold gives −0, the run +0.
     //!
@@ -194,10 +193,9 @@ mod folding {
     //! form folds the inner sum first while the hidden form flattens it into three terms.
     //!
     //! `PROPTEST_RNG_SEED` (printed at the start) and `PROPTEST_CASES` replay a failure.
-
-    use crate::common::per_arch;
+    use crate::common::P;
     use molang::compile::{CompileOptions, compile};
-    use molang::numeric::{self, ARCH, Arch, PostOp, arith};
+    use molang::numeric::{self, PostOp, arith};
     use molang::stdlib::MATH_META;
     use molang::version::MolangVersion;
     use molang::vm::{NoHostEnv, Value, VariableName};
@@ -369,8 +367,7 @@ mod folding {
                 .or_else(|| self.post_op_difference(folded, run))
         }
 
-        /// A literal divisor, a NaN divisor on `X86_64`, and `math.mod`'s zero divisor and −0
-        /// remainder.
+        /// A literal divisor, a NaN divisor, and `math.mod`'s zero divisor and −0 remainder.
         fn division_difference(&self, folded: f32, run: f32) -> Option<&'static str> {
             match self {
                 E::Bin("/", a, d) if matches!(**d, E::Kept(..)) => {
@@ -379,12 +376,11 @@ mod folding {
                     )
                 }
                 E::Bin("/", a, d)
-                    if ARCH == Arch::X86_64
-                        && value(d).is_nan()
+                    if value(d).is_nan()
                         && folded.to_bits() == 0
-                        && same(run, numeric::div(value(a), value(d), PostOp::IDENTITY)) =>
+                        && same(run, numeric::div(P, value(a), value(d), PostOp::IDENTITY)) =>
                 {
-                    Some("x86-64: a NaN divisor folds to 0 and divides at run time")
+                    Some("a NaN divisor folds to 0 and divides at run time")
                 }
                 E::Call("math.mod", args)
                     if value(&args[1]) == 0.0 && folded.is_nan() && run.to_bits() == 0 =>
@@ -422,7 +418,7 @@ mod folding {
                 Some("two NaNs: the fold takes the kept left term's, the run the other")
             } else {
                 self.carrier_difference(folded, run)
-                    .or_else(|| self.kept_difference(kept, folded, run))
+                    .or_else(|| self.kept_difference(folded, run))
             }
         }
 
@@ -460,19 +456,10 @@ mod folding {
             }
         }
 
-        /// A difference that a kept operand of this node makes: an infinite factor, or on `Arm64`
-        /// a constant applied inside the instruction.
-        fn kept_difference(&self, kept: bool, folded: f32, run: f32) -> Option<&'static str> {
-            if self.is_kept_infinite_factor() && run.is_nan() && same(folded, self.product()) {
-                Some("a kept infinite factor: the NaN offset at run time, the product folded")
-            } else if ARCH == Arch::Arm64
-                && kept
-                && forms(&self.with_kept_operands_hidden()).is_ok_and(|(_, r)| same(r, folded))
-            {
-                Some("arm64: a kept constant applied inside its operand's instruction")
-            } else {
-                None
-            }
+        /// A difference that a kept operand of this node makes: an infinite factor.
+        fn kept_difference(&self, folded: f32, run: f32) -> Option<&'static str> {
+            (self.is_kept_infinite_factor() && run.is_nan() && same(folded, self.product()))
+                .then_some("a kept infinite factor: the NaN offset at run time, the product folded")
         }
 
         /// The node whose post-op this node's negations and kept constants build at run time.
@@ -506,7 +493,7 @@ mod folding {
         /// The constant product of a `*` node's folded operands.
         fn product(&self) -> f32 {
             match self {
-                E::Bin("*", a, b) => arith::mul(value(a), value(b)),
+                E::Bin("*", a, b) => arith::mul(P, value(a), value(b)),
                 _ => f32::NAN,
             }
         }
@@ -517,18 +504,6 @@ mod folding {
                     .iter()
                     .any(|e| matches!(***e, E::Kept(value, _) if value.is_infinite())),
                 _ => false,
-            }
-        }
-
-        /// The node with its kept operands as literals, so that they are hidden too.
-        fn with_kept_operands_hidden(&self) -> E {
-            let hidden = |e: &E| match e {
-                E::Kept(value, text) => E::Lit(*value, text.clone()),
-                other => other.clone(),
-            };
-            match self {
-                E::Bin(op, a, b) => E::Bin(op, Box::new(hidden(a)), Box::new(hidden(b))),
-                other => other.clone(),
             }
         }
     }
@@ -691,12 +666,12 @@ mod folding {
         let divides = d.abs() >= f32::EPSILON;
         let quotient = if divides { x / d } else { 0.0 };
         let reciprocal = if divides { 1.0 / d } else { 0.0 };
-        same(folded, quotient) && same(run, arith::mul(x, reciprocal))
+        same(folded, quotient) && same(run, arith::mul(P, x, reciprocal))
     }
 
     /// Whether the division guard stops a division by `divisor`.
     fn guarded(divisor: f32) -> bool {
-        divisor.abs() < f32::EPSILON || (ARCH == Arch::Arm64 && divisor.is_nan())
+        divisor.abs() < f32::EPSILON
     }
 
     /// The folded constant and the run-time result, which must not fold.
@@ -794,8 +769,8 @@ mod folding {
     ///
     /// - `math.acos(1.563555e27)` is a positive NaN: folded, `copy_sign(0, …)` gives −0, at run
     ///   time +0;
-    /// - `math.sqrt(-1)` is the invalid-operation NaN, negative on `X86_64`: folded, `copy_sign(1,
-    ///   …)` gives 1, at run time −1; positive on `Arm64`: −1 and 1;
+    /// - `math.sqrt(-1)` is the invalid-operation NaN, negative: folded, `copy_sign(1, …)` gives 1,
+    ///   at run time −1;
     /// - `0e0 - math.sqrt(-1.2313328e37)` folds to a NaN of the other sign than the run.
     #[test]
     fn a_negated_nan_keeps_its_sign_only_when_folded() {
@@ -819,10 +794,7 @@ mod folding {
             ],
         )));
         let through_a_call_case = E::Call("math.copy_sign", vec![lit("0e0"), through_a_call]);
-        let (sqrt_signs, zero_signs) = per_arch(
-            ((1.0f32, -1.0f32), (0x0000_0000, 0x8000_0000)),
-            ((-1.0, 1.0), (0x8000_0000, 0x0000_0000)),
-        );
+        let (sqrt_signs, zero_signs) = ((1.0f32, -1.0f32), (0x0000_0000, 0x8000_0000));
         let (folded, run) = outcome(&acos_case).expect("compiles and runs");
         assert_eq!(
             (folded.to_bits(), run.to_bits()),

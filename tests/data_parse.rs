@@ -13,9 +13,9 @@
 //! `LanguageMessage::id`; `level` is the word printed before `[Molang]`. `tree` is an S-expression
 //! of `ExpressionOp` variant names: `[x*s+o]` is a node with a folded multiply-add, strings print
 //! as their hash, float leaves carry the group's `tree_float_digits` significant digits (trailing
-//! zeros dropped), and folded constants are those of the arm64 behaviour; on an `X86_64` build the
-//! rows of [`X86_64_TREE_DIFFERS`] fold to another tree and are checked for their outcome and
-//! messages only. A `tree_value_unchecked` row compares only that the tree is one constant; some
+//! zeros dropped), and folded constants are those of a build that fuses its multiply-adds; the
+//! rows of [`TREE_DIFFERS`] fold to another tree on every platform and are checked for their
+//! outcome and messages only. Every row is checked on every platform. A `tree_value_unchecked` row compares only that the tree is one constant; some
 //! `depth` rows have no tree. A row with `input_bytes_hex` is parsed from those bytes, and its
 //! `expr` and message texts hold them decoded as Latin-1. Link-stage messages (#48, #49) are not
 //! part of a row.
@@ -26,11 +26,13 @@ mod common;
 
 use std::collections::BTreeMap;
 
+use common::PLATFORMS;
 use common::compile_support::client_at;
 use molang::catalog::{QueryAdmission, QuerySetMask};
 use molang::compile::{CompileFailure, CompileOptions, Deviations, compile};
 use molang::diag::{Effect, LanguageMessage, Severity};
-use molang::numeric::{ARCH, Arch};
+use molang::numeric::Platform;
+
 use molang::ops::ExpressionOp;
 use serde_json::Value;
 
@@ -49,8 +51,8 @@ const ERROR_LEVEL: &str = "ERROR";
 /// The parse outcome must not depend on the deviations.
 const DEVIATIONS: [(&str, Deviations); 2] = [("ALL", Deviations::ALL), ("NONE", Deviations::NONE)];
 
-/// The indexes of the rows whose tree differs on `X86_64`; their outcome and messages do not.
-const X86_64_TREE_DIFFERS: &[usize] = &[810, 852, 900, 936];
+/// The indexes of the rows whose tree differs; their outcome and messages do not.
+const TREE_DIFFERS: &[usize] = &[810, 852, 900, 936];
 
 fn source(row: &Value) -> String {
     row.get("input_bytes_hex")
@@ -97,16 +99,22 @@ fn every_recorded_input_gives_its_recorded_outcome_messages_and_tree() {
         let entry = by_group.entry(group.to_owned()).or_default();
         entry[2] += 1;
         for (slot, (label, deviations)) in DEVIATIONS.iter().enumerate() {
-            let tree_differs = ARCH == Arch::X86_64 && X86_64_TREE_DIFFERS.contains(&index);
-            let passes = check(row, group_digits, *deviations, tree_differs)
-                .map_err(|why| {
-                    failures.push(format!(
-                        "#{index} [{group}] v{} {:?} ({label}): {why}",
-                        row["version"],
-                        row["expr"].as_str().unwrap_or("")
-                    ))
+            let tree_differs = TREE_DIFFERS.contains(&index);
+            let passes = PLATFORMS
+                .iter()
+                .filter(|&&platform| {
+                    check(row, group_digits, platform, *deviations, tree_differs)
+                        .map_err(|why| {
+                            failures.push(format!(
+                                "#{index} [{group}] v{} {:?} ({label}, {platform:?}): {why}",
+                                row["version"],
+                                row["expr"].as_str().unwrap_or("")
+                            ));
+                        })
+                        .is_ok()
                 })
-                .is_ok();
+                .count()
+                == PLATFORMS.len();
             entry[slot] += usize::from(passes);
         }
     }
@@ -249,6 +257,7 @@ fn recorded_friendly_names() {
 fn check(
     row: &Value,
     digits: usize,
+    platform: Platform,
     deviations: Deviations,
     tree_differs: bool,
 ) -> Result<(), String> {
@@ -256,6 +265,7 @@ fn check(
     let options = CompileOptions {
         admission: QueryAdmission::Sets(QuerySetMask::empty()),
         deviations,
+        platform,
         ..client_at(version(row))
     };
     let compiled = compile(&source(row), &options);
@@ -377,9 +387,7 @@ fn check(
                 }
             } else if tree_differs {
                 if all == theirs {
-                    return Err(format!(
-                        "listed in X86_64_TREE_DIFFERS, but the tree is {theirs}"
-                    ));
+                    return Err(format!("listed in TREE_DIFFERS, but the tree is {theirs}"));
                 }
             } else if all != theirs {
                 return Err(format!(

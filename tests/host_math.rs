@@ -435,7 +435,7 @@ fn the_disassembly_and_the_tree_notation_name_the_function() {
 #[cfg(feature = "vm")]
 mod evaluation {
     use super::*;
-    use molang::numeric::PostOp;
+    use molang::numeric::{Platform, PostOp};
     use molang::rng::{Xorshift128, rand_core::SeedableRng, sample};
     use molang::stdlib::math;
     use molang::vm::{NoHostEnv, Value, VariableName};
@@ -531,7 +531,7 @@ mod evaluation {
                 .get(VariableName::new(name))
                 .map(Value::as_f32)
         };
-        let random = |sample| math::random(0.0, 1.0, sample, PostOp::IDENTITY);
+        let random = |sample| math::random(Platform::default(), 0.0, 1.0, sample, PostOp::IDENTITY);
         assert_eq!(
             (read("a"), read("b"), read("c")),
             (

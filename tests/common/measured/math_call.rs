@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use molang::numeric::PostOp;
+use molang::numeric::{Platform, PostOp};
 use molang::rng::{rand_core::Rng, sample};
 use molang::stdlib::math;
 
@@ -108,91 +108,97 @@ pub fn parse_call(expr: &str) -> Option<Call> {
 }
 
 /// `None` for a function name or arity the math library does not have.
-pub fn evaluate_call(call: &Call, rng: &mut dyn Rng) -> Option<f32> {
+pub fn evaluate_call(platform: Platform, call: &Call, rng: &mut dyn Rng) -> Option<f32> {
     let post = PostOp::IDENTITY;
     let values: Vec<f32> = call.args.iter().map(|a| a.value).collect();
     let all_literal = call.args.iter().all(|a| a.literal);
     Some(match (call.name.as_str(), values.as_slice()) {
-        ("abs", &[x]) => math::abs(x, post),
-        ("acos", &[x]) => math::acos(x, post),
-        ("asin", &[x]) => math::asin(x, post),
-        ("atan", &[x]) => math::atan(x, post),
-        ("atan2", &[y, x]) => math::atan2(y, x, post),
-        ("ceil", &[x]) => math::ceil(x, post),
-        ("clamp", &[v, lo, hi]) => math::clamp(v, lo, hi, post),
-        ("copy_sign", &[a, b]) => math::copy_sign(a, b, post),
-        ("cos", &[x]) => math::cos(x, post),
-        ("die_roll", &[n, a, b]) => math::die_roll(n, a, b, u32::MAX, rng, post)?,
-        ("die_roll_integer", &[n, a, b]) => math::die_roll_integer(n, a, b, u32::MAX, rng, post)?,
-        ("exp", &[x]) => math::exp(x, post),
-        ("floor", &[x]) => math::floor(x, post),
-        ("hermite_blend", &[t]) => math::hermite_blend(t, post),
-        ("lerp", &[a, b, t]) => math::lerp(a, b, t, post),
-        ("lerprotate", &[a, b, t]) => math::lerprotate(a, b, t, post),
-        ("inverse_lerp", &[a, b, v]) => math::inverse_lerp(a, b, v, post),
-        ("ln", &[x]) => math::ln(x, post),
-        ("max", &[a, b]) => math::max(a, b, post),
-        ("min", &[a, b]) => math::min(a, b, post),
-        ("min_angle", &[x]) => math::min_angle(x, post),
+        ("abs", &[x]) => math::abs(platform, x, post),
+        ("acos", &[x]) => math::acos(platform, x, post),
+        ("asin", &[x]) => math::asin(platform, x, post),
+        ("atan", &[x]) => math::atan(platform, x, post),
+        ("atan2", &[y, x]) => math::atan2(platform, y, x, post),
+        ("ceil", &[x]) => math::ceil(platform, x, post),
+        ("clamp", &[v, lo, hi]) => math::clamp(platform, v, lo, hi, post),
+        ("copy_sign", &[a, b]) => math::copy_sign(platform, a, b, post),
+        ("cos", &[x]) => math::cos(platform, x, post),
+        ("die_roll", &[n, a, b]) => math::die_roll(platform, n, a, b, u32::MAX, rng, post)?,
+        ("die_roll_integer", &[n, a, b]) => {
+            math::die_roll_integer(platform, n, a, b, u32::MAX, rng, post)?
+        }
+        ("exp", &[x]) => math::exp(platform, x, post),
+        ("floor", &[x]) => math::floor(platform, x, post),
+        ("hermite_blend", &[t]) => math::hermite_blend(platform, t, post),
+        ("lerp", &[a, b, t]) => math::lerp(platform, a, b, t, post),
+        ("lerprotate", &[a, b, t]) => math::lerprotate(platform, a, b, t, post),
+        ("inverse_lerp", &[a, b, v]) => math::inverse_lerp(platform, a, b, v, post),
+        ("ln", &[x]) => math::ln(platform, x, post),
+        ("max", &[a, b]) => math::max(platform, a, b, post),
+        ("min", &[a, b]) => math::min(platform, a, b, post),
+        ("min_angle", &[x]) => math::min_angle(platform, x, post),
         ("mod", &[a, b]) => {
             if call.args[1].literal {
-                math::mod_const(a, b, post)
+                math::mod_const(platform, a, b, post)
             } else {
-                math::mod_runtime(a, b, post)
+                math::mod_runtime(platform, a, b, post)
             }
         }
-        ("pow", &[a, b]) => math::pow(a, b, post),
+        ("pow", &[a, b]) => math::pow(platform, a, b, post),
         ("random", &[a, b]) => {
             let sample = sample(rng);
             if all_literal {
-                math::random_folded(sample, math::random_const_bounds(a, b, post))
+                math::random_folded(
+                    platform,
+                    sample,
+                    math::random_const_bounds(platform, a, b, post),
+                )
             } else {
-                math::random(a, b, sample, post)
+                math::random(platform, a, b, sample, post)
             }
         }
         ("random_integer", &[a, b]) => {
             let sample = sample(rng);
             if all_literal {
-                math::random_integer_const_bounds(a, b, sample, post)
+                math::random_integer_const_bounds(platform, a, b, sample, post)
             } else {
-                math::random_integer(a, b, sample, post)
+                math::random_integer(platform, a, b, sample, post)
             }
         }
-        ("round", &[x]) => math::round(x, post),
+        ("round", &[x]) => math::round(platform, x, post),
         ("sign", &[x]) => math::sign(x, post),
-        ("sin", &[x]) => math::sin(x, post),
-        ("sqrt", &[x]) => math::sqrt(x, post),
-        ("trunc", &[x]) => math::trunc(x, post),
-        ("ease_in_quad", &[s, e, t]) => math::ease_in_quad(s, e, t, post),
-        ("ease_out_quad", &[s, e, t]) => math::ease_out_quad(s, e, t, post),
-        ("ease_in_out_quad", &[s, e, t]) => math::ease_in_out_quad(s, e, t, post),
-        ("ease_in_cubic", &[s, e, t]) => math::ease_in_cubic(s, e, t, post),
-        ("ease_out_cubic", &[s, e, t]) => math::ease_out_cubic(s, e, t, post),
-        ("ease_in_out_cubic", &[s, e, t]) => math::ease_in_out_cubic(s, e, t, post),
-        ("ease_in_quart", &[s, e, t]) => math::ease_in_quart(s, e, t, post),
-        ("ease_out_quart", &[s, e, t]) => math::ease_out_quart(s, e, t, post),
-        ("ease_in_out_quart", &[s, e, t]) => math::ease_in_out_quart(s, e, t, post),
-        ("ease_in_quint", &[s, e, t]) => math::ease_in_quint(s, e, t, post),
-        ("ease_out_quint", &[s, e, t]) => math::ease_out_quint(s, e, t, post),
-        ("ease_in_out_quint", &[s, e, t]) => math::ease_in_out_quint(s, e, t, post),
-        ("ease_in_sine", &[s, e, t]) => math::ease_in_sine(s, e, t, post),
-        ("ease_out_sine", &[s, e, t]) => math::ease_out_sine(s, e, t, post),
-        ("ease_in_out_sine", &[s, e, t]) => math::ease_in_out_sine(s, e, t, post),
-        ("ease_in_expo", &[s, e, t]) => math::ease_in_expo(s, e, t, post),
-        ("ease_out_expo", &[s, e, t]) => math::ease_out_expo(s, e, t, post),
-        ("ease_in_out_expo", &[s, e, t]) => math::ease_in_out_expo(s, e, t, post),
-        ("ease_in_circ", &[s, e, t]) => math::ease_in_circ(s, e, t, post),
-        ("ease_out_circ", &[s, e, t]) => math::ease_out_circ(s, e, t, post),
-        ("ease_in_out_circ", &[s, e, t]) => math::ease_in_out_circ(s, e, t, post),
-        ("ease_in_bounce", &[s, e, t]) => math::ease_in_bounce(s, e, t, post),
-        ("ease_out_bounce", &[s, e, t]) => math::ease_out_bounce(s, e, t, post),
-        ("ease_in_out_bounce", &[s, e, t]) => math::ease_in_out_bounce(s, e, t, post),
-        ("ease_in_back", &[s, e, t]) => math::ease_in_back(s, e, t, post),
-        ("ease_out_back", &[s, e, t]) => math::ease_out_back(s, e, t, post),
-        ("ease_in_out_back", &[s, e, t]) => math::ease_in_out_back(s, e, t, post),
-        ("ease_in_elastic", &[s, e, t]) => math::ease_in_elastic(s, e, t, post),
-        ("ease_out_elastic", &[s, e, t]) => math::ease_out_elastic(s, e, t, post),
-        ("ease_in_out_elastic", &[s, e, t]) => math::ease_in_out_elastic(s, e, t, post),
+        ("sin", &[x]) => math::sin(platform, x, post),
+        ("sqrt", &[x]) => math::sqrt(platform, x, post),
+        ("trunc", &[x]) => math::trunc(platform, x, post),
+        ("ease_in_quad", &[s, e, t]) => math::ease_in_quad(platform, s, e, t, post),
+        ("ease_out_quad", &[s, e, t]) => math::ease_out_quad(platform, s, e, t, post),
+        ("ease_in_out_quad", &[s, e, t]) => math::ease_in_out_quad(platform, s, e, t, post),
+        ("ease_in_cubic", &[s, e, t]) => math::ease_in_cubic(platform, s, e, t, post),
+        ("ease_out_cubic", &[s, e, t]) => math::ease_out_cubic(platform, s, e, t, post),
+        ("ease_in_out_cubic", &[s, e, t]) => math::ease_in_out_cubic(platform, s, e, t, post),
+        ("ease_in_quart", &[s, e, t]) => math::ease_in_quart(platform, s, e, t, post),
+        ("ease_out_quart", &[s, e, t]) => math::ease_out_quart(platform, s, e, t, post),
+        ("ease_in_out_quart", &[s, e, t]) => math::ease_in_out_quart(platform, s, e, t, post),
+        ("ease_in_quint", &[s, e, t]) => math::ease_in_quint(platform, s, e, t, post),
+        ("ease_out_quint", &[s, e, t]) => math::ease_out_quint(platform, s, e, t, post),
+        ("ease_in_out_quint", &[s, e, t]) => math::ease_in_out_quint(platform, s, e, t, post),
+        ("ease_in_sine", &[s, e, t]) => math::ease_in_sine(platform, s, e, t, post),
+        ("ease_out_sine", &[s, e, t]) => math::ease_out_sine(platform, s, e, t, post),
+        ("ease_in_out_sine", &[s, e, t]) => math::ease_in_out_sine(platform, s, e, t, post),
+        ("ease_in_expo", &[s, e, t]) => math::ease_in_expo(platform, s, e, t, post),
+        ("ease_out_expo", &[s, e, t]) => math::ease_out_expo(platform, s, e, t, post),
+        ("ease_in_out_expo", &[s, e, t]) => math::ease_in_out_expo(platform, s, e, t, post),
+        ("ease_in_circ", &[s, e, t]) => math::ease_in_circ(platform, s, e, t, post),
+        ("ease_out_circ", &[s, e, t]) => math::ease_out_circ(platform, s, e, t, post),
+        ("ease_in_out_circ", &[s, e, t]) => math::ease_in_out_circ(platform, s, e, t, post),
+        ("ease_in_bounce", &[s, e, t]) => math::ease_in_bounce(platform, s, e, t, post),
+        ("ease_out_bounce", &[s, e, t]) => math::ease_out_bounce(platform, s, e, t, post),
+        ("ease_in_out_bounce", &[s, e, t]) => math::ease_in_out_bounce(platform, s, e, t, post),
+        ("ease_in_back", &[s, e, t]) => math::ease_in_back(platform, s, e, t, post),
+        ("ease_out_back", &[s, e, t]) => math::ease_out_back(platform, s, e, t, post),
+        ("ease_in_out_back", &[s, e, t]) => math::ease_in_out_back(platform, s, e, t, post),
+        ("ease_in_elastic", &[s, e, t]) => math::ease_in_elastic(platform, s, e, t, post),
+        ("ease_out_elastic", &[s, e, t]) => math::ease_out_elastic(platform, s, e, t, post),
+        ("ease_in_out_elastic", &[s, e, t]) => math::ease_in_out_elastic(platform, s, e, t, post),
         _ => return None,
     })
 }

@@ -16,7 +16,6 @@ fn run_16() -> ServerRun {
         FIRST_RELEASE,
         "operand evaluation order of binary operators, comparisons, logic, ?: and math functions",
     );
-    run.arm64_differs(&["r02"]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -185,7 +184,6 @@ fn run_17() -> ServerRun {
         FIRST_RELEASE,
         "mixed-kind equality and strings in arithmetic and conditions, the && / || fold and -0, a constant argument of max/min with NaN",
     );
-    run.arm64_differs(&["r02"]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -325,7 +323,6 @@ fn run_18() -> ServerRun {
         FIRST_RELEASE,
         "post-op of ?: and ??, ?? and the state it leaves, a miss in a query argument, struct self-nesting, for_each over an unset variable",
     );
-    run.arm64_differs(&["r02"]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -444,7 +441,6 @@ fn run_26() -> ServerRun {
         FIRST_RELEASE,
         "follow-ups: continue inside an operand (run_22 x20, run_23), and which operand's kind decides a mixed-kind == (run_17)",
     );
-    run.arm64_differs(&["r02"]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -515,7 +511,6 @@ fn run_28() -> ServerRun {
         FIRST_RELEASE,
         "the part of run_26 that the session never reached after c04 (mixed-kind == e01-e06), with the continue control c01 again",
     );
-    run.arm64_differs(&["r02"]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -804,6 +799,9 @@ fn nan_comparisons_and_missing_reads_on_one_state() {
     group.row(26, "1+1;", 0.0);
     group.row(27, "return 1+1;", 2.0);
     group.row(28, "v.x = 0; return v.x ?? 5;", 0.0);
-    group.x86_64_differs(&[0, 1, 4]);
+    // No platform gives these rows' recorded values.
+    for platform in common::PLATFORMS {
+        group.differs_on(platform, &[0, 1, 4]);
+    }
     group.check(27);
 }

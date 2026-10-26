@@ -715,9 +715,8 @@ mod folding {
     //! optimised programs have.
 
     use crate::common::compile_support::{at, client_at, constant};
-    use crate::common::per_arch;
     use molang::compile::{CompileFailure, Expr, compile};
-    use molang::numeric::{ARCH, Arch};
+
     #[cfg(feature = "vm")]
     use molang::vm::{NoHostEnv, Value, VariableName};
 
@@ -893,33 +892,29 @@ mod folding {
     }
 
     #[test]
-    fn folding_follows_the_architecture() {
+    fn folding_follows_the_platform() {
+        for platform in crate::common::PLATFORMS {
+            folding_on(platform);
+        }
+    }
+
+    fn folding_on(platform: molang::numeric::Platform) {
         let value = |source: &str| {
-            compile(source, &client_at(13))
+            compile(source, &crate::common::on(platform, client_at(13)))
                 .expr()
                 .cloned()
                 .and_then(|e| e.as_constant())
                 .expect("constant")
         };
-        // A NaN operand: on arm64 `<` and `<=` are true when an operand is NaN.
-        assert_eq!(value("math.sqrt(-1) < 4"), per_arch(0.0, 1.0));
-        assert_eq!(
-            value("math.max(4, math.sqrt(-1))").is_nan(),
-            per_arch(true, false)
-        );
-        assert_eq!(value("math.sign(math.sqrt(-1))"), per_arch(1.0, -1.0));
-        assert_eq!(
-            value("math.asin(math.sqrt(-1))").is_nan(),
-            per_arch(true, false)
-        );
-        assert_eq!(
-            value("math.acos(math.sqrt(-1))").is_nan(),
-            per_arch(true, false)
-        );
-        if ARCH == Arch::Arm64 {
-            assert_eq!(value("math.asin(math.sqrt(-1))"), -90.0);
-            assert_eq!(value("math.acos(math.sqrt(-1))"), 180.0);
-        }
+        // The invalid NaN is negative on the servers and positive on Android.
+        let sign = crate::common::servers_or_android(platform, -1.0, 1.0);
+        assert_eq!(value("math.copy_sign(1, math.sqrt(-1))"), sign);
+        // A NaN operand: every ordered comparison is false.
+        assert_eq!(value("math.sqrt(-1) < 4"), 0.0);
+        assert!(value("math.max(4, math.sqrt(-1))").is_nan());
+        assert_eq!(value("math.sign(math.sqrt(-1))"), 1.0);
+        assert!(value("math.asin(math.sqrt(-1))").is_nan());
+        assert!(value("math.acos(math.sqrt(-1))").is_nan());
         assert_eq!(value("math.round(-2.5)"), -3.0);
         assert_eq!(value("math.min_angle(180)"), -180.0);
         assert_eq!(value("math.sign(0)"), 1.0);
@@ -2964,7 +2959,6 @@ mod fields {
     //! Each field of `CompileOptions`, checked through the result of a compile.
 
     use crate::common::compile_support::messages;
-    use crate::common::per_arch;
     use molang::catalog::{QueryAdmission, QueryAllowList, QueryDecl, QuerySetMask, Side};
     use molang::compile::{CompileFailure, CompileOptions, Deviations, compile};
     use molang::ops::{ExpressionOp, OpSet};
@@ -3266,15 +3260,24 @@ mod fields {
     }
 
     #[test]
-    fn the_folding_arithmetic_is_the_architectures() {
-        let folded = compile(
-            "math.sign(math.sqrt(-1))",
-            &CompileOptions::server(MolangVersion::LATEST),
-        )
-        .expr()
-        .cloned()
-        .and_then(|e| e.as_constant());
-        assert_eq!(folded, Some(per_arch(1.0, -1.0)));
+    fn the_folding_arithmetic_is_the_platforms() {
+        use molang::numeric::{LinuxRelease, Platform};
+        for (platform, sign) in [
+            (Platform::BdsLinux(LinuxRelease::V1_26_52), 1.0),
+            (Platform::BdsLinux(LinuxRelease::V1_26_36), -1.0),
+            (Platform::BdsWindows, -1.0),
+            (Platform::AndroidArm64, 1.0),
+        ] {
+            let options = CompileOptions {
+                platform,
+                ..CompileOptions::server(MolangVersion::LATEST)
+            };
+            let folded = compile("math.copy_sign(1, math.ln(-1))", &options)
+                .expr()
+                .cloned()
+                .and_then(|e| e.as_constant());
+            assert_eq!(folded, Some(sign), "{platform:?}");
+        }
     }
 
     /// Switched off, `tr*5` also drops the `*5`.
@@ -3302,15 +3305,10 @@ mod fields {
 mod pitfalls {
     use crate::common::compile_support::{at, constant, messages, messages_at};
     #[cfg(feature = "vm")]
-    use crate::common::{
-        compile_support::{server_at, server_expr},
-        per_arch,
-    };
+    use crate::common::compile_support::{server_at, server_expr};
     #[cfg(feature = "vm")]
     use molang::compile::compile;
     use molang::compile::{CompileFailure, Expr};
-    #[cfg(feature = "vm")]
-    use molang::numeric::{ARCH, Arch};
     #[cfg(feature = "vm")]
     use molang::rng::FixedRng;
     #[cfg(feature = "vm")]
@@ -3500,20 +3498,13 @@ mod pitfalls {
         assert_eq!(eval("v.n = math.sqrt(-1); return v.n ? 2 : 3;"), 2.0);
     }
 
-    /// With a NaN operand under `X86_64`, `<`, `<=` and `>=` are false and `!=` is true; under
-    /// `Arm64`, `<` and `<=` are true.
+    /// With a NaN operand `<`, `<=` and `>=` are false and `!=` is true.
     #[cfg(feature = "vm")]
     #[test]
     fn pitfall_nan_rules() {
-        assert_eq!(
-            eval("v.n = math.sqrt(-1); return v.n <= 4;"),
-            per_arch(0.0, 1.0)
-        );
+        assert_eq!(eval("v.n = math.sqrt(-1); return v.n <= 4;"), 0.0);
         assert_eq!(eval("v.n = math.sqrt(-1); return v.n >= 4;"), 0.0);
-        assert_eq!(
-            eval("v.n = math.sqrt(-1); return v.n < 4;"),
-            per_arch(0.0, 1.0)
-        );
+        assert_eq!(eval("v.n = math.sqrt(-1); return v.n < 4;"), 0.0);
         assert_eq!(eval("v.n = math.sqrt(-1); return v.n != 4;"), 1.0);
     }
 
@@ -3555,24 +3546,18 @@ mod pitfalls {
         assert_eq!(env.variables.get(VariableName::new("s")), None);
     }
 
-    /// NaN in `max` and the fused post-op differ by architecture.
+    /// `math.max` keeps a NaN second operand, and the post-op is rounded twice.
     #[cfg(feature = "vm")]
     #[test]
-    fn pitfall_architecture_specific_nan_and_rounding() {
+    fn pitfall_nan_in_max_and_post_op_rounding() {
         let max = compile("math.max(4, math.sqrt(-1))", &server_at(13))
             .expr()
             .cloned()
             .and_then(|e| e.as_constant())
             .expect("constant");
-        assert_eq!(max.is_nan(), per_arch(true, false));
-        if ARCH == Arch::Arm64 {
-            assert_eq!(max, 4.0);
-        }
+        assert!(max.is_nan());
         let post = "v.x = 1/3; return v.x * 3 - 1;";
-        assert_eq!(
-            eval(post).to_bits(),
-            per_arch(0.0_f32, 2.980_232_2e-8).to_bits()
-        );
+        assert_eq!(eval(post).to_bits(), 0.0_f32.to_bits());
     }
 
     /// `math.mod` by a literal 0 is NaN, by a run-time 0 it is 0.

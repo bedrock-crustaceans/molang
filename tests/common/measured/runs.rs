@@ -1,7 +1,7 @@
-//! Run rows compile for the server under `Deviations::NONE` and run on this build. [`RunGroup`]
-//! rows run in order on one state, so variables and temps persist from row to row; [`LoopCapGroup`]
-//! and [`SmokeGroup`] rows each run on a fresh one. On `Arm64` every row holds; on `X86_64` a
-//! [`RunGroup`]'s rows on [`RunGroup::x86_64_differs`] differ and the rest hold.
+//! Run rows compile for the server under `Deviations::NONE` and run on every platform.
+//! [`RunGroup`] rows run in order on one state, so variables and temps persist from row to row;
+//! [`LoopCapGroup`] and [`SmokeGroup`] rows each run on a fresh one. A [`RunGroup`]'s rows listed
+//! for a platform ([`RunGroup::differs_on`]) differ there and the rest hold.
 
 use molang::compile::{CompileOptions, Deviations, compile};
 use molang::rng::FixedRng;
@@ -9,9 +9,8 @@ use molang::rng::FixedRng;
 use super::math_call::{evaluate_call, parse_call, uses_random};
 #[cfg(feature = "vm")]
 use crate::common::compile_support::messages;
-use crate::common::{CheckGuard, compile_support::server_at, nan_or_same_bits};
-#[cfg(feature = "vm")]
-use molang::numeric::{ARCH, Arch};
+use crate::common::{CheckGuard, PLATFORMS, compile_support::server_at, nan_or_same_bits};
+use molang::numeric::Platform;
 
 #[cfg(feature = "vm")]
 use crate::common::host::{Env, LevelSink};
@@ -67,7 +66,7 @@ pub struct RunGroup {
     group: String,
     guard: CheckGuard,
     rows: Vec<RunRow>,
-    x86_64_differs: Vec<u32>,
+    differs: Vec<(Platform, Vec<u32>)>,
 }
 
 impl RunGroup {
@@ -76,14 +75,25 @@ impl RunGroup {
             group: group.to_owned(),
             guard: CheckGuard::new(group),
             rows: Vec::new(),
-            x86_64_differs: Vec::new(),
+            differs: Vec::new(),
         }
     }
 
-    /// The rows whose value or lines differ on `X86_64`.
-    pub fn x86_64_differs(&mut self, seqs: &[u32]) -> &mut Self {
-        self.x86_64_differs = seqs.to_vec();
+    /// The rows whose value or lines differ on `platform`. One call per platform.
+    pub fn differs_on(&mut self, platform: Platform, seqs: &[u32]) -> &mut Self {
+        assert!(
+            self.differs.iter().all(|(listed, _)| *listed != platform),
+            "{}: the rows that differ on {platform:?} are given twice",
+            self.group
+        );
+        self.differs.push((platform, seqs.to_vec()));
         self
+    }
+
+    fn listed(&self, platform: Platform, seq: u32) -> bool {
+        self.differs
+            .iter()
+            .any(|(listed, seqs)| *listed == platform && seqs.contains(&seq))
     }
 
     /// `expr` gives `expected` to the bit. A row that is one bare `math.<fn>(…)` call must also
@@ -111,7 +121,7 @@ impl RunGroup {
         let mut failures = Vec::new();
         for row in &self.rows {
             let name = format!("{} #{}", self.group, row.seq);
-            let compiled = compile(&row.expr, &run_options(row.version));
+            let compiled = compile(&row.expr, &run_options(Platform::default(), row.version));
             if compiled.expr().is_some() != row.compiled {
                 failures.push(format!(
                     "{name} {:?}: keeps an expression {}, the row was compiled {}",
@@ -126,30 +136,38 @@ impl RunGroup {
                     "{name} {:?}: a random call has no exact value",
                     row.expr
                 );
-                let mut zero = FixedRng::ZERO;
-                // A call of the wrong arity (`math.max(3)`) is not the math library's to evaluate.
-                if let Some(actual) = evaluate_call(&call, &mut zero)
-                    && !nan_or_same_bits(actual, row.expected)
-                {
-                    failures.push(format!(
-                        "{name} {:?}: math = {actual:e} ({:#010x}), expected {:e} ({:#010x})",
-                        row.expr,
-                        actual.to_bits(),
-                        row.expected,
-                        row.expected.to_bits()
-                    ));
+                for platform in PLATFORMS {
+                    let mut zero = FixedRng::ZERO;
+                    // A call of the wrong arity (`math.max(3)`) is not the math library's to
+                    // evaluate.
+                    if let Some(actual) = evaluate_call(platform, &call, &mut zero)
+                        && !nan_or_same_bits(actual, row.expected)
+                        && !self.listed(platform, row.seq)
+                    {
+                        failures.push(format!(
+                            "{name} {:?} on {platform:?}: math = {actual:e} ({:#010x}), expected {:e} ({:#010x})",
+                            row.expr,
+                            actual.to_bits(),
+                            row.expected,
+                            row.expected.to_bits()
+                        ));
+                    }
                 }
             }
         }
-        for seq in &self.x86_64_differs {
-            assert!(
-                self.rows.iter().any(|row| row.seq == *seq),
-                "{}: x86_64_differs names #{seq}, which is not a row",
-                self.group
-            );
+        for (platform, seqs) in &self.differs {
+            for seq in seqs {
+                assert!(
+                    self.rows.iter().any(|row| row.seq == *seq),
+                    "{}: differs_on({platform:?}) names #{seq}, which is not a row",
+                    self.group
+                );
+            }
         }
         #[cfg(feature = "vm")]
-        self.check_evaluation(&mut failures);
+        for platform in PLATFORMS {
+            self.check_evaluation(platform, &mut failures);
+        }
         assert!(
             failures.is_empty(),
             "{}: {} failing row(s):\n{}",
@@ -160,14 +178,14 @@ impl RunGroup {
     }
 
     #[cfg(feature = "vm")]
-    fn check_evaluation(&self, failures: &mut Vec<String>) {
+    fn check_evaluation(&self, platform: Platform, failures: &mut Vec<String>) {
         let mut env = Env::reference();
         let mut rng = Xorshift128::new();
         for row in &self.rows {
             if row.clears_variables {
                 env.vars.clear();
             }
-            let compiled = compile(&row.expr, &run_options(row.version));
+            let compiled = compile(&row.expr, &run_options(platform, row.version));
             let mut ours: Vec<(LogLevel, String)> = messages(&compiled)
                 .into_iter()
                 .map(|m| (LogLevel::Error, m))
@@ -182,15 +200,15 @@ impl RunGroup {
                 .collect();
             let agrees = matches!(value, Value::Float(x) if nan_or_same_bits(x, row.expected))
                 && ours == theirs;
-            let listed = ARCH == Arch::X86_64 && self.x86_64_differs.contains(&row.seq);
+            let listed = self.listed(platform, row.seq);
             if listed && agrees {
                 failures.push(format!(
-                    "{} #{} {:?}: listed in x86_64_differs, but agrees",
+                    "{} #{} {:?}: listed in differs_on({platform:?}), but agrees",
                     self.group, row.seq, row.expr
                 ));
             } else if !listed && !agrees {
                 failures.push(format!(
-                    "{} #{} v{} {:?}: {value:?} (expected {:?} = {:#010x})\n    ours:   {ours:?}\n    theirs: {theirs:?}",
+                    "{} #{} v{} {:?} on {platform:?}: {value:?} (expected {:?} = {:#010x})\n    ours:   {ours:?}\n    theirs: {theirs:?}",
                     self.group,
                     row.seq,
                     row.version,
@@ -210,14 +228,13 @@ pub struct LoopCapRow {
     expr: String,
     iterations: u32,
     loop_passes: u32,
-    x86_64_runs_away: bool,
+    runs_away: bool,
 }
 
 impl LoopCapRow {
-    /// On `X86_64` the loop runs until the step budget ends the evaluation; on `Arm64` the row
-    /// holds.
-    pub fn x86_64_runs_until_the_step_budget(&mut self) -> &mut Self {
-        self.x86_64_runs_away = true;
+    /// On every platform the loop runs until the step budget ends the evaluation instead.
+    pub fn runs_until_the_step_budget(&mut self) -> &mut Self {
+        self.runs_away = true;
         self
     }
 }
@@ -256,7 +273,7 @@ impl LoopCapGroup {
             expr: expr.to_owned(),
             iterations,
             loop_passes,
-            x86_64_runs_away: false,
+            runs_away: false,
         });
         self.rows.last_mut().expect("just pushed")
     }
@@ -264,7 +281,9 @@ impl LoopCapGroup {
     pub fn check(&self, rows: usize) {
         self.guard.checked(self.rows.len(), rows);
         for row in &self.rows {
-            row.check();
+            for platform in PLATFORMS {
+                row.check(platform);
+            }
         }
     }
 }
@@ -272,10 +291,10 @@ impl LoopCapGroup {
 impl LoopCapRow {
     // `self` is used only with `vm`.
     #[cfg_attr(not(feature = "vm"), allow(clippy::unused_self))]
-    fn check(&self) {
+    fn check(&self, platform: Platform) {
         let (n, expr) = (self.n, self.expr.as_str());
-        let name = format!("loop_cap #{n} {expr:?}");
-        let compiled = compile(expr, &run_options(13));
+        let name = format!("loop_cap #{n} {expr:?} on {platform:?}");
+        let compiled = compile(expr, &run_options(platform, 13));
         assert!(
             compiled.expr().is_some(),
             "{name}: does not compile: {:?}",
@@ -296,7 +315,7 @@ impl LoopCapRow {
             // Budget messages included, so a row ended by the step budget fails.
             let mut sink = LevelSink::default();
             let value = env.eval(&compiled, &mut Xorshift128::new(), &mut sink);
-            if self.x86_64_runs_away && ARCH == Arch::X86_64 {
+            if self.runs_away {
                 let budget =
                     format!("molang: evaluation stopped after its budget of {STEP_BUDGET} steps");
                 let as_described = value == Value::ZERO && sink.lines == [(LogLevel::Warn, budget)];
@@ -325,7 +344,7 @@ impl LoopCapRow {
                     "{PASSES} = 0; {}",
                     expr.replace('{', &format!("{{{PASSES} = {PASSES} + 1; "))
                 );
-                let counted = compile(&counting, &run_options(13))
+                let counted = compile(&counting, &run_options(platform, 13))
                     .expr()
                     .cloned()
                     .expect("the counting form compiles");
@@ -381,9 +400,13 @@ impl SmokeGroup {
 
     pub fn check(&self, rows: usize) {
         self.guard.checked(self.rows.len(), rows);
-        for row in &self.rows {
-            let name = format!("smoke #{} {:?}", row.n, row.expr);
-            let compiled = compile(&row.expr, &run_options(13));
+        for (row, platform) in self
+            .rows
+            .iter()
+            .flat_map(|row| PLATFORMS.map(|platform| (row, platform)))
+        {
+            let name = format!("smoke #{} {:?} on {platform:?}", row.n, row.expr);
+            let compiled = compile(&row.expr, &run_options(platform, 13));
             assert!(
                 compiled.expr().is_some(),
                 "{name}: does not compile: {:?}",
@@ -405,9 +428,10 @@ impl SmokeGroup {
     }
 }
 
-fn run_options(version: i16) -> CompileOptions {
+fn run_options(platform: Platform, version: i16) -> CompileOptions {
     CompileOptions {
         deviations: Deviations::NONE,
+        platform,
         ..server_at(version)
     }
 }

@@ -20,7 +20,6 @@ fn run_07() -> ServerRun {
         FIRST_RELEASE,
         "which queries resolve in an animation controller: query.is_on_screen, query.fuse_time, query.client_memory_tier",
     );
-    run.arm64_differs(&[]);
     run.probe("w01", "v.p1 = q.is_on_screen; v.w01_is_on_screen_resolved;")
         .load_logs(&[
             "Failed to resolve query query.is_on_screen.  Either the query does not exist or it is not supported in this context.",

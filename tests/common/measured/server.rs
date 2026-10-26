@@ -12,8 +12,7 @@
 #[cfg(feature = "vm")]
 use crate::common::host::{Env, LevelSink};
 use molang::compile::{CompileFailure, CompileOptions, Deviations, compile};
-#[cfg(feature = "vm")]
-use molang::numeric::{ARCH, Arch};
+use molang::numeric::{LinuxRelease, Platform};
 #[cfg(feature = "vm")]
 use molang::rng::Xorshift128;
 use molang::version::MolangVersion;
@@ -21,7 +20,7 @@ use molang::version::MolangVersion;
 use molang::vm::{LogLevel, Value};
 
 use crate::common::compile_support::messages;
-use crate::common::{CheckGuard, compile_support::server_at, data_path};
+use crate::common::{CheckGuard, compile_support::server_at, data_path, on};
 
 /// A new release needs its arm in `text` and its place at the end of [`Release::ALL`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -47,6 +46,14 @@ impl Release {
     const fn slot(self) -> usize {
         self as usize
     }
+
+    /// The platform of this release's server, which the logs come from.
+    pub const fn platform(self) -> Platform {
+        match self {
+            Self::V1_26_36_1 => Platform::BdsLinux(LinuxRelease::V1_26_36),
+            Self::V1_26_52_3 => Platform::BdsLinux(LinuxRelease::V1_26_52),
+        }
+    }
 }
 
 // Every release's slot is its place in `Release::ALL`, which sizes a `PerRelease`.
@@ -64,10 +71,14 @@ const _: () = {
 pub const FIRST_RELEASE: &[Release] = &[Release::V1_26_36_1];
 pub const BOTH_RELEASES: &[Release] = &[Release::V1_26_36_1, Release::V1_26_52_3];
 
-/// On `Arm64`, runs up to this number are replayed and must disagree exactly on the probes they
-/// list ([`ServerRun::arm64_differs`]); later runs, including any new one, list none and are not
-/// replayed there.
-pub const LAST_RUN_REPLAYED_UNDER_ARM64: u32 = 30;
+/// The platforms besides the logged servers every run also replays on; it must disagree exactly on
+/// the probes it lists for one ([`ServerRun::differs_on`]).
+#[cfg(feature = "vm")]
+const OTHER_PLATFORMS: [Platform; 2] = [Platform::BdsWindows, Platform::AndroidArm64];
+
+/// The step budget of a replay on another platform.
+#[cfg(feature = "vm")]
+const OTHER_PLATFORM_STEPS: u64 = 1_000_000;
 
 const MISS_START: &str = "Error: unhandled request for unknown variable";
 const SERVER_UNBOUNDED: &str = "and 18446744073709551615";
@@ -330,7 +341,7 @@ pub struct ServerRun {
     format_version: Option<String>,
     transitions: Vec<(String, Vec<(String, String)>)>,
     checks_load: bool,
-    arm64_differs: Option<Vec<String>>,
+    differs: Vec<(Platform, Vec<String>)>,
     probes: Vec<Probe>,
 }
 
@@ -352,7 +363,7 @@ impl ServerRun {
             format_version: None,
             transitions: Vec::new(),
             checks_load: false,
-            arm64_differs: None,
+            differs: Vec::new(),
             probes: Vec::new(),
         }
     }
@@ -386,10 +397,22 @@ impl ServerRun {
         self
     }
 
-    /// The probes that take another branch under `Arm64`, in run order; required up to
-    /// [`LAST_RUN_REPLAYED_UNDER_ARM64`], refused above.
-    pub fn arm64_differs(&mut self, ids: &[&str]) -> &mut Self {
-        self.arm64_differs = Some(ids.iter().map(|id| (*id).to_owned()).collect());
+    /// The probes that log other lines on `platform`, one of [`Platform::BdsWindows`] and
+    /// [`Platform::AndroidArm64`], than on the release's own, in run order. One call per platform;
+    /// none lists no probe.
+    pub fn differs_on(&mut self, platform: Platform, ids: &[&str]) -> &mut Self {
+        assert!(
+            matches!(platform, Platform::BdsWindows | Platform::AndroidArm64),
+            "{}: the logs are those of the Linux servers",
+            self.run
+        );
+        assert!(
+            self.differs.iter().all(|(listed, _)| *listed != platform),
+            "{}: the probes that differ on {platform:?} are given twice",
+            self.run
+        );
+        self.differs
+            .push((platform, ids.iter().map(|id| (*id).to_owned()).collect()));
         self
     }
 
@@ -423,17 +446,20 @@ impl ServerRun {
             self.check_log(release, &mut failures);
             self.check_compile(release, &mut failures);
             #[cfg(feature = "vm")]
-            if ARCH == Arch::X86_64 {
-                self.check_replay(release, &mut failures);
-            }
+            self.check_replay(release, &mut failures);
         }
         #[cfg(feature = "vm")]
-        if ARCH == Arch::Arm64 && self.number <= LAST_RUN_REPLAYED_UNDER_ARM64 {
-            let expected = self.arm64_differs.clone().unwrap_or_default();
-            let differs = self.arm64_disagreements();
+        for platform in OTHER_PLATFORMS {
+            let expected = self
+                .differs
+                .iter()
+                .find(|(listed, _)| *listed == platform)
+                .map(|(_, ids)| ids.clone())
+                .unwrap_or_default();
+            let differs = self.disagreements(platform);
             if differs != expected {
                 failures.push(format!(
-                    "{}: under Arm64 the probes {differs:?} disagree; the run lists {expected:?}",
+                    "{}: on {platform:?} the probes {differs:?} disagree; the run lists {expected:?}",
                     self.run
                 ));
             }
@@ -452,12 +478,14 @@ impl ServerRun {
         report
     }
 
+    /// The probes whose lines on `platform` are not those on the release's own platform.
     #[cfg(feature = "vm")]
-    fn arm64_disagreements(&self) -> Vec<String> {
+    fn disagreements(&self, platform: Platform) -> Vec<String> {
         let mut ids: Vec<String> = Vec::new();
         for &release in &self.releases {
-            for verdict in self.session(release) {
-                if !verdict.agrees && !ids.contains(&verdict.probe.id) {
+            let own = self.session(release, release.platform());
+            for (verdict, own) in self.session(release, platform).iter().zip(&own) {
+                if verdict.ours != own.ours && !ids.contains(&verdict.probe.id) {
                     ids.push(verdict.probe.id.clone());
                 }
             }
@@ -521,16 +549,13 @@ impl ServerRun {
                 );
             }
         }
-        if self.number <= LAST_RUN_REPLAYED_UNDER_ARM64 {
-            assert!(
-                self.arm64_differs.is_some(),
-                "{run}: runs up to {LAST_RUN_REPLAYED_UNDER_ARM64} list the probes that disagree under Arm64 (`arm64_differs`)"
-            );
-        } else {
-            assert!(
-                self.arm64_differs.is_none(),
-                "{run}: only runs up to {LAST_RUN_REPLAYED_UNDER_ARM64} are replayed under Arm64"
-            );
+        for (platform, ids) in &self.differs {
+            for id in ids {
+                assert!(
+                    self.probes.iter().any(|probe| probe.id == *id),
+                    "{run}: differs_on({platform:?}) names {id:?}, which is not a probe"
+                );
+            }
         }
         self.validate_logs();
     }
@@ -694,7 +719,7 @@ impl ServerRun {
 
     #[cfg(feature = "vm")]
     fn check_replay(&self, release: Release, failures: &mut Vec<String>) {
-        for verdict in self.session(release) {
+        for verdict in self.session(release, release.platform()) {
             let row = self.row(release, verdict.probe);
             match (verdict.agrees, verdict.probe.expected_failures.get(release)) {
                 (true, Some(failure)) => failures.push(format!(
@@ -724,8 +749,12 @@ impl ServerRun {
     }
 
     #[cfg(feature = "vm")]
-    fn session(&self, release: Release) -> Vec<Verdict<'_>> {
+    fn session(&self, release: Release, platform: Platform) -> Vec<Verdict<'_>> {
         let mut env = Env::new();
+        if platform != release.platform() {
+            // A count another platform converts to `i32::MAX` would roll or loop for minutes.
+            env.limits.total_steps = Some(OTHER_PLATFORM_STEPS);
+        }
         let mut rng = Xorshift128::new();
         let mut entered: Option<Vec<String>> = None;
         let mut verdicts = Vec::new();
@@ -733,10 +762,13 @@ impl ServerRun {
             if probe.answered(release).is_none() {
                 continue;
             }
-            let compiled = compile(&probe.expr, &server_at(self.version_of(probe)));
+            let compiled = compile(
+                &probe.expr,
+                &on(platform, server_at(self.version_of(probe))),
+            );
             let runs = match &probe.state {
                 Some(state) => entered
-                    .get_or_insert_with(|| self.entered_states(&mut env, &mut rng))
+                    .get_or_insert_with(|| self.entered_states(platform, &mut env, &mut rng))
                     .contains(state),
                 None => true,
             };
@@ -786,7 +818,12 @@ impl ServerRun {
     /// From `default`, follows the first transition whose condition is true on the session's state.
     /// The bound of 64 steps only guards against a cycle.
     #[cfg(feature = "vm")]
-    fn entered_states(&self, env: &mut Env, rng: &mut Xorshift128) -> Vec<String> {
+    fn entered_states(
+        &self,
+        platform: Platform,
+        env: &mut Env,
+        rng: &mut Xorshift128,
+    ) -> Vec<String> {
         let mut entered = Vec::new();
         let mut state = "default".to_owned();
         for _ in 0..64 {
@@ -794,7 +831,7 @@ impl ServerRun {
             else {
                 break;
             };
-            let options = server_at(13);
+            let options = on(platform, server_at(13));
             let next = choices.iter().find_map(|(target, condition)| {
                 let expr = compile(condition, &options).expr().cloned()?;
                 let mut sink = LevelSink::default();

@@ -18,7 +18,6 @@ fn run_08() -> ServerRun {
         "per-entry isolation of load-time rejections, with anchors of run_04 (r18, r01, r16, r17)",
     );
     run.checks_load_messages();
-    run.arm64_differs(&[]);
     run.probe("h00_syntax", "v.p1 = (1 + ; v.h00_syntax_loaded;")
         .load_logs(&[
             "Unable to find matching closing section symbol for symbol at 3(Left Parenthesis '(') -- looking for Right Parenthesis ')'",
@@ -72,7 +71,6 @@ fn run_11() -> ServerRun {
         "statement lists in sections and bare query prefixes, each with a witness entry",
     );
     run.checks_load_messages();
-    run.arm64_differs(&[]);
     run.probe("p00", "t.st = 0; v.p00_init;")
         .answers("p00_init");
     run.probe("p01", "t.st = 1; v.x = 0; v.y = 7; v.a = 0; v.y = [v.x = 1;]; t.st = 2; v.x == 1 ? (v.y == 7 ? v.p01_a1_b7 : (v.y == 0 ? v.p01_a1_b0 : (v.y == 1 ? v.p01_a1_b1 : (v.y == 2 ? v.p01_a1_b2 : v.p01_a1_bnone)))) : (v.x == 0 ? (v.y == 7 ? v.p01_a0_b7 : (v.y == 0 ? v.p01_a0_b0 : (v.y == 1 ? v.p01_a0_b1 : (v.y == 2 ? v.p01_a0_b2 : v.p01_a0_bnone)))) : v.p01_anone);").load_logs(&["Malformed Semicolon ';' expression. It has 0 children but should have between 1 and 18446744073709551615"]).rejected_at_load().silent();

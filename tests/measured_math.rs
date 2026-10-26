@@ -1,5 +1,5 @@
 //! The math functions, NaN through math functions and comparisons, the rounding of a scale or
-//! offset on a product, quotient or call, and the architectures' primitives.
+//! offset on a product, quotient or call, and the scalar primitives.
 
 #![cfg(all(feature = "compiler", feature = "stdlib"))]
 // Expected values are written as the shortest decimal that gives their bits; some are close to a
@@ -8,10 +8,10 @@
 
 mod common;
 
+use common::P;
 use common::measured::math_call::parse_call;
 use common::measured::*;
-use common::per_arch;
-use molang::numeric::{self, ARCH, Arch, PostOp};
+use molang::numeric::{self, PostOp};
 use molang::stdlib::math;
 
 /// NaN through `math.max` / `math.min`, `math.mod` by zero and other questions asked through
@@ -22,7 +22,6 @@ fn run_01() -> ServerRun {
         FIRST_RELEASE,
         "NaN through max / min, mod by zero, min_angle, a long loop, division order, clamp / round / sign / inverse_lerp, asked through query.log; a missing read",
     );
-    run.arm64_differs(&[]);
     run.probe(
         "i00",
         "v.n = math.sqrt(-1); v.f = 4; v.r = q.log(1001, math.max(v.n, v.f), math.max(v.f, v.n), math.min(v.n, v.f), math.min(v.f, v.n), math.max(math.sqrt(-1), 4), math.max(4, math.sqrt(-1)));",
@@ -76,7 +75,6 @@ fn run_02() -> ServerRun {
         FIRST_RELEASE,
         "the probes of run_01 again: NaN through max / min, mod by zero, min_angle, a long loop, division order, clamp / round / sign / inverse_lerp, asked through query.log; a missing read",
     );
-    run.arm64_differs(&[]);
     run.probe(
         "i00",
         "v.n = math.sqrt(-1); v.f = 4; v.r = q.log(1001, math.max(v.n, v.f), math.max(v.f, v.n), math.min(v.n, v.f), math.min(v.f, v.n), math.max(math.sqrt(-1), 4), math.max(4, math.sqrt(-1)));",
@@ -130,7 +128,6 @@ fn run_03() -> ServerRun {
         FIRST_RELEASE,
         "the probes of run_01 again with the content log file also enabled: NaN through max / min, mod by zero, min_angle, a long loop, division order, clamp / round / sign / inverse_lerp, asked through query.log; a missing read",
     );
-    run.arm64_differs(&[]);
     run.probe(
         "i00",
         "v.n = math.sqrt(-1); v.f = 4; v.r = q.log(1001, math.max(v.n, v.f), math.max(v.f, v.n), math.min(v.n, v.f), math.min(v.f, v.n), math.max(math.sqrt(-1), 4), math.max(4, math.sqrt(-1)));",
@@ -184,7 +181,6 @@ fn run_04() -> ServerRun {
         FIRST_RELEASE,
         "the questions of runs 1-3 answered by never-set variables: NaN through min / max / clamp, mod by zero, min_angle, a long loop, division order, query.log's value, round / sign, a missing read and temps, the division guard, inverse_lerp",
     );
-    run.arm64_differs(&["r02", "r04", "r12"]);
     run.probe(
         "r01",
         "v.n = math.sqrt(-1); v.f = 4; v.p1 = math.max(v.n, v.f); v.p1 == 4 ? v.r01_maxnanfirst_is4 : (v.p1 == v.p1 ? v.r01_maxnanfirst_other : v.r01_maxnanfirst_isnan);",
@@ -301,7 +297,6 @@ fn run_05() -> ServerRun {
         FIRST_RELEASE,
         "NaN in comparisons, ?:, ! and &&; sign(NaN); the rounding of a scaled product with an offset and of a product chain; asin just outside [-1, 1]; random with a NaN bound",
     );
-    run.arm64_differs(&["s01", "s04", "s08", "s09", "s13"]);
     run.probe(
         "s01",
         "v.n = math.sqrt(-1); v.n <= 4 ? v.s01_nan_le_true : v.s01_nan_le_false;",
@@ -373,7 +368,6 @@ fn run_06() -> ServerRun {
         FIRST_RELEASE,
         "clamp with a NaN bound, max(NaN, NaN), the rounding order of a product chain, of lerp and of a scaled sum or quotient with an offset",
     );
-    run.arm64_differs(&["u01", "u04", "u05", "u06", "u07"]);
     run.probe(
         "u01",
         "v.n = math.sqrt(-1); v.f = 4; v.p1 = math.clamp(v.f, v.n, 5); v.p1 == 4 ? v.u01_clamp_lonan_is_v : (v.p1 == v.p1 ? v.u01_other : v.u01_clamp_lonan_nan);",
@@ -414,10 +408,6 @@ fn run_09() -> ServerRun {
         "numeric questions (easings, hermite_blend, angle conversions, division by NaN, random bounds, the sign of a zero remainder, folded offsets) and NaN comparisons",
     );
     run.checks_load_messages();
-    run.arm64_differs(&[
-        "n01", "n02", "n04", "n05", "n06", "n07", "n08", "n09", "n10", "n11", "n12", "n15", "n24",
-        "n25",
-    ]);
     run.probe("n01", "v.t = 0.65; v.c = v.t * v.t; v.c = v.c * v.t; v.c = v.c * v.t; v.d = v.t * v.t; v.d = v.d * v.d; v.p1 = math.ease_in_quart(0, 1, v.t); v.p1 == v.c ? (v.c == v.d ? v.n01_indistinct : v.n01_quart_chain) : (v.p1 == v.d ? v.n01_quart_squared : v.n01_other);").answers("n01_quart_chain");
     run.probe("n02", "v.s = 0.3; v.e = 1.7; v.t = 0.72; v.d = v.e - v.s; v.a = v.d * v.t; v.a = v.a * v.t; v.a = v.a * v.t; v.a = v.a * v.t; v.a = v.s + v.a; v.q = v.t * v.t; v.q = v.q * v.q; v.b = v.q * v.d; v.b = v.b + v.s; v.p1 = math.ease_in_quart(v.s, v.e, v.t); v.p1 == v.a ? (v.a == v.b ? v.n02_indistinct : v.n02_quart_d_chain) : (v.p1 == v.b ? v.n02_quart_sq_times_d : v.n02_other);").answers("n02_quart_d_chain");
     run.probe("n03", "v.s = 0.3; v.e = 1.7; v.t = 0.4; v.d = v.e - v.s; v.u = v.t - 1; v.c = v.u * v.u; v.c = v.c * v.u; v.a = v.c + 1; v.a = v.a * v.d; v.a = v.s + v.a; v.b = v.c * v.d; v.b = v.b + v.d; v.b = v.b + v.s; v.p1 = math.ease_out_cubic(v.s, v.e, v.t); v.p1 == v.a ? (v.a == v.b ? v.n03_indistinct : v.n03_cube_plus1_times_d) : (v.p1 == v.b ? v.n03_cube_times_d_plus_d : v.n03_other);").answers("n03_cube_plus1_times_d");
@@ -510,7 +500,7 @@ fn run_09() -> ServerRun {
 
 /// A zero remainder of `math.mod` stored in a variable reads +0.
 #[test]
-fn easings_hermite_blend_and_nan_operands_follow_the_x86_64_architecture_run_09() {
+fn easings_hermite_blend_and_nan_operands_run_09() {
     run_09().replay(26);
 }
 
@@ -521,7 +511,6 @@ fn run_27() -> ServerRun {
         FIRST_RELEASE,
         "dry session under a memory limit: the three anchors only, to measure the server's normal memory",
     );
-    run.arm64_differs(&["r02"]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -1707,7 +1696,10 @@ fn nan_and_zero_through_division_and_math_functions_and_missing_arguments() {
         .logs(&[
             "Unexpected number of parameters to Max 'math.max' function - expected 2, found 1.",
         ]);
-    group.x86_64_differs(&[8, 14, 15, 20, 21, 22, 25, 27, 35, 40]);
+    // No platform gives these rows' recorded values.
+    for platform in common::PLATFORMS {
+        group.differs_on(platform, &[8, 14, 15, 20, 21, 22, 25, 27, 35, 40]);
+    }
     group.check(46);
 }
 
@@ -1726,25 +1718,20 @@ fn measured(branch: &str) {
 
 /// The literal `1 / 3` as folded.
 fn third() -> f32 {
-    numeric::fold_const_div(1.0, 3.0)
+    numeric::fold_const_div(P, 1.0, 3.0)
 }
 
 #[test]
-fn post_op_is_unfused_on_x86_64_and_fused_on_arm64() {
+fn post_op_is_unfused() {
     // v.x = 1/3; v.x * 3 - 1
     measured("s09_postop_unfused");
     measured("u06_postop_unfused2");
     let post = PostOp::new(3.0, -1.0);
-    if ARCH == Arch::X86_64 {
-        assert_eq!(post.apply(third()).to_bits(), 0.0_f32.to_bits());
-    }
-    if ARCH == Arch::Arm64 {
-        assert_eq!(post.apply(third()), 2.980_232_2e-8);
-    }
+    assert_eq!(post.apply(P, third()).to_bits(), 0.0_f32.to_bits());
 }
 
 #[test]
-fn division_scales_after_dividing_on_x86_64_and_before_on_arm64() {
+fn division_scales_after_dividing() {
     // v.a / v.b * 3 with a = 1000, b = 13
     measured("r12_div_divide_then_scale");
     measured("u07_div_unfused_divide_first");
@@ -1752,22 +1739,16 @@ fn division_scales_after_dividing_on_x86_64_and_before_on_arm64() {
     let divide_first = (a / b) * 3.0;
     let scale_first = (a * 3.0) / b;
     assert_ne!(divide_first, scale_first);
-    if ARCH == Arch::X86_64 {
-        assert_eq!(numeric::div(a, b, PostOp::new(3.0, 0.0)), divide_first);
-        assert_eq!(
-            numeric::div(a, b, PostOp::new(3.0, 0.5)),
-            divide_first + 0.5
-        );
-    }
-    if ARCH == Arch::Arm64 {
-        assert_eq!(numeric::div(a, b, PostOp::new(3.0, 0.0)), scale_first);
-        assert_eq!(numeric::div(a, b, PostOp::new(3.0, 0.5)), scale_first + 0.5);
-    }
-    assert_eq!(numeric::div(a, b, ID), a / b);
+    assert_eq!(numeric::div(P, a, b, PostOp::new(3.0, 0.0)), divide_first);
+    assert_eq!(
+        numeric::div(P, a, b, PostOp::new(3.0, 0.5)),
+        divide_first + 0.5
+    );
+    assert_eq!(numeric::div(P, a, b, ID), a / b);
 }
 
 #[test]
-fn multiplication_scales_the_product_on_x86_64_and_the_operand_on_arm64() {
+fn multiplication_scales_the_product() {
     // v.k * v.j * 7
     measured("s14_mul_chain_matches_stepwise");
     measured("u04_mul_kj_then_s");
@@ -1775,29 +1756,23 @@ fn multiplication_scales_the_product_on_x86_64_and_the_operand_on_arm64() {
     let product_then_scale = (k * j) * 7.0;
     assert_ne!(product_then_scale, k * (j * 7.0));
     assert_ne!(product_then_scale, j * (k * 7.0));
-    if ARCH == Arch::X86_64 {
-        assert_eq!(
-            numeric::mul(k, j, PostOp::new(7.0, 0.0)),
-            product_then_scale
-        );
-        assert_eq!(
-            numeric::mul(3.0, 0.1, PostOp::new(7.0, 0.0)),
-            (3.0_f32 * 0.1) * 7.0
-        );
-    }
-    // arm64: acc·(top·S) + O in one fused multiply-add, with top·S rounded first.
-    if ARCH == Arch::Arm64 {
-        assert_eq!(numeric::mul(k, j, PostOp::new(7.0, 0.0)), k * (j * 7.0));
-    }
     assert_eq!(
-        numeric::mul(k, j, PostOp::new(7.0, 0.25)),
-        per_arch(product_then_scale + 0.25, k.mul_add(j * 7.0, 0.25))
+        numeric::mul(P, k, j, PostOp::new(7.0, 0.0)),
+        product_then_scale
     );
-    assert_eq!(numeric::mul(k, j, ID), k * j);
+    assert_eq!(
+        numeric::mul(P, 3.0, 0.1, PostOp::new(7.0, 0.0)),
+        (3.0_f32 * 0.1) * 7.0
+    );
+    assert_eq!(
+        numeric::mul(P, k, j, PostOp::new(7.0, 0.25)),
+        product_then_scale + 0.25
+    );
+    assert_eq!(numeric::mul(P, k, j, ID), k * j);
 }
 
 #[test]
-fn lerp_is_unfused_on_x86_64_and_fused_on_arm64() {
+fn lerp_is_unfused() {
     // math.lerp(v.la, v.lb, v.t) with la = 1.1, lb = la * 3.3, t = 1/3
     measured("u05_lerp_unfused");
     let la = 1.1_f32;
@@ -1806,22 +1781,20 @@ fn lerp_is_unfused_on_x86_64_and_fused_on_arm64() {
     let stepwise = la + t * (lb - la);
     let fused = t.mul_add(lb - la, la);
     assert_ne!(stepwise, fused);
-    assert_eq!(math::lerp(la, lb, t, ID), per_arch(stepwise, fused));
+    assert_eq!(math::lerp(P, la, lb, t, ID), stepwise);
 }
 
 #[test]
-fn nan_comparisons_are_ordered_on_x86_64() {
+fn nan_comparisons_are_false() {
     measured("s01_nan_le_false");
     measured("s02_nan_ge_false");
     measured("s03_nan_ne_true");
     measured("s04_nan_lt_false");
     for (a, b) in [(NAN, 4.0), (4.0, NAN), (NAN, NAN)] {
-        if ARCH == Arch::X86_64 {
-            assert!(!numeric::lt(a, b));
-            assert!(!numeric::le(a, b));
-            assert!(!numeric::gt(a, b));
-            assert!(!numeric::ge(a, b));
-        }
+        assert!(!numeric::lt(a, b));
+        assert!(!numeric::le(a, b));
+        assert!(!numeric::gt(a, b));
+        assert!(!numeric::ge(a, b));
         assert!(!numeric::eq(a, b));
         assert!(numeric::ne(a, b));
     }
@@ -1845,20 +1818,18 @@ fn truthiness_is_a_float_compare_with_zero() {
 }
 
 #[test]
-fn min_max_return_the_second_operand_on_x86_64() {
+fn min_max_return_the_second_operand() {
     measured("r01_maxnanfirst_is4");
     measured("r02_maxnansecond_isnan");
     measured("r03_minnanfirst_is4");
     measured("r04_minnansecond_isnan");
     measured("r05_maxconstnanfirst_is4");
     measured("u02_max_nan_nan_nan");
-    if ARCH == Arch::X86_64 {
-        assert_eq!(math::max(NAN, 4.0, ID), 4.0);
-        assert!(math::max(4.0, NAN, ID).is_nan());
-        assert!(math::max(NAN, NAN, ID).is_nan());
-        assert_eq!(math::min(NAN, 4.0, ID), 4.0);
-        assert!(math::min(4.0, NAN, ID).is_nan());
-    }
+    assert_eq!(math::max(P, NAN, 4.0, ID), 4.0);
+    assert!(math::max(P, 4.0, NAN, ID).is_nan());
+    assert!(math::max(P, NAN, NAN, ID).is_nan());
+    assert_eq!(math::min(P, NAN, 4.0, ID), 4.0);
+    assert!(math::min(P, 4.0, NAN, ID).is_nan());
 }
 
 #[test]
@@ -1866,24 +1837,19 @@ fn clamp_with_nan() {
     measured("r14_clampnan_is_lo");
     measured("u01_clamp_lonan_nan");
     measured("u03_clamp_hinan_is_v");
-    // A NaN value gives the lower bound on both architectures.
-    assert_eq!(math::clamp(NAN, 1.0, 2.0, ID), 1.0);
-    // A NaN lower bound is returned on x86-64 and ignored on arm64.
-    if ARCH == Arch::X86_64 {
-        assert!(math::clamp(4.0, NAN, 5.0, ID).is_nan());
-    }
-    if ARCH == Arch::Arm64 {
-        assert_eq!(math::clamp(4.0, NAN, 5.0, ID), 4.0);
-    }
+    // A NaN value gives the lower bound.
+    assert_eq!(math::clamp(P, NAN, 1.0, 2.0, ID), 1.0);
+    // A NaN lower bound is returned.
+    assert!(math::clamp(P, 4.0, NAN, 5.0, ID).is_nan());
     // A NaN upper bound never matches.
-    assert_eq!(math::clamp(4.0, 1.0, NAN, ID), 4.0);
+    assert_eq!(math::clamp(P, 4.0, 1.0, NAN, ID), 4.0);
 }
 
 #[test]
 fn sign_of_nan_and_of_zero() {
     measured("r18_sign0_is1");
     measured("s08_signnan_1");
-    assert_eq!(math::sign(NAN, ID), per_arch(1.0, -1.0));
+    assert_eq!(math::sign(NAN, ID), 1.0);
     assert_eq!(math::sign(0.0, ID), 1.0);
     assert_eq!(math::sign(-0.0, ID), 1.0);
     assert_eq!(math::sign(-3.0, ID), -1.0);
@@ -1893,32 +1859,21 @@ fn sign_of_nan_and_of_zero() {
 #[test]
 fn random_bounds_with_nan() {
     measured("s13_random_nanlo_nan");
-    if ARCH == Arch::X86_64 {
-        assert!(math::random(NAN, 4.0, 0.5, ID).is_nan());
-    }
-    // x86-64 bounds are lo = (b < a) ? b : a and hi = (a > b) ? a : b, so a NaN in either position
+    assert!(math::random(P, NAN, 4.0, 0.5, ID).is_nan());
+    // The bounds are lo = (b < a) ? b : a and hi = (a > b) ? a : b, so a NaN in either position
     // reaches hi·r + (1 − r)·lo.
     for sample in [0.0, 0.5, 1.0] {
-        if ARCH == Arch::X86_64 {
-            assert!(math::random(NAN, 4.0, sample, ID).is_nan());
-            assert!(math::random(4.0, NAN, sample, ID).is_nan());
-            assert!(math::random_integer(NAN, 4.0, sample, ID).is_nan());
-            assert_eq!(math::random_integer(4.0, NAN, sample, ID), 4.0);
-        }
+        assert!(math::random(P, NAN, 4.0, sample, ID).is_nan());
+        assert!(math::random(P, 4.0, NAN, sample, ID).is_nan());
+        assert!(math::random_integer(P, NAN, 4.0, sample, ID).is_nan());
+        assert_eq!(math::random_integer(P, 4.0, NAN, sample, ID), 4.0);
     }
     // Two literal bounds are sorted when the call folds: (4, NaN) folds to 4.
-    if ARCH == Arch::X86_64 {
-        assert!(math::random_folded(0.5, math::random_const_bounds(NAN, 4.0, ID)).is_nan());
-        assert_eq!(
-            math::random_folded(0.5, math::random_const_bounds(4.0, NAN, ID)),
-            4.0
-        );
-    }
-    // arm64 drops the NaN bound: math.random(NaN, 5) = 5.
-    if ARCH == Arch::Arm64 {
-        assert_eq!(math::random(NAN, 5.0, 0.5, ID), 5.0);
-        assert_eq!(math::random(5.0, NAN, 0.5, ID), 5.0);
-    }
+    assert!(math::random_folded(P, 0.5, math::random_const_bounds(P, NAN, 4.0, ID)).is_nan());
+    assert_eq!(
+        math::random_folded(P, 0.5, math::random_const_bounds(P, 4.0, NAN, ID)),
+        4.0
+    );
 }
 
 #[test]
@@ -1939,28 +1894,24 @@ fn division_guard_and_its_version_switch() {
     );
     // v.h = -1; 5 / v.h: −5 from version 7, 5 up to version 6 (the guard pushes |d|).
     let signed = numeric::div_guard(true, -1.0).unwrap();
-    assert_eq!(numeric::div(5.0, signed, ID), -5.0);
+    assert_eq!(numeric::div(P, 5.0, signed, ID), -5.0);
     let unsigned = numeric::div_guard(false, -1.0).unwrap();
-    assert_eq!(numeric::div(5.0, unsigned, ID), 5.0);
+    assert_eq!(numeric::div(P, 5.0, unsigned, ID), 5.0);
     // v.a = -10, v.b = -2: −5 at version 6, 5 at version 7.
     assert_eq!(
-        numeric::div(-10.0, numeric::div_guard(false, -2.0).unwrap(), ID),
+        numeric::div(P, -10.0, numeric::div_guard(false, -2.0).unwrap(), ID),
         -5.0
     );
     assert_eq!(
-        numeric::div(-10.0, numeric::div_guard(true, -2.0).unwrap(), ID),
+        numeric::div(P, -10.0, numeric::div_guard(true, -2.0).unwrap(), ID),
         5.0
     );
-    // A NaN divisor takes the guard on arm64 (the division is 0) and passes it on x86-64 (the
-    // division is NaN).
+    // A NaN divisor passes the guard: the division is NaN.
     for signed in [true, false] {
-        let guarded = numeric::div_guard(signed, NAN);
-        assert_eq!(guarded.is_none(), per_arch(false, true));
-        if let Some(pushed) = guarded {
-            assert!(pushed.is_nan());
-            assert!(numeric::div(1.0, pushed, ID).is_nan());
-            assert!(numeric::div(1.0, pushed, PostOp::new(2.0, 1.0)).is_nan());
-        }
+        let pushed = numeric::div_guard(signed, NAN).expect("not guarded");
+        assert!(pushed.is_nan());
+        assert!(numeric::div(P, 1.0, pushed, ID).is_nan());
+        assert!(numeric::div(P, 1.0, pushed, PostOp::new(2.0, 1.0)).is_nan());
     }
 }
 
@@ -1978,17 +1929,17 @@ fn literal_divisors_fold_to_a_reciprocal() {
     assert_eq!(1.0 * numeric::fold_const_divisor(0.0), 0.0);
     assert!((NAN * numeric::fold_const_divisor(0.0)).is_nan());
     // All-constant divisions: 1 / 0 = 0, 0 / 0 = 0, -10 / -2 = 5.
-    assert_eq!(numeric::fold_const_div(1.0, 0.0), 0.0);
-    assert_eq!(numeric::fold_const_div(0.0, 0.0), 0.0);
-    assert_eq!(numeric::fold_const_div(1.0, NAN), 0.0);
-    assert_eq!(numeric::fold_const_div(-10.0, -2.0), 5.0);
+    assert_eq!(numeric::fold_const_div(P, 1.0, 0.0), 0.0);
+    assert_eq!(numeric::fold_const_div(P, 0.0, 0.0), 0.0);
+    assert_eq!(numeric::fold_const_div(P, 1.0, NAN), 0.0);
+    assert_eq!(numeric::fold_const_div(P, -10.0, -2.0), 5.0);
     // 7 * 3 / 9: the division groups first, so the result is 7 · 0.33333334.
-    let grouped = 7.0 * numeric::fold_const_div(3.0, 9.0);
+    let grouped = 7.0 * numeric::fold_const_div(P, 3.0, 9.0);
     assert_eq!(grouped, 7.0 * 0.333_333_34_f32);
     assert_eq!(grouped, 2.333_333_5);
     // v.x = 1; v.x * 3 / 9 → the constant folds into the scale.
     assert_eq!(
-        PostOp::new(numeric::fold_const_div(3.0, 9.0), 0.0).apply(1.0),
+        PostOp::new(numeric::fold_const_div(P, 3.0, 9.0), 0.0).apply(P, 1.0),
         0.333_333_34
     );
 }
@@ -1998,23 +1949,29 @@ fn mod_zero_rules() {
     measured("r06_modlitlit_isnan");
     measured("r07_modvarlit_isnan");
     measured("r08_modvarvar_is0");
-    assert!(math::mod_const(1.0, 0.0, ID).is_nan());
-    assert!(math::mod_const(5.0, 0.0, ID).is_nan());
-    assert_eq!(math::mod_runtime(1.0, 0.0, ID), 0.0);
-    assert_eq!(math::mod_runtime(1.0, -0.0, ID), 0.0);
+    assert!(math::mod_const(P, 1.0, 0.0, ID).is_nan());
+    assert!(math::mod_const(P, 5.0, 0.0, ID).is_nan());
+    assert_eq!(math::mod_runtime(P, 1.0, 0.0, ID), 0.0);
+    assert_eq!(math::mod_runtime(P, 1.0, -0.0, ID), 0.0);
     // The zero-divisor result is the node's offset: math.mod(v.x, v.y) + 0.125.
-    assert_eq!(math::mod_runtime(1.0, 0.0, PostOp::new(2.0, 0.125)), 0.125);
+    assert_eq!(
+        math::mod_runtime(P, 1.0, 0.0, PostOp::new(2.0, 0.125)),
+        0.125
+    );
     // The remainder takes the sign of the dividend.
-    assert_eq!(math::mod_runtime(-5.1, 3.0, ID), -5.1_f32 % 3.0);
-    assert!((math::mod_runtime(-5.1, 3.0, ID) - -2.1).abs() <= 1e-6);
-    assert_eq!(math::mod_const(7.5, 2.0, PostOp::new(2.0, 1.0)), 4.0);
-    assert!(math::mod_runtime(1.0, NAN, ID).is_nan());
+    assert_eq!(math::mod_runtime(P, -5.1, 3.0, ID), -5.1_f32 % 3.0);
+    assert!((math::mod_runtime(P, -5.1, 3.0, ID) - -2.1).abs() <= 1e-6);
+    assert_eq!(math::mod_const(P, 7.5, 2.0, PostOp::new(2.0, 1.0)), 4.0);
+    assert!(math::mod_runtime(P, 1.0, NAN, ID).is_nan());
     // A run-time `math.mod` remainder of −0 comes out as +0.
     assert_eq!(-3.0_f32 % 3.0, 0.0);
     assert!((-3.0_f32 % 3.0).is_sign_negative());
-    assert_eq!(math::mod_const(-3.0, 3.0, ID).to_bits(), 0.0_f32.to_bits());
     assert_eq!(
-        math::mod_runtime(-3.0, 3.0, ID).to_bits(),
+        math::mod_const(P, -3.0, 3.0, ID).to_bits(),
+        0.0_f32.to_bits()
+    );
+    assert_eq!(
+        math::mod_runtime(P, -3.0, 3.0, ID).to_bits(),
         0.0_f32.to_bits()
     );
 }
@@ -2026,10 +1983,10 @@ fn shared_function_results() {
     measured("r15_round_neg2p5_isneg3");
     measured("s10_asin_tol_clamped90");
     measured("s11_asin1001_nan");
-    assert_eq!(math::min_angle(180.0, ID), -180.0);
-    assert_eq!(math::round(-2.5, ID), -3.0);
-    assert_eq!(math::asin(1.0004, ID), 90.0);
-    assert!(math::asin(1.001, ID).is_nan());
+    assert_eq!(math::min_angle(P, 180.0, ID), -180.0);
+    assert_eq!(math::round(P, -2.5, ID), -3.0);
+    assert_eq!(math::asin(P, 1.0004, ID), 90.0);
+    assert!(math::asin(P, 1.001, ID).is_nan());
 }
 
 /// The bare-call matcher accepts literal arguments, also parenthesised and negative, and variables

@@ -8,6 +8,8 @@
 
 mod common;
 
+use molang::numeric::Platform;
+
 use common::measured::*;
 
 /// The statements after a `for_each` over the number 0, with a `loop` as control.
@@ -18,7 +20,6 @@ fn run_14() -> ServerRun {
         "for_each and temp variables: follow-up of run_11 p09/w09",
     );
     run.checks_load_messages();
-    run.arm64_differs(&[]);
     run.probe(
         "k01",
         "t.st = 1; v.x = 0; v.a = 0; for_each(v.x, v.a, 1); t.st = 2; t.st == 2 ? v.k01_sees2 : (t.st == 1 ? v.k01_sees1 : v.k01_other);",
@@ -70,7 +71,6 @@ fn run_15() -> ServerRun {
         "what the statements after a for_each over a non-array store and read: follow-up of run_14",
     );
     run.checks_load_messages();
-    run.arm64_differs(&[]);
     run.probe(
         "f01",
         "t.st = 1; t.b = 3; v.after = 0; v.rb = 0; v.x = 0; v.a = 4; for_each(v.x, v.a, 7); t.st = 2; v.after = 5; v.rb = t.b; v.f01_done;",
@@ -121,7 +121,6 @@ fn run_20() -> ServerRun {
     run.transitions("y02_no", &[("y03_yes", "v.ty03 = 1;"), ("y03_no", "1")]);
     run.transitions("y03_yes", &[("y04_yes", "1;"), ("y04_no", "1")]);
     run.transitions("y03_no", &[("y04_yes", "1;"), ("y04_no", "1")]);
-    run.arm64_differs(&[]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -216,7 +215,6 @@ fn run_21() -> ServerRun {
     run.transitions("y02_no", &[("y03_yes", "v.ty03 = 1;"), ("y03_no", "1")]);
     run.transitions("y03_yes", &[("y04_yes", "1;"), ("y04_no", "1")]);
     run.transitions("y03_no", &[("y04_yes", "1;"), ("y04_no", "1")]);
-    run.arm64_differs(&["r02"]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -306,7 +304,6 @@ fn run_22() -> ServerRun {
         FIRST_RELEASE,
         "break in a query argument, break / continue inside an operand",
     );
-    run.arm64_differs(&["r02"]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -357,7 +354,6 @@ fn run_23() -> ServerRun {
         FIRST_RELEASE,
         "continue inside an operand of a product with a negative factor or of a + (follow-up of run_22 x20)",
     );
-    run.arm64_differs(&["r02"]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -395,7 +391,6 @@ fn run_29() -> ServerRun {
         FIRST_RELEASE,
         "run_26 c04 again, bounded by construction, alone, under a memory limit: the suspected runaway",
     );
-    run.arm64_differs(&["r02"]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -429,7 +424,6 @@ fn run_30() -> ServerRun {
         FIRST_RELEASE,
         "the break counterpart of run_29, bounded, alone, under a memory limit",
     );
-    run.arm64_differs(&["r02"]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -752,6 +746,8 @@ fn run_34() -> ServerRun {
         .answers("d5_0");
     run.probe("r99", "v.r99_marker_end;")
         .answers("r99_marker_end");
+    // Android saturates a count of 2^31 or more to 2^31 − 1 rolls.
+    run.differs_on(Platform::AndroidArm64, &["d2", "d3", "d5"]);
     run
 }
 
@@ -956,7 +952,7 @@ fn loops_of_up_to_100000_passes_run_every_pass() {
             0,
             0,
         )
-        .x86_64_runs_until_the_step_budget();
+        .runs_until_the_step_budget();
     group.row(
         14,
         "v.n = 0; loop(5000, { v.n = v.n + 1; }); return v.n;",

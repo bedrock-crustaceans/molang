@@ -226,12 +226,37 @@ pub fn latin1_to_utf8(text: &str) -> String {
     String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
-/// `x86_64` on an `X86_64` build, `arm64` on an `Arm64` one.
+/// Every platform, the default first.
 #[cfg(feature = "compiler")]
-pub fn per_arch<T>(x86_64: T, arm64: T) -> T {
-    match molang::numeric::ARCH {
-        molang::numeric::Arch::X86_64 => x86_64,
-        molang::numeric::Arch::Arm64 => arm64,
+pub const PLATFORMS: [molang::numeric::Platform; 4] = [
+    molang::numeric::Platform::BdsLinux(molang::numeric::LinuxRelease::V1_26_52),
+    molang::numeric::Platform::BdsLinux(molang::numeric::LinuxRelease::V1_26_36),
+    molang::numeric::Platform::BdsWindows,
+    molang::numeric::Platform::AndroidArm64,
+];
+
+/// The default platform, which the recorded server data comes from.
+#[cfg(feature = "compiler")]
+pub const P: molang::numeric::Platform = PLATFORMS[0];
+
+/// `servers` on the two dedicated servers, `android` on the Android client.
+#[cfg(feature = "compiler")]
+pub fn servers_or_android<T>(platform: molang::numeric::Platform, servers: T, android: T) -> T {
+    match platform {
+        molang::numeric::Platform::AndroidArm64 => android,
+        _ => servers,
+    }
+}
+
+/// `options` reproducing `platform`.
+#[cfg(feature = "compiler")]
+pub fn on(
+    platform: molang::numeric::Platform,
+    options: molang::compile::CompileOptions,
+) -> molang::compile::CompileOptions {
+    molang::compile::CompileOptions {
+        platform,
+        ..options
     }
 }
 

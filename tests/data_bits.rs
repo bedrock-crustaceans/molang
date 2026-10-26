@@ -1,5 +1,8 @@
-//! Single operations of each architecture from `numeric_bits.json`: this build's own set compared
-//! to the bit.
+//! Single operations from `numeric_bits.json`, compared to the bit on every platform.
+//!
+//! The `X86_64` set is what BDS Linux 1.26.36 computes. The `Arm64` set is what an arm64 build that
+//! fuses its multiply-adds computes, which no platform here reproduces; only its transcendental
+//! samples are checked.
 //!
 //! ```text
 //! {schema, counts{<set>: {rows, transcendental_rows, families{}}}, profiles{X86_64[], Arm64[]}}
@@ -18,9 +21,10 @@
 
 mod common;
 
-use common::{Samples, hex_f32, per_arch};
+use common::{Samples, hex_f32};
 
-use molang::numeric::{self, ARCH, Arch, PostOp};
+use common::PLATFORMS;
+use molang::numeric::{self, LinuxRelease, Platform, PostOp};
 use molang::rng::FixedRng;
 use molang::stdlib::math;
 use serde_json::Value;
@@ -29,11 +33,17 @@ const ID: PostOp = PostOp::IDENTITY;
 
 /// `math.die_roll*` stepped with the row's raw samples. When every sample is a word's, the one-call
 /// form over a generator playing those words back must agree to the bit and draw once per roll.
-fn die_roll_row(integer: bool, a: &[f32], samples: &[f32], post: PostOp) -> f32 {
+fn die_roll_row(
+    platform: Platform,
+    integer: bool,
+    a: &[f32],
+    samples: &[f32],
+    post: PostOp,
+) -> f32 {
     let mut roll = if integer {
-        math::DieRoll::new_integer(a[0], a[1], a[2])
+        math::DieRoll::new_integer(platform, a[0], a[1], a[2])
     } else {
-        math::DieRoll::new(a[0], a[1], a[2])
+        math::DieRoll::new(platform, a[0], a[1], a[2])
     };
     let rolls = roll.remaining() as usize;
     for &sample in &samples[..rolls] {
@@ -46,9 +56,9 @@ fn die_roll_row(integer: bool, a: &[f32], samples: &[f32], post: PostOp) -> f32 
     {
         let mut rng = Samples::new(samples);
         let whole = if integer {
-            math::die_roll_integer(a[0], a[1], a[2], u32::MAX, &mut rng, post)
+            math::die_roll_integer(platform, a[0], a[1], a[2], u32::MAX, &mut rng, post)
         } else {
-            math::die_roll(a[0], a[1], a[2], u32::MAX, &mut rng, post)
+            math::die_roll(platform, a[0], a[1], a[2], u32::MAX, &mut rng, post)
         };
         assert_eq!(
             whole.map(f32::to_bits),
@@ -61,8 +71,14 @@ fn die_roll_row(integer: bool, a: &[f32], samples: &[f32], post: PostOp) -> f32 
 }
 
 /// `None` means the division guard fired.
-fn evaluate_row(function: &str, a: &[f32], samples: &[f32], post: PostOp) -> Option<f32> {
-    type Ease = fn(f32, f32, f32, PostOp) -> f32;
+fn evaluate_row(
+    platform: Platform,
+    function: &str,
+    a: &[f32],
+    samples: &[f32],
+    post: PostOp,
+) -> Option<f32> {
+    type Ease = fn(Platform, f32, f32, f32, PostOp) -> f32;
     let ease: Option<Ease> = match function {
         "ease_in_quad" => Some(math::ease_in_quad),
         "ease_out_quad" => Some(math::ease_out_quad),
@@ -97,107 +113,78 @@ fn evaluate_row(function: &str, a: &[f32], samples: &[f32], post: PostOp) -> Opt
         _ => None,
     };
     if let Some(ease) = ease {
-        return Some(ease(a[0], a[1], a[2], post));
+        return Some(ease(platform, a[0], a[1], a[2], post));
     }
     let value = match function {
-        "add" => numeric::add(a[0], a[1], post),
-        "mul" => numeric::mul(a[0], a[1], post),
-        "div" => numeric::div(a[0], a[1], post),
-        "negate" => numeric::negate(a[0], post),
+        "add" => numeric::add(platform, a[0], a[1], post),
+        "mul" => numeric::mul(platform, a[0], a[1], post),
+        "div" => numeric::div(platform, a[0], a[1], post),
+        "negate" => numeric::negate(platform, a[0], post),
         "div_guard_signed" => return numeric::div_guard(true, a[0]),
         "div_guard_abs" => return numeric::div_guard(false, a[0]),
         "lt" => post.select(numeric::lt(a[0], a[1])),
         "le" => post.select(numeric::le(a[0], a[1])),
         "ge" => post.select(numeric::ge(a[0], a[1])),
         "gt" => post.select(numeric::gt(a[0], a[1])),
-        "abs" => math::abs(a[0], post),
-        "acos" => math::acos(a[0], post),
-        "asin" => math::asin(a[0], post),
-        "atan" => math::atan(a[0], post),
-        "ceil" => math::ceil(a[0], post),
-        "cos" => math::cos(a[0], post),
-        "exp" => math::exp(a[0], post),
-        "floor" => math::floor(a[0], post),
-        "hermite_blend" => math::hermite_blend(a[0], post),
-        "ln" => math::ln(a[0], post),
-        "min_angle" => math::min_angle(a[0], post),
-        "round" => math::round(a[0], post),
-        "sin" => math::sin(a[0], post),
-        "sqrt" => math::sqrt(a[0], post),
-        "trunc" => math::trunc(a[0], post),
-        "atan2" => math::atan2(a[0], a[1], post),
-        "copy_sign" => math::copy_sign(a[0], a[1], post),
-        "pow" => math::pow(a[0], a[1], post),
-        "min" => math::min(a[0], a[1], post),
-        "max" => math::max(a[0], a[1], post),
-        "clamp" => math::clamp(a[0], a[1], a[2], post),
-        "lerp" => math::lerp(a[0], a[1], a[2], post),
-        "lerprotate" => math::lerprotate(a[0], a[1], a[2], post),
-        "inverse_lerp" => math::inverse_lerp(a[0], a[1], a[2], post),
-        "mod_const" => math::mod_const(a[0], a[1], post),
-        "mod_runtime" => math::mod_runtime(a[0], a[1], post),
+        "abs" => math::abs(platform, a[0], post),
+        "acos" => math::acos(platform, a[0], post),
+        "asin" => math::asin(platform, a[0], post),
+        "atan" => math::atan(platform, a[0], post),
+        "ceil" => math::ceil(platform, a[0], post),
+        "cos" => math::cos(platform, a[0], post),
+        "exp" => math::exp(platform, a[0], post),
+        "floor" => math::floor(platform, a[0], post),
+        "hermite_blend" => math::hermite_blend(platform, a[0], post),
+        "ln" => math::ln(platform, a[0], post),
+        "min_angle" => math::min_angle(platform, a[0], post),
+        "round" => math::round(platform, a[0], post),
+        "sin" => math::sin(platform, a[0], post),
+        "sqrt" => math::sqrt(platform, a[0], post),
+        "trunc" => math::trunc(platform, a[0], post),
+        "atan2" => math::atan2(platform, a[0], a[1], post),
+        "copy_sign" => math::copy_sign(platform, a[0], a[1], post),
+        "pow" => math::pow(platform, a[0], a[1], post),
+        "min" => math::min(platform, a[0], a[1], post),
+        "max" => math::max(platform, a[0], a[1], post),
+        "clamp" => math::clamp(platform, a[0], a[1], a[2], post),
+        "lerp" => math::lerp(platform, a[0], a[1], a[2], post),
+        "lerprotate" => math::lerprotate(platform, a[0], a[1], a[2], post),
+        "inverse_lerp" => math::inverse_lerp(platform, a[0], a[1], a[2], post),
+        "mod_const" => math::mod_const(platform, a[0], a[1], post),
+        "mod_runtime" => math::mod_runtime(platform, a[0], a[1], post),
         "sign" => math::sign(a[0], post),
-        "random" => math::random(a[0], a[1], samples[0], post),
-        "random_const" => {
-            math::random_folded(samples[0], math::random_const_bounds(a[0], a[1], post))
+        "random" => math::random(platform, a[0], a[1], samples[0], post),
+        "random_const" => math::random_folded(
+            platform,
+            samples[0],
+            math::random_const_bounds(platform, a[0], a[1], post),
+        ),
+        "random_integer" => math::random_integer(platform, a[0], a[1], samples[0], post),
+        "random_integer_const" => {
+            math::random_integer_const_bounds(platform, a[0], a[1], samples[0], post)
         }
-        "random_integer" => math::random_integer(a[0], a[1], samples[0], post),
-        "random_integer_const" => math::random_integer_const_bounds(a[0], a[1], samples[0], post),
-        "die_roll" => die_roll_row(false, a, samples, post),
-        "die_roll_integer" => die_roll_row(true, a, samples, post),
+        "die_roll" => die_roll_row(platform, false, a, samples, post),
+        "die_roll_integer" => die_roll_row(platform, true, a, samples, post),
         other => panic!("the file names a function this test does not know: {other}"),
     };
     Some(value)
 }
 
-/// `math.ln` of a negative number: `0x7fc00000` on `X86_64` (`LN_NAN_SIGN` in `data_sweeps.rs`);
-/// this file gives `0xffc00000`.
-const LN_NAN_SIGN: &str =
-    "math.ln of a negative number: 0x7fc00000 on x86-64 (LN_NAN_SIGN in data_sweeps.rs)";
+/// `math.ln` of a negative number is `0x7fc00000` from 1.26.52 on; the set holds 1.26.36's
+/// `0xffc00000`.
+const LN_NAN_SIGN_ROWS: [(usize, usize); 7] =
+    [(9, 3), (9, 5), (9, 7), (9, 13), (9, 15), (9, 22), (9, 23)];
 
-/// A row checked against another value.
-struct Override {
-    set: &'static str,
-    group: usize,
-    row: usize,
-    bits: u32,
-    reason: &'static str,
+/// The bits `platform` gives for row `r` of group `g` of the `X86_64` set, where they are not the
+/// row's own.
+fn x86_64_override(platform: Platform, g: usize, r: usize) -> Option<u32> {
+    (platform == Platform::BdsLinux(LinuxRelease::V1_26_52) && LN_NAN_SIGN_ROWS.contains(&(g, r)))
+        .then_some(0x7fc0_0000)
 }
-
-const fn ln_sign(row: usize) -> Override {
-    Override {
-        set: "X86_64",
-        group: 9,
-        row,
-        bits: 0x7fc0_0000,
-        reason: LN_NAN_SIGN,
-    }
-}
-
-/// Rows checked against another value; each must exist and differ from its own bits.
-const OVERRIDES: [Override; 7] = [
-    ln_sign(3),
-    ln_sign(5),
-    ln_sign(7),
-    ln_sign(13),
-    ln_sign(15),
-    ln_sign(22),
-    ln_sign(23),
-];
 
 /// The bits are equal, NaN payload and sign included.
 fn agrees(actual: Option<f32>, expected: Option<f32>) -> bool {
     actual.map(f32::to_bits) == expected.map(f32::to_bits)
-}
-
-/// The set of this build's architecture.
-fn own_set() -> &'static str {
-    per_arch("X86_64", "Arm64")
-}
-
-/// The set of the other architecture.
-fn other_set() -> &'static str {
-    per_arch("Arm64", "X86_64")
 }
 
 /// A row's post-op, or the identity.
@@ -233,60 +220,110 @@ fn row_values(row: &Value) -> (Vec<f32>, Vec<f32>, Option<f32>) {
     (args, samples, expected)
 }
 
-#[test]
-fn this_architecture_matches_its_rows_bit_for_bit() {
-    let file = common::data_json("numeric_bits.json");
-    let name = own_set();
-    let (mut rows, mut nan_rows, mut overridden) = (0_u64, 0_u64, 0);
-    let mut failures = Vec::new();
-    for (g, group) in file["profiles"][name]
-        .as_array()
-        .unwrap()
-        .iter()
-        .enumerate()
-    {
+/// The functions of `set` whose rows `platform` does not reproduce, and the rows it was checked on
+/// in place of their own bits.
+fn differing_functions(
+    file: &Value,
+    set: &str,
+    platform: Platform,
+) -> (std::collections::BTreeSet<String>, usize) {
+    let (mut differing, mut overridden) = (std::collections::BTreeSet::new(), 0);
+    for (g, group) in file["profiles"][set].as_array().unwrap().iter().enumerate() {
         let function = group["function"].as_str().unwrap();
         for (r, row) in group["rows"].as_array().unwrap().iter().enumerate() {
-            rows += 1;
             let (args, samples, mut expected) = row_values(row);
-            if let Some(o) = OVERRIDES
-                .iter()
-                .find(|o| o.set == name && o.group == g && o.row == r)
+            if function.starts_with("die_roll")
+                && samples.len() != math::die_roll_count(platform, args[0]) as usize
+            {
+                differing.insert(function.to_owned());
+                continue;
+            }
+            if let Some(bits) = (set == "X86_64")
+                .then(|| x86_64_override(platform, g, r))
+                .flatten()
             {
                 assert!(
-                    !agrees(expected, Some(f32::from_bits(o.bits))),
-                    "g{g} r{r} ({}) gives its own bits",
-                    o.reason
+                    !agrees(expected, Some(f32::from_bits(bits))),
+                    "g{g} r{r} gives its own bits"
                 );
-                expected = Some(f32::from_bits(o.bits));
+                expected = Some(f32::from_bits(bits));
                 overridden += 1;
             }
-            nan_rows += u64::from(expected.is_some_and(f32::is_nan));
-            let actual = evaluate_row(function, &args, &samples, post_of(row));
+            let actual = evaluate_row(platform, function, &args, &samples, post_of(row));
             if !agrees(actual, expected) {
-                failures.push(format!(
-                    "g{g} r{r} {function}({}) samples {:?} post {:?} = {:?}, the reference gives {:?}",
-                    row["args"],
-                    row.get("samples"),
-                    row["post_op"],
-                    actual.map(f32::to_bits),
-                    expected.map(f32::to_bits)
-                ));
+                differing.insert(function.to_owned());
             }
         }
     }
-    println!("numeric_bits.json [{name}]: {rows} rows, {nan_rows} NaN");
-    assert!(
-        failures.is_empty(),
-        "{} row(s) disagree:\n{}",
-        failures.len(),
-        failures.join("\n")
-    );
-    assert_eq!(
-        overridden,
-        OVERRIDES.iter().filter(|o| o.set == name).count(),
-        "an override names no row"
-    );
+    (differing, overridden)
+}
+
+#[test]
+fn bds_linux_matches_the_x86_64_rows_bit_for_bit() {
+    let file = common::data_json("numeric_bits.json");
+    for (release, overrides) in [(LinuxRelease::V1_26_36, 0), (LinuxRelease::V1_26_52, 7)] {
+        let platform = Platform::BdsLinux(release);
+        let (differing, overridden) = differing_functions(&file, "X86_64", platform);
+        assert!(
+            differing.is_empty(),
+            "{platform:?} differs in {differing:?}"
+        );
+        assert_eq!(overridden, overrides, "{platform:?}");
+    }
+    let (mut rows, mut nan_rows) = (0_u64, 0_u64);
+    for group in file["profiles"]["X86_64"].as_array().unwrap() {
+        for row in group["rows"].as_array().unwrap() {
+            rows += 1;
+            nan_rows += u64::from(row_values(row).2.is_some_and(f32::is_nan));
+        }
+    }
+    println!("numeric_bits.json [X86_64]: {rows} rows, {nan_rows} NaN");
+}
+
+/// The functions of the `X86_64` set each other platform computes differently: the invalid
+/// operations' NaN, the NaN an operation of two NaNs keeps, and the number of rolls.
+#[test]
+fn each_other_platform_differs_from_the_x86_64_set_in_its_functions() {
+    let file = common::data_json("numeric_bits.json");
+    let pinned: [(Platform, &[&str]); 2] = [
+        (Platform::BdsWindows, &["acos", "asin"]),
+        (
+            Platform::AndroidArm64,
+            &[
+                "cos",
+                "die_roll",
+                "die_roll_integer",
+                "ease_in_bounce",
+                "ease_in_circ",
+                "ease_in_elastic",
+                "ease_in_out_circ",
+                "ease_in_out_sine",
+                "ease_in_sine",
+                "ease_out_circ",
+                "ease_out_cubic",
+                "ease_out_elastic",
+                "ease_out_sine",
+                "hermite_blend",
+                "inverse_lerp",
+                "lerprotate",
+                "ln",
+                "min_angle",
+                "mod_const",
+                "mod_runtime",
+                "pow",
+                "random",
+                "random_const",
+                "sin",
+                "sqrt",
+            ],
+        ),
+    ];
+    for (platform, expected) in pinned {
+        let (differing, _) = differing_functions(&file, "X86_64", platform);
+        let expected: std::collections::BTreeSet<String> =
+            expected.iter().map(|&f| f.to_owned()).collect();
+        assert_eq!(differing, expected, "{platform:?}");
+    }
 }
 
 /// A reader that loses rows must fail.
@@ -327,66 +364,6 @@ fn both_sets_hold_the_rows_they_count() {
     }
 }
 
-/// The other architecture's rows fail on this build, so each set is held only on its own
-/// architecture.
-#[test]
-fn this_architecture_fails_some_rows_of_the_other() {
-    let file = common::data_json("numeric_bits.json");
-    let other = other_set();
-    let mut differing = std::collections::BTreeSet::new();
-    for group in file["profiles"][other].as_array().unwrap() {
-        let function = group["function"].as_str().unwrap();
-        for row in group["rows"].as_array().unwrap() {
-            let (args, samples, expected) = row_values(row);
-            if function.starts_with("die_roll")
-                && samples.len() != math::die_roll_count(args[0]) as usize
-            {
-                // The two architectures roll a different number of times here.
-                differing.insert(function.to_owned());
-                continue;
-            }
-            if !agrees(
-                evaluate_row(function, &args, &samples, post_of(row)),
-                expected,
-            ) {
-                differing.insert(function.to_owned());
-            }
-        }
-    }
-    println!(
-        "{ARCH:?} differs from the {other} rows in {} functions",
-        differing.len()
-    );
-    for function in [
-        "add",
-        "mul",
-        "div",
-        "negate",
-        "div_guard_signed",
-        "lt",
-        "le",
-        "acos",
-        "asin",
-        "hermite_blend",
-        "min",
-        "max",
-        "clamp",
-        "lerp",
-        "sign",
-        "random",
-        "random_integer",
-        "die_roll",
-        "die_roll_integer",
-        "ease_in_quart",
-        "ease_in_elastic",
-    ] {
-        assert!(
-            differing.contains(function),
-            "{function} does not tell {ARCH:?} from {other}"
-        );
-    }
-}
-
 /// `x` and its `n` neighbouring floats on each side.
 fn around(x: f32, n: i32) -> impl Iterator<Item = f32> {
     (-n..=n).map(move |k| f32::from_bits(x.to_bits().wrapping_add_signed(k)))
@@ -401,31 +378,27 @@ fn degrees_of(radians: f32) -> Option<f32> {
 }
 
 /// `sin(radians)` through the sine table of `ease_out_sine`, when `radians` is one of its angles:
-/// entry `i` is `sin(i / SCALE)` on `X86_64` and `sin(i · STEP)` on `Arm64`.
-fn sine_table(radians: f32) -> Option<f32> {
+/// entry `i` is `sin(i / SCALE)`.
+fn sine_table(platform: Platform, radians: f32) -> Option<f32> {
     const SCALE: f32 = f32::from_bits(0x4622_f983);
-    const STEP: f32 = f32::from_bits(0x38c9_0fdb);
     const HALF_PI: f32 = f32::from_bits(0x3fc9_0fdb);
-    let entry = |i: i32| per_arch(i as f32 / SCALE, i as f32 * STEP);
+    let entry = |i: i32| i as f32 / SCALE;
     let guess = (radians * SCALE).round() as i32;
     let index =
         (guess - 1..=guess + 1).find(|&i| (0..65_536).contains(&i) && entry(i) == radians)?;
     let t = around(index as f32 / 16_384.0, 64)
         .find(|&t| ((t * HALF_PI) * SCALE) as i32 & 0xffff == index)?;
-    Some(math::ease_out_sine(0.0, 1.0, t, ID))
+    Some(math::ease_out_sine(platform, 0.0, 1.0, t, ID))
 }
 
-/// `exp2(x)` through `ease_in_expo` from 0 to 1, when some `t` gives the exponent `x`: `t·10 − 10`
-/// rounded once on `Arm64`, `(t − 1)·10` on `X86_64`.
-fn exp2_through_an_easing(x: f32) -> Option<f32> {
+/// `exp2(x)` through `ease_in_expo` from 0 to 1, when some `t` gives the exponent `(t − 1)·10`.
+fn exp2_through_an_easing(platform: Platform, x: f32) -> Option<f32> {
     if !x.is_finite() {
-        return Some(math::ease_in_expo(0.0, 1.0, x, ID));
+        return Some(math::ease_in_expo(platform, 0.0, 1.0, x, ID));
     }
-    let t = match ARCH {
-        Arch::X86_64 => around(x / 10.0 + 1.0, 32).find(|&t| (t - 1.0) * 10.0 == x),
-        Arch::Arm64 => around((x + 10.0) / 10.0, 32).find(|&t| t.mul_add(10.0, -10.0) == x),
-    };
-    t.map(|t| math::ease_in_expo(0.0, 1.0, t, ID))
+    around(x / 10.0 + 1.0, 32)
+        .find(|&t| (t - 1.0) * 10.0 == x)
+        .map(|t| math::ease_in_expo(platform, 0.0, 1.0, t, ID))
 }
 
 /// The `exp2` exponents no `ease_in_expo` reaches; the unit tests of `exp2` pin them.
@@ -437,24 +410,21 @@ const EXP2_UNREACHED: [u32; 5] = [
     0xc08c_be3f,
 ];
 
-/// On `Arm64`, `math.asin` and `math.acos` read a NaN argument as −1, so their plain function of a
-/// NaN is not reached.
-fn reaches_the_inverse_trig_of(x: f32) -> bool {
-    !(ARCH == Arch::Arm64 && x.is_nan())
-}
-
 /// Every `transcendental_samples` entry, `[function, [argument bits…], result bits]`, is to the bit
 /// what the crate's function gives: trigonometry through the degree conversion, `exp2` through
-/// `ease_in_expo`. The samples of an [`OVERRIDES`] row of this build's set are as overridden. A NaN
-/// the other set records for an invalid operation is the other architecture's, so there only its
-/// being a NaN is compared.
+/// `ease_in_expo`, on every platform. The NaN of an invalid operation is compared to the bit only on
+/// BDS Linux against the `X86_64` set, with the [`x86_64_override`] rows as overridden.
 #[test]
 fn every_transcendental_sample_is_the_crates_function() {
     let file = common::data_json("numeric_bits.json");
     let (mut checked, mut failures, mut unreached) =
         (0_u32, Vec::new(), std::collections::BTreeSet::new());
     let in_degrees = |radians: f32| radians * math::RAD_TO_DEG;
-    for set in ["X86_64", "Arm64"] {
+    for (platform, set) in PLATFORMS
+        .into_iter()
+        .flat_map(|p| ["X86_64", "Arm64"].map(|set| (p, set)))
+    {
+        let exact = set == "X86_64" && matches!(platform, Platform::BdsLinux(_));
         for (g, group) in file["profiles"][set].as_array().unwrap().iter().enumerate() {
             let rows = group["rows"].as_array().unwrap().iter().enumerate();
             for (r, sample) in rows
@@ -462,33 +432,28 @@ fn every_transcendental_sample_is_the_crates_function() {
                 .flat_map(|(r, s)| s.as_array().unwrap().iter().map(move |s| (r, s)))
             {
                 let a: Vec<f32> = sample[1].as_array().unwrap().iter().map(hex_f32).collect();
-                let overridden = OVERRIDES
-                    .iter()
-                    .find(|o| set == own_set() && o.set == set && o.group == g && o.row == r);
-                let expected =
-                    overridden.map_or_else(|| hex_f32(&sample[2]), |o| f32::from_bits(o.bits));
+                let expected = exact
+                    .then(|| x86_64_override(platform, g, r))
+                    .flatten()
+                    .map_or_else(|| hex_f32(&sample[2]), f32::from_bits);
                 let (actual, expected) = match (sample[0].as_str().unwrap(), a.as_slice()) {
                     ("sin", &[x]) => (
                         degrees_of(x)
-                            .map(|d| math::sin(d, ID))
-                            .or_else(|| sine_table(x)),
+                            .map(|d| math::sin(platform, d, ID))
+                            .or_else(|| sine_table(platform, x)),
                         expected,
                     ),
-                    ("cos", &[x]) => (degrees_of(x).map(|d| math::cos(d, ID)), expected),
-                    ("asin", &[x]) => (
-                        reaches_the_inverse_trig_of(x).then(|| math::asin(x, ID)),
-                        in_degrees(expected),
-                    ),
-                    ("acos", &[x]) => (
-                        reaches_the_inverse_trig_of(x).then(|| math::acos(x, ID)),
-                        in_degrees(expected),
-                    ),
-                    ("atan", &[x]) => (Some(math::atan(x, ID)), in_degrees(expected)),
-                    ("atan2", &[y, x]) => (Some(math::atan2(y, x, ID)), in_degrees(expected)),
-                    ("exp", &[x]) => (Some(math::exp(x, ID)), expected),
-                    ("exp2", &[x]) => (exp2_through_an_easing(x), expected),
-                    ("ln", &[x]) => (Some(math::ln(x, ID)), expected),
-                    ("pow", &[x, y]) => (Some(math::pow(x, y, ID)), expected),
+                    ("cos", &[x]) => (degrees_of(x).map(|d| math::cos(platform, d, ID)), expected),
+                    ("asin", &[x]) => (Some(math::asin(platform, x, ID)), in_degrees(expected)),
+                    ("acos", &[x]) => (Some(math::acos(platform, x, ID)), in_degrees(expected)),
+                    ("atan", &[x]) => (Some(math::atan(platform, x, ID)), in_degrees(expected)),
+                    ("atan2", &[y, x]) => {
+                        (Some(math::atan2(platform, y, x, ID)), in_degrees(expected))
+                    }
+                    ("exp", &[x]) => (Some(math::exp(platform, x, ID)), expected),
+                    ("exp2", &[x]) => (exp2_through_an_easing(platform, x), expected),
+                    ("ln", &[x]) => (Some(math::ln(platform, x, ID)), expected),
+                    ("pow", &[x, y]) => (Some(math::pow(platform, x, y, ID)), expected),
                     (other, _) => {
                         panic!("the file names a function this test does not know: {other}")
                     }
@@ -499,7 +464,7 @@ fn every_transcendental_sample_is_the_crates_function() {
                 };
                 checked += 1;
                 let invalid_of_the_other =
-                    set != own_set() && expected.is_nan() && !a.iter().any(|x| x.is_nan());
+                    !exact && expected.is_nan() && !a.iter().any(|x| x.is_nan());
                 let agrees = if invalid_of_the_other {
                     actual.is_nan()
                 } else {
@@ -507,7 +472,7 @@ fn every_transcendental_sample_is_the_crates_function() {
                 };
                 if !agrees {
                     failures.push(format!(
-                        "{set} {sample} gives {:08x}, expected {:08x}",
+                        "{platform:?} {set} {sample} gives {:08x}, expected {:08x}",
                         actual.to_bits(),
                         expected.to_bits()
                     ));
@@ -521,16 +486,10 @@ fn every_transcendental_sample_is_the_crates_function() {
         failures.len(),
         failures.join("\n")
     );
-    let mut expected_unreached: std::collections::BTreeSet<_> = EXP2_UNREACHED
+    let expected_unreached: std::collections::BTreeSet<_> = EXP2_UNREACHED
         .iter()
         .map(|&bits| ("exp2".to_owned(), bits))
         .collect();
-    if ARCH == Arch::Arm64 {
-        expected_unreached.extend([
-            ("asin".to_owned(), 0x7fc0_0000),
-            ("acos".to_owned(), 0x7fc0_0000),
-        ]);
-    }
     assert_eq!(unreached, expected_unreached);
-    assert_eq!(checked, per_arch(1468 - 18, 1468 - 18 - 3));
+    assert_eq!(checked, 4 * (1468 - 18));
 }

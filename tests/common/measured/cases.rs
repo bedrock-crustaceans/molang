@@ -8,6 +8,7 @@ use molang::catalog::{QueryAdmission, QueryAllowList, QuerySetMask};
 use molang::compile::{CompileOptions, Expr, compile};
 use molang::diag::LanguageMessage;
 use molang::hash::HashedStr;
+use molang::numeric::Platform;
 use molang::rng::{FixedRng, Xorshift128};
 use molang::version::{ExperimentMask, MolangVersion, RawVersion};
 
@@ -821,7 +822,7 @@ impl EvalCase {
                         continue;
                     }
                     let mut rng = self.fixed_random.unwrap_or(FixedRng::ZERO);
-                    match evaluate_call(&call, &mut rng) {
+                    match evaluate_call(Platform::default(), &call, &mut rng) {
                         None => failures.push(format!(
                             "{name} {expr:?}: a bare call the math library cannot evaluate"
                         )),
@@ -842,7 +843,7 @@ impl EvalCase {
                         sources = vec![forced];
                     }
                     for source in &mut sources {
-                        match evaluate_call(&call, source) {
+                        match evaluate_call(Platform::default(), &call, source) {
                             None => failures.push(format!(
                                 "{name} {expr:?}: a bare call the math library cannot evaluate"
                             )),
@@ -854,7 +855,9 @@ impl EvalCase {
                     }
                     let mut generator = Xorshift128::new();
                     for _ in 0..256 {
-                        let Some(actual) = evaluate_call(&call, &mut generator) else {
+                        let Some(actual) =
+                            evaluate_call(Platform::default(), &call, &mut generator)
+                        else {
                             break;
                         };
                         if !(lo..=hi).contains(&actual) {

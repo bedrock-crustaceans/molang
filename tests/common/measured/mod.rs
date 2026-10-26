@@ -8,8 +8,8 @@
 //! server run is built by `fn run_NN()` in its topic file and must be replayed there by a test that
 //! calls `run_NN().replay(…)`.
 //!
-//! Server runs replay on x86-64 (on arm64 the runs up to `server::LAST_RUN_REPLAYED_UNDER_ARM64`),
-//! [`EvalCase`] rows and run rows on this build's architecture.
+//! Every host checks the same rows. Server runs replay on the platform of each logged release and on
+//! the other platforms, [`EvalCase`] rows on the default platform, run rows on every platform.
 
 pub mod cases;
 pub mod math_call;

@@ -7,6 +7,8 @@
 
 mod common;
 
+use molang::numeric::Platform;
+
 use common::measured::*;
 
 /// `query.head_is_in_water` always resolves: a compile cannot name the release that lacks it.
@@ -23,7 +25,6 @@ fn run_19() -> ServerRun {
         FIRST_RELEASE,
         "Molang version 2: assignment value under a post-op, for_each over an unset variable",
     );
-    run.arm64_differs(&["r02"]);
     run.probe("r16", "t.seen = 1; v.missing_never_set_r16; t.seen = 2;")
         .at(2)
         .answers("missing_never_set_r16");
@@ -83,7 +84,6 @@ fn run_24() -> ServerRun {
         FIRST_RELEASE,
         "the part of run_18 after x15, which crashed the server in run_18",
     );
-    run.arm64_differs(&["r02"]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -133,7 +133,6 @@ fn run_25() -> ServerRun {
         FIRST_RELEASE,
         "isolating the run_18 crash: the probe of a miss in a query argument under an outer ??, between markers, with two controls",
     );
-    run.arm64_differs(&["r02", "x15", "m15b"]);
     run.probe(
         "r18",
         "v.p1 = math.sign(0); v.p1 == 1 ? v.r18_sign0_is1 : v.r18_sign0_other;",
@@ -290,6 +289,8 @@ fn run_31() -> ServerRun {
     run.probe("t28", "v.r = v.one ? (math.max(((v.x2 + v.x3 + 1) + (-v.x2 - v.x3)), 0)) : 0; v.r == 0 ? v.t28_0 : (v.r == 1 ? v.t28_1 : (v.r == 2 ? v.t28_2 : (v.r == 3 ? v.t28_3 : (v.r == 4 ? v.t28_4 : (v.r == 5 ? v.t28_5 : (v.r == 7 ? v.t28_7 : (v.r == 10 ? v.t28_10 : (v.r == -1 ? v.t28_m1 : (v.r == -2 ? v.t28_m2 : (v.r == 0.5 ? v.t28_half : (v.r == 20 ? v.t28_20 : v.t28_other)))))))))));").answers("t28_1");
     run.probe("t29", "v.r = v.one ? (((v.x2 + v.x3 + 1) + (-v.x2 - v.x3)) / 2) : 0; v.r == 0 ? v.t29_0 : (v.r == 1 ? v.t29_1 : (v.r == 2 ? v.t29_2 : (v.r == 3 ? v.t29_3 : (v.r == 4 ? v.t29_4 : (v.r == 5 ? v.t29_5 : (v.r == 7 ? v.t29_7 : (v.r == 10 ? v.t29_10 : (v.r == -1 ? v.t29_m1 : (v.r == -2 ? v.t29_m2 : (v.r == 0.5 ? v.t29_half : (v.r == 20 ? v.t29_20 : v.t29_other)))))))))));").answers("t29_half");
     run.probe("t30", "v.r = v.one ? (2 / ((v.x2 + v.x3 + 1) + (-v.x2 - v.x3))) : 0; v.r == 0 ? v.t30_0 : (v.r == 1 ? v.t30_1 : (v.r == 2 ? v.t30_2 : (v.r == 3 ? v.t30_3 : (v.r == 4 ? v.t30_4 : (v.r == 5 ? v.t30_5 : (v.r == 7 ? v.t30_7 : (v.r == 10 ? v.t30_10 : (v.r == -1 ? v.t30_m1 : (v.r == -2 ? v.t30_m2 : (v.r == 0.5 ? v.t30_half : (v.r == 20 ? v.t30_20 : v.t30_other)))))))))));").answers("t30_2");
+    // Android's invalid-operation NaN is positive: kept at run time, made negative when folded.
+    run.differs_on(Platform::AndroidArm64, &["t01", "t02"]);
     run
 }
 

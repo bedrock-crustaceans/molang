@@ -12,7 +12,6 @@ mod control_flow {
         compile_support::{server_at, server_expr, server_expr_at},
         eval_with_samples,
         host::{Actor, Env},
-        per_arch,
     };
     use molang::compile::{CompileFailure, CompileOptions, compile};
     use molang::rng::{Xorshift128, sample};
@@ -134,8 +133,7 @@ mod control_flow {
         );
     }
 
-    /// `ceil(n)` iterations for finite `n > 0`, none for `n <= 0`; a NaN count never runs out on
-    /// x86-64 and makes no pass on arm64.
+    /// `ceil(n)` iterations for finite `n > 0`, none for `n <= 0`; a NaN count never runs out.
     #[test]
     fn loops() {
         assert_eq!(
@@ -152,13 +150,13 @@ mod control_flow {
         );
         assert_eq!(
             eval("t.i = 0; loop(math.sqrt(-1), {t.i = t.i + 1; t.i > 8 ? break;}); return t.i;"),
-            per_arch(9.0, 0.0)
+            9.0
         );
         assert_eq!(
             eval(
                 "t.i = 0; v.n = math.sqrt(-1); loop(v.n, {t.i = t.i + 1; t.i > 8 ? break;}); return t.i;"
             ),
-            per_arch(9.0, 0.0)
+            9.0
         );
         assert_eq!(
             eval("t.i = 0; loop(10, {t.i = t.i + 1; t.i == 4 ? break;}); return t.i;"),

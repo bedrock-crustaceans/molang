@@ -18,7 +18,6 @@ fn run_10() -> ServerRun {
         "values of folded expressions at run time: cancelled and merged sum terms, a post-op under && and ||, a cancelled sum carrying a post-op as an operand",
     );
     run.checks_load_messages();
-    run.arm64_differs(&[]);
     run.probe("o01", "v.x = 3; v.r = (v.x + 1) - v.x; v.r == 1 ? v.o01_is1 : (v.r == 0 ? v.o01_is0 : v.o01_other);")
         .answers("o01_is0");
     run.probe(
@@ -113,7 +112,6 @@ fn run_13() -> ServerRun {
         "where a folded −0 survives: all-literal folds passed through a conditional branch instead of an assignment",
     );
     run.checks_load_messages();
-    run.arm64_differs(&[]);
     run.probe(
         "g01",
         "v.c = 1; v.h = -0.5; v.m = v.c ? math.ceil(v.h) : 7; v.p1 = math.atan2(v.m, -1); v.m == 0 ? (v.p1 < 0 ? v.g01_negzero : (v.p1 > 0 ? v.g01_poszero : v.g01_other)) : v.g01_nonzero;",

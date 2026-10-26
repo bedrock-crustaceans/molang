@@ -55,6 +55,40 @@ fn two(src: &str, a: &CompileOptions, b: &CompileOptions) -> (Arc<Compiled>, Arc
     (x, y)
 }
 
+/// The platform is part of the key: the same text folds to each platform's NaN.
+#[test]
+fn the_platform_is_part_of_the_key() {
+    use molang::numeric::Platform;
+    let windows = CompileOptions {
+        platform: Platform::BdsWindows,
+        ..server_at(13)
+    };
+    let (linux, windows) = two("math.copy_sign(1, math.ln(-1))", &server_at(13), &windows);
+    assert_eq!(
+        (constant(&linux), constant(&windows)),
+        (Some(1.0), Some(-1.0))
+    );
+    assert_eq!(
+        windows.expr().map(Expr::platform),
+        Some(Platform::BdsWindows)
+    );
+    let source = MolangSource::string_without_context("math.copy_sign(1, math.sqrt(-1))");
+    let android = CompileOptions {
+        platform: Platform::AndroidArm64,
+        ..server_at(13)
+    };
+    let cache = CompileCache::new();
+    let (servers, android) = (
+        cache.compile_source(&source, &server_at(13)),
+        cache.compile_source(&source, &android),
+    );
+    assert_two_entries(&cache, &servers, &android);
+    assert_eq!(
+        (constant(&servers), constant(&android)),
+        (Some(-1.0), Some(1.0))
+    );
+}
+
 #[test]
 fn hits_return_the_same_arc() {
     let cache = CompileCache::new();

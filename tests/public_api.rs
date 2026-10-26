@@ -366,6 +366,10 @@ mod compiler {
             shared.expr().map(Expr::version),
             Some(MolangVersion::LATEST)
         );
+        assert_eq!(
+            shared.expr().map(Expr::platform),
+            Some(molang::numeric::Platform::default())
+        );
     }
 
     /// A property or block state may be compared with a string or used as a number.
@@ -419,6 +423,14 @@ mod compiler {
         assert_eq!(
             (raw.version(), raw.raw_version),
             (MolangVersion::LATEST, RawVersion(99))
+        );
+        let windows = CompileOptions {
+            platform: molang::numeric::Platform::BdsWindows,
+            ..raw
+        };
+        assert_eq!(
+            compile("1", &windows).expr().map(Expr::platform),
+            Some(molang::numeric::Platform::BdsWindows)
         );
     }
 
@@ -992,12 +1004,13 @@ mod stdlib {
     #[cfg(feature = "compiler")]
     #[test]
     fn the_math_library_paths() {
-        use molang::numeric::PostOp;
+        use molang::numeric::{Platform, PostOp};
         use molang::stdlib::math::{self, DieRoll, PI};
-        assert_eq!(math::sin(90.0, PostOp::IDENTITY), 1.0);
-        assert_eq!(math::ease_in_quad(0.0, 10.0, 0.5, PostOp::IDENTITY), 2.5);
-        assert_eq!(math::pi(PostOp::IDENTITY), PI);
-        let roll = DieRoll::new(1.0, 2.0, 2.0);
+        let p = Platform::default();
+        assert_eq!(math::sin(p, 90.0, PostOp::IDENTITY), 1.0);
+        assert_eq!(math::ease_in_quad(p, 0.0, 10.0, 0.5, PostOp::IDENTITY), 2.5);
+        assert_eq!(math::pi(p, PostOp::IDENTITY), PI);
+        let roll = DieRoll::new(p, 1.0, 2.0, 2.0);
         assert_eq!(roll.remaining(), 1);
     }
 }
@@ -2943,47 +2956,49 @@ mod api_compiler {
         assert_eq!(molang::vm::EvalLimits::DEFAULT_LOOP_ITERATIONS, 1_024);
     }
 
-    /// The float behaviour is the build's: `ARCH` names it, `arith` holds its primitives, and the
-    /// scalar functions take no behaviour argument.
+    /// The float behaviour is a run-time `Platform`: the platform-dependent primitives take it
+    /// first, the comparisons, `max` and `min` do not.
     #[test]
     fn the_numeric_paths() {
-        use molang::numeric::{self, ARCH, Arch, PostOp, arith};
-        let arch: Arch = ARCH;
-        assert_eq!(
-            arch,
-            if cfg!(target_arch = "aarch64") {
-                Arch::Arm64
-            } else {
-                Arch::X86_64
-            }
-        );
-        assert_ne!(Arch::X86_64, Arch::Arm64);
-        let binary: [fn(f32, f32) -> f32; 4] = [arith::add, arith::mul, arith::max, arith::min];
-        let fused: [fn(f32, f32, f32) -> f32; 4] = [
-            arith::mul_add,
-            arith::mul_sub,
-            arith::neg_mul_add,
-            arith::neg_mul_sub,
+        use molang::numeric::{self, LinuxRelease, Platform, PostOp, arith};
+        let platforms = [
+            Platform::BdsLinux(LinuxRelease::V1_26_36),
+            Platform::BdsLinux(LinuxRelease::V1_26_52),
+            Platform::BdsWindows,
+            Platform::AndroidArm64,
         ];
-        let to_int: fn(f32) -> i32 = arith::to_int;
-        assert_eq!(binary.map(|f| f(2.0, 3.0)), [5.0, 6.0, 3.0, 2.0]);
-        assert_eq!(fused.map(|f| f(2.0, 3.0, 1.0)), [7.0, -5.0, -7.0, 5.0]);
-        assert_eq!(to_int(2.9), 2);
+        assert_eq!(
+            Platform::default(),
+            Platform::BdsLinux(LinuxRelease::LATEST)
+        );
+        assert_eq!(LinuxRelease::LATEST, LinuxRelease::V1_26_52);
+        assert!(platforms.iter().all(|&p| arith::to_int(p, 2.9) == 2));
+        let p = platforms[1];
+        let binary: [fn(Platform, f32, f32) -> f32; 4] =
+            [arith::add, arith::sub, arith::mul, arith::div];
+        let select: [fn(f32, f32) -> f32; 2] = [arith::max, arith::min];
+        type Fused = fn(Platform, f32, f32, f32) -> f32;
+        let fused: [Fused; 2] = [arith::mul_add, arith::mul_sub];
+        let to_int: fn(Platform, f32) -> i32 = arith::to_int;
+        assert_eq!(binary.map(|f| f(p, 2.0, 4.0)), [6.0, -2.0, 8.0, 0.5]);
+        assert_eq!(select.map(|f| f(2.0, 3.0)), [3.0, 2.0]);
+        assert_eq!(fused.map(|f| f(p, 2.0, 3.0, 1.0)), [7.0, -5.0]);
+        assert_eq!(to_int(p, 2.9), 2);
         let compare: [fn(f32, f32) -> bool; 4] =
             [numeric::lt, numeric::le, numeric::gt, numeric::ge];
         assert_eq!(compare.map(|f| f(1.0, 2.0)), [true, true, false, false]);
-        let add: fn(f32, f32, PostOp) -> f32 = numeric::add;
+        let add: fn(Platform, f32, f32, PostOp) -> f32 = numeric::add;
         let guard: fn(bool, f32) -> Option<f32> = numeric::div_guard;
-        let index: fn(f32, usize) -> Option<usize> = numeric::array_index;
+        let index: fn(Platform, f32, usize) -> Option<usize> = numeric::array_index;
         assert_eq!(
             (
-                add(1.0, 2.0, PostOp::IDENTITY),
+                add(p, 1.0, 2.0, PostOp::IDENTITY),
                 guard(true, 2.0),
-                index(1.0, 3)
+                index(p, 1.0, 3)
             ),
             (3.0, Some(2.0), Some(1))
         );
-        assert_eq!(PostOp::new(2.0, 1.0).apply(3.0), 7.0);
+        assert_eq!(PostOp::new(2.0, 1.0).apply(p, 3.0), 7.0);
     }
 
     #[test]

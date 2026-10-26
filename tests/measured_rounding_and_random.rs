@@ -18,7 +18,6 @@ fn run_12() -> ServerRun {
         "the sign of zero: controls for the −0 detector, then the math.mod questions of run_09 again with math.atan2(x, -1) as detector",
     );
     run.checks_load_messages();
-    run.arm64_differs(&[]);
     run.probe(
         "z01",
         "v.h = -0.5; v.z = math.ceil(v.h); v.p1 = math.atan2(v.z, -1); v.z == 0 ? (v.p1 < 0 ? v.z01_negzero : (v.p1 > 0 ? v.z01_poszero : v.z01_other)) : v.z01_nonzero;",
