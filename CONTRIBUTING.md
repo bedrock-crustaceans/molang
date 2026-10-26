@@ -54,18 +54,16 @@ cargo +nightly fuzz run compile_eval -- -max_total_time=600 -timeout=10
 
 The targets (`fuzz/fuzz_targets/`) are `lex_parse` (arbitrary text through the front end), `compile_eval` (generated programs on the VM and the tree walker) and `repr_roundtrip` (the serialised forms).
 
-## Architectures
+## Platforms
 
-The float behaviour is the target architecture's, chosen at compile time: an `aarch64` build has the arm64 behaviour, every other target the x86-64 one (`numeric::ARCH`). The engine's arithmetic lives in `src/numeric/arch/{x86_64,arm64}.rs` and the standard functions' bodies in `src/stdlib/math/arch/{x86_64,arm64}/`: each behavioural difference is a function present in both modules with the same name and signature, and everything else calls the build's module. Both modules are compiled for the unit tests, so the `both!` tests in the arch `mod.rs` files check both on every host.
+The float behaviour is a run-time `numeric::Platform` in the compile options, the same on every host. The primitives with the processor's NaN rules and float → int conversion are in `src/numeric/fpu.rs`, the C-library seam (which body and which invalid NaN) in `src/stdlib/math/cmath.rs`, and the formula shapes in `src/stdlib/math/formula/`; each takes the platform as its first argument. Unit tests check every platform through `numeric::test_support::PLATFORMS`, integration tests through `tests/common/mod.rs`'s `PLATFORMS`. No row and no `#[test]` is behind a `cfg`, and every host runs the same checks:
 
-The test list is the same on every architecture, and so are the pinned row counts except the transcendental samples `tests/data_bits.rs` checks: three fewer on arm64 (`per_arch(1468 - 18, 1468 - 18 - 3)`). No row and no `#[test]` is behind a `cfg`. A test that expects different values per architecture says so with `per_arch(x86_64, arm64)` (`tests/common/mod.rs`, `numeric::test_support`) or an `if ARCH == Arch::…` block. What each architecture checks:
+- `tests/data_bits.rs`: BDS Linux 1.26.36 reproduces the `X86_64` set of `tests/numeric_bits.json` to the bit, 1.26.52 too with the `ln` rows of negative numbers against `0x7fc00000`; the other platforms pin the functions where they differ from it.
+- Server runs replay each release on its own platform and every probe on the other platforms, which must log other lines exactly on the probes `ServerRun::differs_on` lists.
+- Run rows (`RunGroup`): the rows a platform lists in `RunGroup::differs_on` differ there and the rest hold.
+- `tests/data_parse.rs`: every row on every platform; the rows of `TREE_DIFFERS` check their outcome and messages only.
 
-- `tests/data_bits.rs`: the rows of its own set in `tests/numeric_bits.json` to the bit (on x86-64 the `ln` rows of negative numbers against `0x7fc00000`), and that it fails some rows of the other set.
-- Run rows (`RunGroup`): on arm64 every row holds; on x86-64 the rows of `x86_64_differs` differ and the rest hold. A `LoopCapRow` marked `x86_64_runs_until_the_step_budget` runs into the step budget on x86-64.
-- Server runs: the log, compile and load checks run everywhere; the replay runs on x86-64; on arm64 the runs up to `LAST_RUN_REPLAYED_UNDER_ARM64` must disagree exactly on their `arm64_differs` probes, and later runs are not replayed.
-- `tests/data_parse.rs`: on x86-64 the rows of `X86_64_TREE_DIFFERS` check their outcome and messages only.
-
-CI runs the whole suite on an arm64 runner. An x86-64 machine runs it too, under user-mode emulation, with a cross linker and `qemu-aarch64` (`gcc-aarch64-linux-gnu`, `qemu-user`):
+CI runs the whole suite on an arm64 runner too, which must give the same bits as on x86-64. An x86-64 machine runs it under user-mode emulation, with a cross linker and `qemu-aarch64` (`gcc-aarch64-linux-gnu`, `qemu-user`):
 
 ```bash
 rustup target add aarch64-unknown-linux-gnu

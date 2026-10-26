@@ -86,8 +86,7 @@ jobs:
       - name: cargo test --doc (vm without stdlib)
         run: cargo test --locked --doc --no-default-features --features vm
 
-  # An aarch64 build has the arm64 float behaviour: these steps run the whole suite with it; elsewhere only the
-  # arch modules' unit tests do.
+  # The float behaviour is a run-time platform: the whole suite on another host must give the same bits.
   test-arm64:
     name: Test (Linux arm64)
     runs-on: ubuntu-24.04-arm
