@@ -4,7 +4,7 @@ use std::fmt;
 
 use rand_core::{Infallible, TryRng, utils};
 
-use super::RandomSource;
+use super::{RandomSource, unit_32};
 
 /// Words of state.
 const N: usize = 624;
@@ -166,12 +166,6 @@ const fn chunk_seed(level_seed: u32, chunk_x: i32, chunk_z: i32) -> u32 {
         ^ level_seed
 }
 
-/// The 32-bit mapping: `word · 2^-32` in `f64`, rounded to `f32`, which can be exactly 1.0.
-#[inline]
-const fn bits32(word: u32) -> f32 {
-    (word as f64 * (1.0 / 4_294_967_296.0)) as f32
-}
-
 impl fmt::Debug for MersenneTwister {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MersenneTwister")
@@ -184,7 +178,7 @@ impl fmt::Debug for MersenneTwister {
 impl RandomSource for MersenneTwister {
     #[inline]
     fn sample(&mut self) -> f32 {
-        bits32(self.next_word())
+        unit_32(self.next_word())
     }
 }
 
@@ -212,7 +206,7 @@ mod tests {
     use rand_core::Rng;
 
     use super::*;
-    use crate::rng::{Bits31, FixedRng};
+    use crate::rng::{Bits31, FixedRng, unit_32};
 
     /// MT19937 written as the plain recurrence over an ever-growing sequence:
     /// `x[k+624] = x[k+397] ^ twist(x[k], x[k+1])`, output `temper(x[k+624])`.
@@ -347,15 +341,15 @@ mod tests {
 
     #[test]
     fn the_32_bit_mapping_reaches_one_and_keeps_the_top_bit() {
-        assert_eq!(bits32(0xffff_ff80), 1.0);
-        assert_eq!(bits32(u32::MAX), 1.0);
-        assert_eq!(bits32(0xffff_ff7f).to_bits(), 0x3f7f_ffff);
-        assert_eq!(bits32(0x8000_0000), 0.5);
-        assert_eq!(bits32(1).to_bits(), 0x2f80_0000);
-        assert_eq!(bits32(0).to_bits(), 0.0_f32.to_bits());
+        assert_eq!(unit_32(0xffff_ff80), 1.0);
+        assert_eq!(unit_32(u32::MAX), 1.0);
+        assert_eq!(unit_32(0xffff_ff7f).to_bits(), 0x3f7f_ffff);
+        assert_eq!(unit_32(0x8000_0000), 0.5);
+        assert_eq!(unit_32(1).to_bits(), 0x2f80_0000);
+        assert_eq!(unit_32(0).to_bits(), 0.0_f32.to_bits());
         // 2^25 + 3 rounds up under the 32-bit mapping; g >> 1 = 2^24 + 1 under the 31-bit mapping
         // is a tie and rounds to even.
-        assert_eq!(bits32((1 << 25) + 3).to_bits(), 0x3c00_0001);
+        assert_eq!(unit_32((1 << 25) + 3).to_bits(), 0x3c00_0001);
         assert_eq!(
             Bits31(FixedRng((1 << 24) + 1)).sample().to_bits(),
             0x3c00_0000

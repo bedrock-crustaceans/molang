@@ -2,7 +2,7 @@
 
 use rand_core::{Infallible, SeedableRng, TryRng, utils};
 
-use super::{RandomSource, bits31};
+use super::{RandomSource, unit_31};
 
 /// Marsaglia's xorshift128.
 ///
@@ -83,7 +83,7 @@ impl Default for Xorshift128 {
 impl RandomSource for Xorshift128 {
     #[inline]
     fn sample(&mut self) -> f32 {
-        bits31(self.step())
+        unit_31(self.step())
     }
 }
 

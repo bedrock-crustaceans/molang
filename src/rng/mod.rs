@@ -66,11 +66,43 @@ impl<S: RandomSource + ?Sized> RandomSource for Box<S> {
     }
 }
 
-/// The 31-bit mapping: `(word & 0x7fff_ffff) · 2^-31`, rounded to nearest, which can be exactly
-/// 1.0.
+/// The 31-bit mapping: `(word & 0x7fff_ffff) · 2^-31` in `f32`, rounded to nearest.
+///
+/// The mapping of entities, items, blocks, commands, client animation, scripting and the
+/// `math.random` of particles, over the one xorshift128 of the process (`vm::ProcessRng`). The top
+/// bit is ignored, and the words from `0x7fff_ffc0` round to exactly 1.0, so the range is
+/// `[0, 1]`.
+///
+/// ```
+/// use molang::rng::unit_31;
+///
+/// assert_eq!(unit_31(1 << 30), 0.5);
+/// assert_eq!(unit_31(0x8000_0000 | 1 << 30), 0.5);
+/// assert_eq!(unit_31(0x7fff_ffff), 1.0);
+/// ```
+#[must_use]
 #[inline]
-const fn bits31(word: u32) -> f32 {
+pub const fn unit_31(word: u32) -> f32 {
     (word & 0x7fff_ffff) as f32 * (1.0 / 2_147_483_648.0)
+}
+
+/// The 32-bit mapping: `word · 2^-32` in `f64`, then rounded to `f32`.
+///
+/// The mapping of world generation, over an MT19937: feature rules and scatter features (one per
+/// chunk and per rule) and helper-placed features (one per thread). Particles map their
+/// `random_1..4` variables with it too, which no Molang operator draws. The words from
+/// `0xffff_ff80` round to exactly 1.0, `u32::MAX` included, so the range is `[0, 1]`.
+///
+/// ```
+/// use molang::rng::unit_32;
+///
+/// assert_eq!(unit_32(0x8000_0000), 0.5);
+/// assert_eq!(unit_32(u32::MAX), 1.0);
+/// ```
+#[must_use]
+#[inline]
+pub const fn unit_32(word: u32) -> f32 {
+    (word as f64 * (1.0 / 4_294_967_296.0)) as f32
 }
 
 /// Any `rand_core` generator as a [`RandomSource`] with the 31-bit mapping: each sample is one
@@ -88,7 +120,7 @@ pub struct Bits31<R>(pub R);
 impl<R: rand_core::Rng> RandomSource for Bits31<R> {
     #[inline]
     fn sample(&mut self) -> f32 {
-        bits31(self.0.next_u32())
+        unit_31(self.0.next_u32())
     }
 }
 
@@ -136,7 +168,7 @@ impl FixedRng {
 impl RandomSource for FixedRng {
     #[inline]
     fn sample(&mut self) -> f32 {
-        bits31(self.0)
+        unit_31(self.0)
     }
 }
 
@@ -219,21 +251,43 @@ mod tests {
         for _ in 0..64 {
             let w = words.next_u32();
             let expected = (w & 0x7fff_ffff) as f32 * 2.0_f32.powi(-31);
-            assert_eq!(bits31(w).to_bits(), expected.to_bits());
-            assert_eq!(bits31(w).to_bits(), bits31(w ^ 0x8000_0000).to_bits());
+            assert_eq!(unit_31(w).to_bits(), expected.to_bits());
+            assert_eq!(unit_31(w).to_bits(), unit_31(w ^ 0x8000_0000).to_bits());
         }
     }
 
     #[test]
     fn bits31_maps_the_extreme_words_to_the_ends_of_the_unit_interval() {
-        assert_eq!(bits31(0).to_bits(), 0.0_f32.to_bits());
-        assert_eq!(bits31(1).to_bits(), 0x3000_0000);
+        assert_eq!(unit_31(0).to_bits(), 0.0_f32.to_bits());
+        assert_eq!(unit_31(1).to_bits(), 0x3000_0000);
         // Spacing below 2^31 is 128: 2^31 − 65 rounds down to 1 − 2^-24, the tie at 2^31 − 64
         // rounds to even, which is 2^31.
-        assert_eq!(bits31(0x7fff_ffbf).to_bits(), 0x3f7f_ffff);
-        assert_eq!(bits31(0x7fff_ffc0), 1.0);
-        assert_eq!(bits31(0x7fff_ffff), 1.0);
-        assert_eq!(bits31(0x8000_0000).to_bits(), 0.0_f32.to_bits());
+        assert_eq!(unit_31(0x7fff_ffbf).to_bits(), 0x3f7f_ffff);
+        assert_eq!(unit_31(0x7fff_ffc0), 1.0);
+        assert_eq!(unit_31(0x7fff_ffff), 1.0);
+        assert_eq!(unit_31(0x8000_0000).to_bits(), 0.0_f32.to_bits());
+    }
+
+    #[test]
+    fn the_mappings_pin_their_ends() {
+        assert_eq!(unit_31(0).to_bits(), 0);
+        assert_eq!(unit_31(0x7fff_ffff).to_bits(), 0x3f80_0000);
+        assert_eq!(unit_31(0x8000_0000).to_bits(), 0);
+        assert_eq!(unit_31(u32::MAX).to_bits(), 0x3f80_0000);
+        assert_eq!(unit_32(0).to_bits(), 0);
+        assert_eq!(unit_32(u32::MAX).to_bits(), 0x3f80_0000);
+        assert_eq!(unit_32(0xffff_ff7f).to_bits(), 0x3f7f_ffff);
+        assert_eq!(unit_32(0xffff_ff80).to_bits(), 0x3f80_0000);
+        assert_eq!(unit_32(1).to_bits(), 0x2f80_0000);
+    }
+
+    #[test]
+    fn the_32_bit_mapping_keeps_the_top_bit_and_rounds_once() {
+        assert_eq!(unit_32(0x8000_0000), 0.5);
+        // 2^25 + 3 rounds up under the 32-bit mapping; its half, 2^24 + 1, under the 31-bit
+        // mapping is a tie and rounds to even.
+        assert_eq!(unit_32((1 << 25) + 3).to_bits(), 0x3c00_0001);
+        assert_eq!(unit_31((1 << 24) + 1).to_bits(), 0x3c00_0000);
     }
 
     #[test]
