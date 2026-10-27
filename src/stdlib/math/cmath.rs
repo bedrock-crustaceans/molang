@@ -1,7 +1,7 @@
 //! The C library each platform calls for a transcendental, `sqrt` or the remainder: [`Libm`] picks
 //! the body and the NaN of an invalid argument.
 
-use super::{glibc, transcendental};
+use super::{bionic, glibc, transcendental};
 use crate::numeric::platform::Fpu;
 use crate::numeric::{LinuxRelease, Platform, fpu};
 
@@ -18,9 +18,11 @@ pub(crate) enum Libm {
     /// NaNs: `0xffc00000` for `sin`/`cos` of ±∞ and an invalid `pow`, `0x7fc00000` for `asin`/
     /// `acos` of `|x| > 1`, and for `ln` of a negative the one of the bound `logf` symbol.
     Glibc(LogfSymbol),
-    /// The same algorithms with an arm64 processor's NaNs: `0x7fc00000` for every invalid
-    /// operation, and of two NaN arguments the first signalling one.
-    GlibcArm64,
+    /// bionic on arm64, with the processor's NaNs (`0x7fc00000` for every invalid operation, and
+    /// of two NaN arguments the first signalling one): glibc's algorithms for `sin` … `pow`, which
+    /// bionic shares, and FreeBSD's for `asin`, `acos`, `atan` and `atan2` ([`bionic`]). Neither is
+    /// checked against a device.
+    Bionic,
 }
 
 /// The `logf` symbol a build linked against glibc binds; the other functions give the same values
@@ -34,15 +36,14 @@ pub(crate) enum LogfSymbol {
 }
 
 /// The library `p` calls. `logf` of a negative number gives the positive NaN on 1.26.52 and the
-/// negative one on 1.26.36; bionic shares glibc's algorithms for most functions, so the Android
-/// client takes the ports with its own NaNs as the closest match.
+/// negative one on 1.26.36.
 #[inline]
 pub(crate) const fn libm(p: Platform) -> Libm {
     match p {
         Platform::BdsLinux(LinuxRelease::V1_26_52) => Libm::Glibc(LogfSymbol::Compat),
         Platform::BdsLinux(LinuxRelease::V1_26_36) => Libm::Glibc(LogfSymbol::Current),
         Platform::BdsWindows => Libm::RoundedF64,
-        Platform::AndroidArm64 => Libm::GlibcArm64,
+        Platform::AndroidArm64 => Libm::Bionic,
     }
 }
 
@@ -61,7 +62,7 @@ impl Libm {
         match self {
             Self::RoundedF64 => transcendental::sin(x, NEGATIVE_NAN),
             Self::Glibc(_) => glibc::sinf(x),
-            Self::GlibcArm64 => on_arm64(glibc::sinf(x), x, x),
+            Self::Bionic => on_arm64(glibc::sinf(x), x, x),
         }
     }
 
@@ -69,28 +70,31 @@ impl Libm {
         match self {
             Self::RoundedF64 => transcendental::cos(x, NEGATIVE_NAN),
             Self::Glibc(_) => glibc::cosf(x),
-            Self::GlibcArm64 => on_arm64(glibc::cosf(x), x, x),
+            Self::Bionic => on_arm64(glibc::cosf(x), x, x),
         }
     }
 
     pub(crate) fn asin(self, x: f32) -> f32 {
         match self {
             Self::RoundedF64 => transcendental::asin(x, NEGATIVE_NAN),
-            Self::Glibc(_) | Self::GlibcArm64 => glibc::asinf(x),
+            Self::Glibc(_) => glibc::asinf(x),
+            Self::Bionic => on_arm64(bionic::asinf(x), x, x),
         }
     }
 
     pub(crate) fn acos(self, x: f32) -> f32 {
         match self {
             Self::RoundedF64 => transcendental::acos(x, NEGATIVE_NAN),
-            Self::Glibc(_) | Self::GlibcArm64 => glibc::acosf(x),
+            Self::Glibc(_) => glibc::acosf(x),
+            Self::Bionic => on_arm64(bionic::acosf(x), x, x),
         }
     }
 
     pub(crate) fn atan(self, x: f32) -> f32 {
         match self {
             Self::RoundedF64 => transcendental::atan(x),
-            Self::Glibc(_) | Self::GlibcArm64 => glibc::atanf(x),
+            Self::Glibc(_) => glibc::atanf(x),
+            Self::Bionic => on_arm64(bionic::atanf(x), x, x),
         }
     }
 
@@ -98,21 +102,21 @@ impl Libm {
         match self {
             Self::RoundedF64 => transcendental::atan2(y, x),
             Self::Glibc(_) => glibc::atan2f(y, x),
-            Self::GlibcArm64 => on_arm64(glibc::atan2f(y, x), y, x),
+            Self::Bionic => on_arm64(bionic::atan2f(y, x), y, x),
         }
     }
 
     pub(crate) fn exp(self, x: f32) -> f32 {
         match self {
             Self::RoundedF64 => transcendental::exp(x),
-            Self::Glibc(_) | Self::GlibcArm64 => glibc::expf(x),
+            Self::Glibc(_) | Self::Bionic => glibc::expf(x),
         }
     }
 
     pub(crate) fn exp2(self, x: f32) -> f32 {
         match self {
             Self::RoundedF64 => transcendental::exp2(x),
-            Self::Glibc(_) | Self::GlibcArm64 => glibc::exp2f(x),
+            Self::Glibc(_) | Self::Bionic => glibc::exp2f(x),
         }
     }
 
@@ -121,7 +125,7 @@ impl Libm {
             Self::RoundedF64 => transcendental::ln(x, NEGATIVE_NAN),
             Self::Glibc(LogfSymbol::Compat) => glibc::logf_compat(x),
             Self::Glibc(LogfSymbol::Current) => glibc::logf(x),
-            Self::GlibcArm64 => on_arm64(glibc::logf(x), x, x),
+            Self::Bionic => on_arm64(glibc::logf(x), x, x),
         }
     }
 
@@ -129,7 +133,7 @@ impl Libm {
         match self {
             Self::RoundedF64 => transcendental::pow(a, b, NEGATIVE_NAN),
             Self::Glibc(_) => glibc::powf(a, b),
-            Self::GlibcArm64 => on_arm64(glibc::powf(a, b), a, b),
+            Self::Bionic => on_arm64(glibc::powf(a, b), a, b),
         }
     }
 }
@@ -284,10 +288,57 @@ mod tests {
         for p in [LINUX, LINUX_1_26_36, ANDROID] {
             assert_bits(sin(p, x), glibc::sinf(x));
             assert_bits(ln(p, 3.0), glibc::logf(3.0));
+        }
+        for p in [LINUX, LINUX_1_26_36] {
             assert_bits(atan2(p, x, 0.5), glibc::atan2f(x, 0.5));
         }
         assert_bits(sin(WINDOWS, x), transcendental::sin(x, NAN));
         assert_bits(ln(WINDOWS, 3.0), transcendental::ln(3.0, NAN));
+    }
+
+    #[test]
+    fn android_takes_the_inverse_trigonometry_from_freebsd() {
+        for bits in [
+            0x0000_0001,
+            0x3288_85a3,
+            0x3982_6222,
+            0x3d8d_6b23,
+            0xbd8d_6b23,
+            0x3f00_0000,
+            0x3f61_50ee,
+            0xbf5e_aa78,
+            0x3f80_0000,
+            0xbf80_0000,
+            0x4c70_0517,
+        ] {
+            let x = f32::from_bits(bits);
+            for (got, freebsd) in [
+                (asin(ANDROID, x), bionic::asinf(x)),
+                (acos(ANDROID, x), bionic::acosf(x)),
+                (atan(ANDROID, x), bionic::atanf(x)),
+                (atan2(ANDROID, x, 0.5), bionic::atan2f(x, 0.5)),
+                (atan2(ANDROID, -0.75, x), bionic::atan2f(-0.75, x)),
+            ] {
+                if !freebsd.is_nan() {
+                    assert_bits(got, freebsd);
+                }
+            }
+        }
+        assert_eq!(bits(asin(ANDROID, 2.0)), 0x7fc0_0000);
+        // The FreeBSD functions miss glibc's correctly rounded result by one ulp here.
+        for (f, argument, android, linux) in [
+            (
+                asin as fn(Platform, f32) -> f32,
+                0x3f00_0004,
+                0x3f06_0a97,
+                0x3f06_0a96,
+            ),
+            (acos, 0x3f00_0009, 0x3f86_0a8c, 0x3f86_0a8d),
+            (atan, 0x3f00_0daf, 0x3eed_791c, 0x3eed_791d),
+        ] {
+            let x = f32::from_bits(argument);
+            assert_eq!((bits(f(ANDROID, x)), bits(f(LINUX, x))), (android, linux));
+        }
     }
 
     #[test]
@@ -353,7 +404,7 @@ mod tests {
                 0xffc0_0000,
                 0x7fc0_0000,
             ),
-            (Libm::GlibcArm64, 0x7fc0_0000, 0x7fc0_0000, 0x7fc0_0000),
+            (Libm::Bionic, 0x7fc0_0000, 0x7fc0_0000, 0x7fc0_0000),
         ] {
             assert_eq!(bits(libm.sin(INF)), sin_inf, "{libm:?}");
             assert_eq!(bits(libm.cos(-INF)), sin_inf, "{libm:?}");

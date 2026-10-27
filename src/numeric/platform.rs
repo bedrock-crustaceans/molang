@@ -30,9 +30,18 @@
 /// | `math.asin`, `math.acos` beyond the tolerance | `0x7fc00000` | `0xffc00000` | `0x7fc00000` |
 ///
 /// The transcendental functions and the easings' sine table are glibc's single-precision functions
-/// on `BdsLinux`. `AndroidArm64` takes the same functions as the closest match to its C library,
-/// which shares most of their algorithms: a best effort that can miss its last bit. `BdsWindows`
-/// evaluates them in `f64` and rounds once, which can miss the last bit of its C library too.
+/// on `BdsLinux`, as glibc 2.41 computes them on a CPU with FMA.
+///
+/// `AndroidArm64` takes the same functions for `sin`, `cos`, `exp`, `exp2`, `ln` and `pow`, whose
+/// algorithms bionic shares with glibc. bionic builds them with contracted multiply-adds and the
+/// arm64 round-to-integer instructions, neither of which is modelled, so they can miss its last
+/// bit. Its `asin`, `acos`, `atan` and `atan2` come from FreeBSD's code, which the `libm` crate
+/// carries; that it matches the device is inferred, not checked. Android parity of the
+/// transcendental functions is a best effort.
+///
+/// `BdsWindows` evaluates them in `f64` and rounds once, the model of its C library's
+/// double-precision kernels; its results depend on the server's CPU, and its single-precision
+/// `asinf` and `acosf` kernels are not modelled, so either can miss the last bit.
 ///
 /// On `BdsWindows`, ten easings (`in_out_quad`, `in_out_cubic`, `in_out_quart`, `in_out_quint`,
 /// `in_out_expo`, `in_circ`, `out_circ`, `in_out_circ`, `in_out_bounce`, `in_out_back`) add the

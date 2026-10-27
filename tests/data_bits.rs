@@ -413,10 +413,15 @@ const EXP2_UNREACHED: [u32; 5] = [
     0xc08c_be3f,
 ];
 
+/// The samples Android's `atan2f`, FreeBSD's, rounds otherwise than glibc's correctly rounded one:
+/// `([y, x] bits, result bits)`.
+const ANDROID_ATAN2: [([u32; 2], u32); 1] = [([0xc114_e71c, 0x40cc_82f2], 0xbf78_128e)];
+
 /// Every `transcendental_samples` entry, `[function, [argument bits…], result bits]`, is to the bit
 /// what the crate's function gives: trigonometry through the degree conversion, `exp2` through
-/// `ease_in_expo`, on every platform. The NaN of an invalid operation is compared to the bit only on
-/// BDS Linux against the `X86_64` set, with the [`x86_64_override`] rows as overridden.
+/// `ease_in_expo`, on every platform but where [`ANDROID_ATAN2`] differs. The NaN of an invalid
+/// operation is compared to the bit only on BDS Linux against the `X86_64` set, with the
+/// [`x86_64_override`] rows as overridden.
 #[test]
 fn every_transcendental_sample_is_the_crates_function() {
     let file = common::data_json("numeric_bits.json");
@@ -451,6 +456,11 @@ fn every_transcendental_sample_is_the_crates_function() {
                     ("acos", &[x]) => (Some(math::acos(platform, x, ID)), in_degrees(expected)),
                     ("atan", &[x]) => (Some(math::atan(platform, x, ID)), in_degrees(expected)),
                     ("atan2", &[y, x]) => {
+                        let android = ANDROID_ATAN2
+                            .iter()
+                            .find(|(args, _)| *args == [y.to_bits(), x.to_bits()])
+                            .filter(|_| platform == Platform::AndroidArm64);
+                        let expected = android.map_or(expected, |&(_, bits)| f32::from_bits(bits));
                         (Some(math::atan2(platform, y, x, ID)), in_degrees(expected))
                     }
                     ("exp", &[x]) => (Some(math::exp(platform, x, ID)), expected),

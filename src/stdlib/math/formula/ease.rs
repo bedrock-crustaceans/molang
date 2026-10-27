@@ -670,7 +670,7 @@ mod tests {
                 assert_eq!(name, hashed);
                 let expected = match cmath::libm(p) {
                     cmath::Libm::RoundedF64 => rounded,
-                    cmath::Libm::Glibc(_) | cmath::Libm::GlibcArm64 => glibc,
+                    cmath::Libm::Glibc(_) | cmath::Libm::Bionic => glibc,
                 };
                 assert_eq!(
                     sweep_hash(|s, e, t| body(p, s, e, t)),
