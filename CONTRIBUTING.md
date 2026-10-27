@@ -30,9 +30,9 @@ Hostile-input tests can allocate a lot; run them under a memory cap, for example
 
 ### The glibc oracle
 
-`src/stdlib/math/glibc/` ports glibc's single-precision `sinf`, `cosf`, `expf`, `exp2f`, `logf`, `log2f`, `powf`, `asinf`, `acosf`, `atanf` and `atan2f` bit for bit, as glibc 2.41 computes them on an x86-64 CPU with FMA: the build glibc selects there, whose fused multiply-adds each port mirrors with `mul_add`. Their unit tests pin reference results on every host, among them arguments that glibc's build without FMA rounds the other way.
+`src/stdlib/math/glibc/` reproduces glibc's single-precision functions bit for bit, as glibc 2.41 computes them on an x86-64 CPU with FMA. `sinf`, `cosf`, `expf`, `exp2f`, `logf`, `log2f` and `powf` are ports of the build glibc selects there, whose fused multiply-adds each port mirrors with `mul_add`; `atan2f` is a port of its correctly rounded code. `asinf`, `acosf` and `atanf` are correctly rounded too, so they take the `f64` functions rounded once, with a table of the four arguments where that rounding is off. The unit tests pin reference results on every host, among them arguments that glibc's build without FMA rounds the other way.
 
-`tests/glibc_oracle.rs` (features `fuzz` and `compiler`) compares the ports with the host's own glibc. The whole file is gated on x86-64 Linux with glibc. A failure names the host's glibc version, since another version or a CPU without FMA can differ without the port being wrong.
+`tests/glibc_oracle.rs` (features `fuzz` and `compiler`) compares them with the host's own glibc. It detects drift against one glibc build and is not a regression test: the file is gated on x86-64 Linux with glibc, and its tests skip, saying why, unless the host runs glibc 2.41 on a CPU with FMA. glibc 2.40 and earlier compute the inverse trigonometric functions differently, and glibc's build without FMA rounds 12 `sinf` and 22 `cosf` arguments the other way.
 
 An ignored test sweeps every `f32` through each one-argument function and 2³² random pairs through `powf` and `atan2f`; `MOLANG_EXHAUSTIVE` limits it to a comma-separated list of names:
 

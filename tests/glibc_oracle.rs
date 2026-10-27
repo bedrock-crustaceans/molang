@@ -1,8 +1,10 @@
-//! The ports of glibc's single-precision functions against the host's glibc, bit for bit.
+//! The crate's glibc single-precision functions against the host's glibc, bit for bit.
 //!
-//! Runs on x86-64 Linux with glibc only; the ports' own unit tests pin known results everywhere.
-//! A failure names the host's glibc version: the ports follow glibc 2.41 on a CPU with FMA, so a
-//! different glibc or a CPU without FMA can fail here without the port being wrong.
+//! It detects drift against one glibc build, 2.41 on an x86-64 CPU with FMA, and is not a
+//! regression test: on any other host every test skips and says why, since glibc 2.40 and earlier
+//! compute the inverse trigonometric functions differently and the build without FMA rounds 12
+//! `sinf` and 22 `cosf` arguments the other way. The functions' own unit tests pin known results
+//! everywhere.
 //!
 //! The ignored `exhaustive` test sweeps every `f32` through each one-argument function and 2³²
 //! random pairs through `powf` and `atan2f`; `MOLANG_EXHAUSTIVE`, a comma-separated list of names
@@ -45,6 +47,21 @@ type Binary = fn(f32, f32) -> f32;
 type HostUnary = Box<dyn Fn(f32) -> f32 + Sync>;
 /// A host function of two arguments.
 type HostBinary = Box<dyn Fn(f32, f32) -> f32 + Sync>;
+
+/// Whether the host runs the glibc build the functions follow; if not, says why on stderr.
+fn on_the_reference_build() -> bool {
+    let version = glibc_version();
+    let fma = std::arch::is_x86_feature_detected!("fma");
+    let reference = version == "2.41" && fma;
+    if !reference {
+        eprintln!(
+            "skipped: the functions follow glibc 2.41 on a CPU with FMA; this host runs glibc \
+             {version} {} FMA",
+            if fma { "with" } else { "without" }
+        );
+    }
+    reference
+}
 
 fn glibc_version() -> String {
     // SAFETY: glibc returns a static NUL-terminated string.
@@ -400,6 +417,9 @@ fn check_binary(index: usize) {
 /// `sinf(0x4255b0a9)`.
 #[test]
 fn the_oracle_is_glibc() {
+    if !on_the_reference_build() {
+        return;
+    }
     // Opaque arguments: an optimised build folds a call on a constant itself.
     let degrees = black_box(13.0_f32 * f32::from_bits(0x3c8e_fa35));
     assert_eq!(sinf(degrees).to_bits(), 0x3e66_5992);
@@ -418,51 +438,81 @@ fn the_oracle_is_glibc() {
 
 #[test]
 fn sinf_matches_the_host() {
+    if !on_the_reference_build() {
+        return;
+    }
     check_unary(0);
 }
 
 #[test]
 fn cosf_matches_the_host() {
+    if !on_the_reference_build() {
+        return;
+    }
     check_unary(1);
 }
 
 #[test]
 fn expf_matches_the_host() {
+    if !on_the_reference_build() {
+        return;
+    }
     check_unary(2);
 }
 
 #[test]
 fn exp2f_matches_the_host() {
+    if !on_the_reference_build() {
+        return;
+    }
     check_unary(3);
 }
 
 #[test]
 fn logf_matches_the_host() {
+    if !on_the_reference_build() {
+        return;
+    }
     check_unary(4);
 }
 
 #[test]
 fn log2f_matches_the_host() {
+    if !on_the_reference_build() {
+        return;
+    }
     check_unary(5);
 }
 
 #[test]
 fn asinf_matches_the_host() {
+    if !on_the_reference_build() {
+        return;
+    }
     check_unary(6);
 }
 
 #[test]
 fn acosf_matches_the_host() {
+    if !on_the_reference_build() {
+        return;
+    }
     check_unary(7);
 }
 
 #[test]
 fn atanf_matches_the_host() {
+    if !on_the_reference_build() {
+        return;
+    }
     check_unary(8);
 }
 
 #[test]
 fn the_compatibility_symbols_match_the_host() {
+    if !on_the_reference_build() {
+        return;
+    }
     check_unary(9);
     check_unary(10);
     check_unary(11);
@@ -471,11 +521,17 @@ fn the_compatibility_symbols_match_the_host() {
 
 #[test]
 fn powf_matches_the_host() {
+    if !on_the_reference_build() {
+        return;
+    }
     check_binary(0);
 }
 
 #[test]
 fn atan2f_matches_the_host() {
+    if !on_the_reference_build() {
+        return;
+    }
     check_binary(1);
 }
 
@@ -483,6 +539,9 @@ fn atan2f_matches_the_host() {
 #[test]
 #[ignore = "a sweep of 2³² arguments per function; run it in release"]
 fn exhaustive() {
+    if !on_the_reference_build() {
+        return;
+    }
     let selected: Option<Vec<String>> = std::env::var("MOLANG_EXHAUSTIVE")
         .ok()
         .map(|names| names.split(',').map(|n| n.trim().to_owned()).collect());
