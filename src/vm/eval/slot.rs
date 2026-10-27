@@ -128,8 +128,8 @@ mod tests {
     use super::*;
     use crate::compile::program::Instr;
     use crate::hash::HashedStr;
+    use crate::vm::NoHost;
     use crate::vm::eval::test_support::*;
-    use crate::vm::{NoHost, NoHostEnv};
 
     #[test]
     fn slot_is_hash_compares_the_payload_bits() {
@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn slot_equals_compares_floats_and_values() {
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let cx = env.cx();
         assert!(<f32 as Slot<NoHost>>::equals(&1.0, &1.0, &cx));
         assert!(!<f32 as Slot<NoHost>>::equals(&1.0, &2.0, &cx));

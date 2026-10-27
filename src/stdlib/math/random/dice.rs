@@ -18,10 +18,14 @@ pub fn die_roll_count(platform: Platform, n: f32) -> u32 {
 ///
 /// ```
 /// use molang::numeric::{Platform, PostOp};
-/// use molang::rng::{Xorshift128, RandomSource};
+/// use molang::rng::{RandomSource, unit_31};
 /// use molang::stdlib::math::DieRoll;
 ///
-/// let mut rng = Xorshift128::new();
+/// let mut word = 0_u32;
+/// let mut rng = || {
+///     word = word.wrapping_mul(0x9e37_79b9).wrapping_add(1);
+///     unit_31(word)
+/// };
 /// let mut roll = DieRoll::new(Platform::default(), 3.0, 1.0, 6.0);
 /// while roll.remaining() > 0 {
 ///     // … charge one step, stop early if the budget is spent …

@@ -11,7 +11,8 @@ pub use differential::{Verdict, differential};
 pub use table::queries;
 
 use arbitrary::{Arbitrary, Unstructured};
-use molang::rng::{FixedRng, RandomSource, Xorshift128};
+use molang::internals::Xorshift128;
+use molang::rng::{FixedRng, RandomSource};
 use molang::vm::{
     CollectSink, ContextMap, ContextName, EvalCx, EvalLimits, Host, HostAccess, QueryTable,
     StructValue, Subjects, TempMap, Temps, Value, VariableMap, VariableName, VariableStore,
@@ -315,7 +316,8 @@ impl FuzzEnv {
 #[cfg(test)]
 pub(crate) mod test_support {
     use crate::generator::env::{FuzzEnv, FuzzHost, FuzzRng, Subject, TempLifetime};
-    use molang::rng::{FixedRng, Xorshift128};
+    use molang::internals::Xorshift128;
+    use molang::rng::FixedRng;
     use molang::vm::{EvalLimits, Value, VariableName};
 
     /// Always the sample 0.25.

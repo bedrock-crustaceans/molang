@@ -523,10 +523,11 @@ mod tests {
     use crate::compile::program::ConstIdx;
     use crate::compile::{CompileOptions, compile};
     use crate::numeric::{Platform, PostOp};
-    use crate::rng::{RandomSource, Xorshift128};
+    use crate::rng::RandomSource;
+    use crate::rng::xorshift::Xorshift128;
     use crate::version::{MolangVersion, RawVersion};
     use crate::vm::eval::test_support::*;
-    use crate::vm::{NoHost, NoHostEnv, TempName};
+    use crate::vm::{NoHost, TempName};
 
     #[test]
     fn a_program_runs_with_the_arithmetic_of_the_numeric_functions() {
@@ -535,7 +536,7 @@ mod tests {
             &CompileOptions::server(MolangVersion::LATEST),
         );
         let expr = c.expr().cloned().unwrap();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         set(&mut env, &[("x", 30.0), ("y", 7.0)]);
         let value = expr.eval_f32(&mut env.cx());
         let sin = math::sin(Platform::default(), 30.0, PostOp::IDENTITY);
@@ -552,7 +553,7 @@ mod tests {
             Instr::End,
         ]);
         p.consts = vec![5.0].into_boxed_slice();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&p, Some(100));
         vm.run(&p, &mut cx, 0, Base::ROOT).unwrap();
@@ -585,7 +586,7 @@ mod tests {
         ]);
         p.consts = vec![5.0, 9.0].into_boxed_slice();
         p.posts = vec![PostOp::IDENTITY, PostOp::new(2.0, 3.0)].into_boxed_slice();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let (value, left) = run_general(&p, &mut env, 100);
         assert_eq!(value, NV::Float(13.0));
         assert_eq!(left, 98);
@@ -593,7 +594,7 @@ mod tests {
 
     #[test]
     fn and_or_steps_load_the_post_of_the_short_circuit_value() {
-        let setup = |env: &mut NoHostEnv| set(env, &[("x", 2.0), ("y", 3.0), ("zero", 0.0)]);
+        let setup = |env: &mut TestEnv| set(env, &[("x", 2.0), ("y", 3.0), ("zero", 0.0)]);
         for (src, expected) in [
             ("(v.x && v.y) * 3 + 1", 4.0),
             ("(v.zero && v.y) * 3 + 1", 1.0),
@@ -701,7 +702,7 @@ mod tests {
 
     #[test]
     fn each_random_instruction_draws_the_samples_it_is_defined_to() {
-        let setup = |env: &mut NoHostEnv| set(env, &[("n", 3.0), ("lo", 1.0), ("hi", 4.0)]);
+        let setup = |env: &mut TestEnv| set(env, &[("n", 3.0), ("lo", 1.0), ("hi", 4.0)]);
         for (src, draws) in [
             ("math.random(1, 3)", 1),
             ("math.random(v.lo, v.hi)", 1),
@@ -712,7 +713,7 @@ mod tests {
             ("math.random(1, 3) + math.random(1, 3)", 2),
             ("1 + 2", 0),
         ] {
-            let mut env = NoHostEnv::new();
+            let mut env = test_env();
             setup(&mut env);
             let mut expected = env.rng.clone();
             for _ in 0..draws {
@@ -770,7 +771,7 @@ mod tests {
     fn temps_are_cleared_at_the_start_of_every_evaluation_by_default() {
         let write = compile_ok("t.a = 5;");
         let read = compile_ok("return t.a;");
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         write.eval(&mut env.cx());
         assert_eq!(read.eval(&mut env.cx()), NV::Float(0.0));
         assert_eq!(env.sink.take(), [unknown_msg("temp.a")]);
@@ -810,7 +811,7 @@ mod tests {
     #[test]
     fn a_temp_miss_reads_the_slot_or_the_environment_alike() {
         let missing = compile_ok("return t.nope;");
-        let mut default_env = NoHostEnv::new();
+        let mut default_env = test_env();
         assert_eq!(missing.eval(&mut default_env.cx()), NV::Float(0.0));
         let mut persistent_env = kept_temps_env();
         assert_eq!(missing.eval(&mut persistent_env.cx()), NV::Float(0.0));
@@ -819,7 +820,7 @@ mod tests {
 
     #[test]
     fn a_guarded_division_whose_guard_fires_skips_the_numerator() {
-        let with = |b: f32| move |env: &mut NoHostEnv| set(env, &[("a", 6.0), ("b", b)]);
+        let with = |b: f32| move |env: &mut TestEnv| set(env, &[("a", 6.0), ("b", b)]);
         assert_eq!(steps_needed("v.a / v.b", with(2.0)), 5);
         assert_eq!(steps_needed("v.a / v.b", with(0.0)), 3);
         assert_eq!(steps_needed("v.a / v.b", with(1e-9)), 3);
@@ -846,10 +847,10 @@ mod tests {
 
     #[test]
     fn the_division_guard_pushes_the_signed_or_the_absolute_divisor_by_version() {
-        let setup = |env: &mut NoHostEnv| set(env, &[("a", 6.0), ("b", -2.0)]);
+        let setup = |env: &mut TestEnv| set(env, &[("a", 6.0), ("b", -2.0)]);
         for (raw, expected) in [(6, 3.0), (7, -3.0)] {
             let expr = compile_at("v.a / v.b", RawVersion(raw).effective());
-            let mut env = NoHostEnv::new();
+            let mut env = test_env();
             setup(&mut env);
             assert_eq!(
                 expr.eval(&mut env.cx()),
@@ -866,7 +867,7 @@ mod tests {
 
     #[test]
     fn each_die_roll_costs_one_more_step() {
-        let with = |n: f32| move |env: &mut NoHostEnv| set(env, &[("n", n)]);
+        let with = |n: f32| move |env: &mut TestEnv| set(env, &[("n", n)]);
         let base_cost = steps_needed("math.die_roll(v.n, 1, 6)", with(0.0));
         assert_eq!(base_cost, 7, "load, 2 pushed constants, die-roll, end");
         for rolls in [1_u64, 3, 5, 20] {
@@ -887,13 +888,13 @@ mod tests {
     fn a_budget_that_ends_between_two_rolls_stops_the_evaluation() {
         let expr = compile_ok("math.die_roll(v.n, 1, 6)");
         for budget in [7, 8, 9] {
-            let mut env = NoHostEnv::new();
+            let mut env = test_env();
             env.limits.total_steps = Some(budget);
             set(&mut env, &[("n", 5.0)]);
             assert_eq!(expr.eval(&mut env.cx()), NV::ZERO, "budget {budget}");
             assert_eq!(env.sink.take(), [step_msg(budget)], "budget {budget}");
         }
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.total_steps = Some(12);
         set(&mut env, &[("n", 5.0)]);
         assert!(expr.eval(&mut env.cx()).as_f32() >= 5.0);
@@ -903,7 +904,7 @@ mod tests {
     #[test]
     fn each_die_roll_draws_one_random_number() {
         let expr = compile_ok("math.die_roll(v.n, 1, 6)");
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         set(&mut env, &[("n", 4.0)]);
         let before = env.rng.clone();
         expr.eval(&mut env.cx());
@@ -928,7 +929,7 @@ mod tests {
             ..CompileOptions::server(MolangVersion::LATEST)
         };
         let expr = compile("array.a[v.i]", &options).expr().cloned().unwrap();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         if let Some(len) = len {
             env.arrays
                 .set(crate::vm::ArrayName::new("a"), textures(len));
@@ -1013,7 +1014,7 @@ mod tests {
         );
         p.consts = vec![1.0].into_boxed_slice();
         p.posts = vec![PostOp::IDENTITY, PostOp::new(2.0, 1.0)].into_boxed_slice();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.arrays.set(crate::vm::ArrayName::new("a"), textures(2));
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&p, Some(100));

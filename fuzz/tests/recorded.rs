@@ -9,7 +9,7 @@ use common::differential::Tally;
 use common::host::Env;
 use molang::catalog::{QueryAdmission, QuerySetMask};
 use molang::compile::{CompileOptions, compile};
-use molang::rng::Xorshift128;
+use molang::internals::Xorshift128;
 use molang::vm::{EvalLimits, Value, VariableName};
 use molang_fuzz::generator::env::FuzzRng;
 use serde_json::Value as Json;

@@ -3979,18 +3979,18 @@ mod shapes_by_value {
     use crate::common::compile_support::{at, constant, messages, messages_at};
     #[cfg(feature = "vm")]
     use crate::common::compile_support::{client_expr, client_expr_at};
+    #[cfg(feature = "vm")]
+    use crate::common::rng::Xorshift128;
     use molang::compile::CompileFailure;
     #[cfg(feature = "vm")]
     use molang::hash::HashedStr;
-    #[cfg(feature = "vm")]
-    use molang::rng::Xorshift128;
     #[cfg(feature = "vm")]
     use molang::vm::{NoHost, NoHostEnv, StructValue, Value, VariableName};
 
     #[cfg(feature = "vm")]
     fn run(source: &str, version: i16, vars: &[(&str, f32)]) -> f32 {
         let expr = client_expr_at(source, version);
-        let mut env = NoHostEnv::new();
+        let mut env = NoHostEnv::new().with_rng(Xorshift128::new());
         for &(name, value) in vars {
             env.variables
                 .set(VariableName::new(name), Value::Float(value));

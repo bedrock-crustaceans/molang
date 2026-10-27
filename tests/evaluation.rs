@@ -8,13 +8,14 @@ mod common;
 mod control_flow {
     use std::sync::Arc;
 
+    use crate::common::rng::Xorshift128;
     use crate::common::{
         compile_support::{server_at, server_expr, server_expr_at},
         eval_with_samples,
         host::{Actor, Env},
     };
     use molang::compile::{CompileFailure, CompileOptions, compile};
-    use molang::rng::{RandomSource, Xorshift128};
+    use molang::rng::RandomSource;
     use molang::version::MolangVersion;
     use molang::vm::{CollectSink, EvalLimits, NoHostEnv, Value, VariableName};
 
@@ -379,7 +380,7 @@ mod control_flow {
     #[test]
     fn rng_by_reference() {
         let expr = server_expr("math.random(0, 1) + math.random(0, 1)");
-        let mut env = NoHostEnv::new();
+        let mut env = NoHostEnv::new().with_rng(Xorshift128::new());
         let mut reference = Xorshift128::new();
         let expected = reference.sample() + reference.sample();
         assert_eq!(expr.eval_f32(&mut env.cx()), expected);
@@ -454,9 +455,9 @@ mod control_flow {
 mod variables {
     use crate::common::compile_support::server_expr;
     use crate::common::host::{Env, TestHost};
+    use crate::common::rng::Xorshift128;
     use molang::compile::ProgramFlags;
     use molang::hash::HashedStr;
-    use molang::rng::Xorshift128;
 
     use molang::vm::{
         CollectSink, NoHost, NoHostEnv, StructValue, TempMap, TempName, Temps, Value, VariableName,
@@ -805,8 +806,8 @@ mod evaluation_model {
     use crate::common::compile_support::{server_expr, server_expr_at};
     use crate::common::host::{Actor, Env};
 
+    use crate::common::rng::Xorshift128;
     use molang::hash::HashedStr;
-    use molang::rng::Xorshift128;
     use molang::vm::{
         CollectSink, ContextName, EvalLimits, NoHostEnv, Subjects, Value, VariableName,
     };
@@ -966,7 +967,7 @@ mod evaluation_model {
 mod names {
     use crate::common::compile_support::server_expr;
 
-    use molang::rng::Xorshift128;
+    use crate::common::rng::Xorshift128;
     use molang::vm::{CollectSink, ContextName, NoHostEnv, TempMap, Temps, Value};
 
     use crate::common::host::{Actor, Env};
@@ -1147,9 +1148,9 @@ mod result_kinds {
 
     use crate::common::compile_support::{server_at, server_expr};
     use crate::common::host::{Actor, Env};
+    use crate::common::rng::Xorshift128;
     use molang::compile::{CompileFailure, compile};
     use molang::hash::HashedStr;
-    use molang::rng::Xorshift128;
     use molang::vm::{
         CollectSink, ContextName, NoHost, NoHostEnv, StructValue, Value, VariableName,
     };

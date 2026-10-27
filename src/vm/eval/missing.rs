@@ -119,7 +119,7 @@ mod tests {
     use crate::vm::eval::{Frame, Stop};
     use crate::vm::host::Subjects;
     use crate::vm::test_support::TestHost;
-    use crate::vm::{HostEnv, NoHost, NoHostEnv, QueryTable, StructValue, VariableStorage};
+    use crate::vm::{HostEnv, NoHost, QueryTable, StructValue, VariableStorage};
 
     fn member_entry(name: &str, report: &str) -> MemberEntry {
         MemberEntry {
@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn a_missing_variable_is_logged_once_per_evaluation() {
         let expr = compile_ok("v.nope + v.nope");
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         expr.eval(&mut env.cx());
         assert_eq!(env.sink.take().len(), 1);
         expr.eval(&mut env.cx());
@@ -189,7 +189,7 @@ mod tests {
     fn a_miss_leaves_the_evaluation_unwound() {
         // A miss inside a loop with an operand pushed leaves nothing for the next evaluation.
         let expr = compile_ok("loop(3, { v.n = v.n + (v.x + v.nope); });");
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         set(&mut env, &[("n", 0.0), ("x", 1.0)]);
         assert_eq!(expr.eval(&mut env.cx()), NV::ZERO);
         assert_eq!(env.sink.take(), [unknown_msg("variable.nope")]);
@@ -286,7 +286,7 @@ mod tests {
         assert_eq!(steps_needed("v.x ?? 1", |_| {}), 4);
     }
 
-    fn with_struct(env: &mut NoHostEnv) {
+    fn with_struct(env: &mut TestEnv) {
         env.variables
             .set(key("s"), NV::structure(StructValue::from([("a", 1.0)])));
     }
@@ -369,7 +369,7 @@ mod tests {
         );
         program.consts = vec![7.0].into_boxed_slice();
         program.members = vec![member_entry("b", "b")].into_boxed_slice();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         with_struct(&mut env);
         let (value, _) = run_general(&program, &mut env, 100);
         assert_eq!(value, NV::Float(7.0));
@@ -401,7 +401,7 @@ mod tests {
     #[test]
     fn missing_jumps_to_the_innermost_handler_and_unwinds_to_it() {
         let program = asm(vec![Instr::End]);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(100));
         vm.stack
@@ -425,7 +425,7 @@ mod tests {
     #[test]
     fn the_innermost_of_several_handlers_catches() {
         let program = asm(vec![Instr::End]);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(100));
         for to in [3, 5] {
@@ -440,7 +440,7 @@ mod tests {
     #[test]
     fn a_handler_below_the_base_belongs_to_the_caller_and_does_not_catch() {
         let program = asm(vec![Instr::End]);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(100));
         vm.handlers.push(handler(7, 0, 0));
@@ -458,7 +458,7 @@ mod tests {
     #[test]
     fn inside_an_arrow_the_message_explains_public_variables() {
         let program = asm(vec![Instr::End]);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(100));
         vm.arrows.push(caller());
@@ -469,7 +469,7 @@ mod tests {
     #[test]
     fn base_records_the_four_depths_and_unwind_restores_them() {
         let program = asm(vec![Instr::End]);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(100));
         vm.stack.push(NV::Float(1.0));
@@ -643,7 +643,7 @@ mod tests {
     #[test]
     fn pointer_leave_without_enter_reports_the_underflow() {
         let p = asm(vec![Instr::PointerLeave { p: PLAIN }, Instr::End]);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         assert_eq!(run_general(&p, &mut env, 100).0, NV::Float(0.0));
         assert_eq!(
             env.sink.take(),
@@ -665,7 +665,7 @@ mod tests {
         ]);
         p.consts = vec![1.0, 9.0].into_boxed_slice();
         p.posts = vec![PostOp::IDENTITY, PostOp::new(2.0, 3.0)].into_boxed_slice();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let before = cx.subjects;
         let mut vm = Vm::<NoHost, NV>::new(&p, Some(100));
@@ -743,7 +743,7 @@ mod tests {
     #[test]
     fn a_catching_handler_drops_the_loop_frames_opened_after_it() {
         let program = asm(vec![Instr::End]);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(100));
         vm.loops.push(Frame::Count { iterations: 1 });

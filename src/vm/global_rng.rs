@@ -2,27 +2,28 @@
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use crate::rng::{
-    RandomSource, Xorshift128,
-    rand_core::{Infallible, TryRng},
-};
+use crate::rng::RandomSource;
+use crate::rng::xorshift::Xorshift128;
 
 static PROCESS_XORSHIFT: Mutex<Xorshift128> = Mutex::new(Xorshift128::new());
 
-/// A handle to one xorshift128 for the whole process, from the standard seeds and never reseeded.
+/// A handle to one xorshift128 for the whole process, from the standard seeds
+/// (123456789, 362436069, 521288629, 88675123) and never reseeded; each sample is one step under
+/// [`unit_31`](crate::rng::unit_31).
 ///
-/// Pass `&mut ProcessRng` as [`EvalCx::rng`](super::EvalCx::rng). Concurrent evaluations
-/// interleave their draws; each `next_u32`, `next_u64` or `fill_bytes` takes the lock once, so the
-/// state is never torn.
+/// It is the default source of [`HostEnv`](super::HostEnv) and [`NoHostEnv`](super::NoHostEnv),
+/// the one sequence that entities, items, blocks, commands, client animation and scripting all
+/// draw from. Concurrent evaluations interleave their draws; each sample takes the
+/// lock once, so the state is never torn. A host wanting a sequence of its own per environment
+/// passes another source.
 ///
 /// ```
-/// use molang::rng::{Xorshift128, RandomSource};
+/// use molang::rng::{RandomSource, unit_31};
 /// use molang::vm::ProcessRng;
 ///
 /// ProcessRng::reset();
-/// let mut reference = Xorshift128::new();
-/// assert_eq!(ProcessRng.sample(), reference.sample());
-/// assert_eq!(ProcessRng.sample(), reference.sample());
+/// assert_eq!(ProcessRng.sample(), unit_31(3_701_687_786));
+/// assert_eq!(ProcessRng.sample(), unit_31(458_299_110));
 /// ```
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProcessRng;
@@ -46,26 +47,9 @@ impl RandomSource for ProcessRng {
     }
 }
 
-impl TryRng for ProcessRng {
-    type Error = Infallible;
-
-    fn try_next_u32(&mut self) -> Result<u32, Infallible> {
-        locked().try_next_u32()
-    }
-
-    fn try_next_u64(&mut self) -> Result<u64, Infallible> {
-        locked().try_next_u64()
-    }
-
-    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {
-        locked().try_fill_bytes(dst)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rng::{RandomSource, rand_core::Rng};
 
     /// The generator is process-wide, so these tests must not run concurrently.
     static LOCK: Mutex<()> = Mutex::new(());
@@ -95,7 +79,6 @@ mod tests {
         let _guard = exclusive();
         let mut reference = Xorshift128::new();
         assert_eq!(ProcessRng.sample().to_bits(), reference.sample().to_bits());
-        assert_eq!(ProcessRng.next_u32(), reference.next_u32());
         assert_eq!(ProcessRng.sample().to_bits(), reference.sample().to_bits());
     }
 
@@ -152,18 +135,6 @@ mod tests {
         let mut want: Vec<u32> = reference(4000).into_iter().map(f32::to_bits).collect();
         want.sort_unstable();
         assert_eq!(drawn, want);
-    }
-
-    #[test]
-    fn wide_draws_and_bytes_are_those_of_the_one_generator() {
-        let _guard = exclusive();
-        let mut reference = Xorshift128::new();
-        assert_eq!(ProcessRng.next_u64(), reference.next_u64());
-        let (mut got, mut want) = ([0_u8; 7], [0_u8; 7]);
-        ProcessRng.fill_bytes(&mut got);
-        reference.fill_bytes(&mut want);
-        assert_eq!(got, want);
-        assert_eq!(ProcessRng.next_u32(), reference.next_u32());
     }
 
     #[test]

@@ -2,12 +2,14 @@
 
 #![cfg(all(feature = "vm", feature = "stdlib"))]
 
+mod common;
+
 use molang::catalog::Side;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
+use crate::common::rng::Xorshift128;
 use molang::compile::{CompileOptions, ProgramFlags, compile};
-use molang::rng::Xorshift128;
 use molang::stdlib::query;
 use molang::version::MolangVersion;
 use molang::vm::{

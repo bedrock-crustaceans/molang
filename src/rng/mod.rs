@@ -1,41 +1,39 @@
 //! The random sources of the `math.random*` / `math.die_roll*` operators: anything that is a
 //! [`RandomSource`].
 //!
-//! The source is a value the embedding owns, so evaluation is reproducible and
-//! thread-independent. Each draw is one [`RandomSource::sample`], whose mapping from the
-//! generator's output belongs to the source:
+//! The source is a value the embedding owns. Each draw is one [`RandomSource::sample`]; how the
+//! generator's word becomes that sample belongs to the source, and differs by context:
 //!
-//! | Source | Sample from one 32-bit output `u` | Used by |
+//! | Context | Generator | Mapping |
 //! |---|---|---|
-//! | [`Xorshift128`], [`Bits31`], [`FixedRng`] | `(u & 0x7fff_ffff) · 2^-31`, in `f32` | entities, items, blocks, commands, particles' `math.random` |
-//! | [`MersenneTwister`] | `u · 2^-32` in `f64`, then rounded to `f32` | world generation: feature rules and scatter features |
+//! | Entities, items, blocks, commands, client animation, scripting, particles' `math.random` | one xorshift128 for the whole process (`vm::ProcessRng`) | [`unit_31`] |
+//! | Feature rules and the scatter features they place | an MT19937 per chunk and per rule | [`unit_32`] |
+//! | Helper-placed features (saplings, `/place feature`) | an MT19937 per thread | [`unit_32`] |
+//! | Particles' `random_1..4` variables (not a Molang operator) | an MT19937 per thread | [`unit_32`] |
+//! | The UI player preview | none | the constant 0 ([`FixedRng::ZERO`]) |
 //!
-//! Both mappings can give exactly 1. `rand_core` is re-exported here, so a host needs no
-//! dependency of its own.
+//! The crate has no generator of its own beyond the process one: a host brings MT19937 (the
+//! `rand_mt` crate, say) and maps its words with [`unit_32`]. A closure `FnMut() -> f32` is a
+//! source.
 
-use rand_core::{Infallible, TryRng, utils};
-
-mod mersenne_twister;
-mod xorshift;
-
-pub use mersenne_twister::MersenneTwister;
-pub use xorshift::Xorshift128;
-
-/// The `rand_core` 0.10 crate, whose `Rng` [`Bits31`] adapts and the generators here implement;
-/// a new major version of it is a breaking change here.
-pub use rand_core;
+#[cfg(feature = "vm")]
+pub(crate) mod xorshift;
 
 /// What the random operators draw from: one sample in `[0, 1]` per draw.
 ///
 /// How the generator's output becomes the sample is the source's business (see the
-/// [module](self) table). The operators clamp a sample outside `[0, 1]`, NaN to 0.
+/// [module](self) table). The operators clamp a sample outside `[0, 1]`, NaN to 0. A closure is a
+/// source, as are `&mut dyn RandomSource` and `Box<dyn RandomSource>`.
 ///
 /// ```
-/// use molang::rng::{Bits31, FixedRng, MersenneTwister, RandomSource, Xorshift128};
+/// use molang::rng::{FixedRng, RandomSource, unit_32};
 ///
 /// assert_eq!(FixedRng::HALF.sample(), 0.5);
-/// assert_eq!(Xorshift128::new().sample(), Bits31(Xorshift128::new()).sample());
-/// assert_ne!(MersenneTwister::new(5489).sample(), Bits31(MersenneTwister::new(5489)).sample());
+///
+/// // A generator of the host's, mapped by a closure.
+/// let mut words = [0x8000_0000_u32, u32::MAX].into_iter();
+/// let mut closure = move || unit_32(words.next().unwrap_or(0));
+/// assert_eq!((closure.sample(), closure.sample()), (0.5, 1.0));
 ///
 /// /// A source of its own: every sample is a quarter.
 /// struct Quarter;
@@ -52,17 +50,40 @@ pub trait RandomSource {
     fn sample(&mut self) -> f32;
 }
 
-impl<S: RandomSource + ?Sized> RandomSource for &mut S {
+// Forwarding is for trait objects only: a generic `&mut S` or `Box<S>` would overlap the closure
+// impl, since both are `FnMut` when `S` is.
+impl RandomSource for &mut (dyn RandomSource + '_) {
     #[inline]
     fn sample(&mut self) -> f32 {
         (**self).sample()
     }
 }
 
-impl<S: RandomSource + ?Sized> RandomSource for Box<S> {
+impl RandomSource for &mut (dyn RandomSource + Send + '_) {
     #[inline]
     fn sample(&mut self) -> f32 {
         (**self).sample()
+    }
+}
+
+impl RandomSource for Box<dyn RandomSource + '_> {
+    #[inline]
+    fn sample(&mut self) -> f32 {
+        (**self).sample()
+    }
+}
+
+impl RandomSource for Box<dyn RandomSource + Send + '_> {
+    #[inline]
+    fn sample(&mut self) -> f32 {
+        (**self).sample()
+    }
+}
+
+impl<F: FnMut() -> f32> RandomSource for F {
+    #[inline]
+    fn sample(&mut self) -> f32 {
+        self()
     }
 }
 
@@ -105,29 +126,7 @@ pub const fn unit_32(word: u32) -> f32 {
     (word as f64 * (1.0 / 4_294_967_296.0)) as f32
 }
 
-/// Any `rand_core` generator as a [`RandomSource`] with the 31-bit mapping: each sample is one
-/// `next_u32` `u` mapped to `(u & 0x7fff_ffff) · 2^-31`, rounded to nearest.
-///
-/// ```
-/// use molang::rng::{Bits31, FixedRng, RandomSource};
-///
-/// assert_eq!(Bits31(FixedRng(0x8000_0000 | 1 << 30)).sample(), 0.5, "the top bit is ignored");
-/// assert_eq!(Bits31(FixedRng(u32::MAX)).sample(), 1.0);
-/// ```
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct Bits31<R>(pub R);
-
-impl<R: rand_core::Rng> RandomSource for Bits31<R> {
-    #[inline]
-    fn sample(&mut self) -> f32 {
-        unit_31(self.0.next_u32())
-    }
-}
-
-/// A source whose every `next_u32` is the same word, so every sample is that word under the
-/// 31-bit mapping.
-///
-/// `next_u64` is the word in both halves; `fill_bytes` repeats its little-endian bytes.
+/// A source whose every sample is the same word under the 31-bit mapping ([`unit_31`]).
 ///
 /// ```
 /// use molang::rng::{FixedRng, RandomSource};
@@ -172,84 +171,18 @@ impl RandomSource for FixedRng {
     }
 }
 
-impl TryRng for FixedRng {
-    type Error = Infallible;
-
-    #[inline]
-    fn try_next_u32(&mut self) -> Result<u32, Infallible> {
-        Ok(self.0)
-    }
-
-    #[inline]
-    fn try_next_u64(&mut self) -> Result<u64, Infallible> {
-        utils::next_u64_via_u32(self)
-    }
-
-    #[inline]
-    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {
-        utils::fill_bytes_via_next_word(dst, || self.try_next_u32())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use rand_core::Rng;
-
     use super::*;
 
-    /// Plays back its words in order and counts the calls of each method.
-    #[derive(Default)]
-    struct Counted {
-        words: Vec<u32>,
-        u32_calls: usize,
-        other_calls: usize,
-    }
-
-    impl TryRng for Counted {
-        type Error = Infallible;
-
-        fn try_next_u32(&mut self) -> Result<u32, Infallible> {
-            self.u32_calls += 1;
-            Ok(self.words[self.u32_calls - 1])
-        }
-
-        fn try_next_u64(&mut self) -> Result<u64, Infallible> {
-            self.other_calls += 1;
-            Ok(0)
-        }
-
-        fn try_fill_bytes(&mut self, _: &mut [u8]) -> Result<(), Infallible> {
-            self.other_calls += 1;
-            Ok(())
-        }
-    }
-
-    #[test]
-    fn a_bits31_sample_is_one_next_u32_and_nothing_else() {
-        let mut source = Bits31(Counted {
-            words: vec![0, 1 << 30, 0x7fff_ffff, 0x8000_0000, u32::MAX, 0x1234_5678],
-            ..Counted::default()
-        });
-        let samples: Vec<f32> = (0..6).map(|_| source.sample()).collect();
-        assert_eq!(
-            samples,
-            [
-                0.0,
-                0.5,
-                1.0,
-                0.0,
-                1.0,
-                0x1234_5678 as f32 / 2_147_483_648.0
-            ]
-        );
-        assert_eq!((source.0.u32_calls, source.0.other_calls), (6, 0));
+    /// Distinct words spread over the whole range.
+    fn words(n: u32) -> impl Iterator<Item = u32> {
+        (0..n).map(|i| i.wrapping_mul(0x9e37_79b9) ^ (i >> 3))
     }
 
     #[test]
     fn bits31_masks_the_top_bit_and_scales_by_two_to_the_minus_31() {
-        let mut words = Xorshift128::new();
-        for _ in 0..64 {
-            let w = words.next_u32();
+        for w in words(64) {
             let expected = (w & 0x7fff_ffff) as f32 * 2.0_f32.powi(-31);
             assert_eq!(unit_31(w).to_bits(), expected.to_bits());
             assert_eq!(unit_31(w).to_bits(), unit_31(w ^ 0x8000_0000).to_bits());
@@ -258,14 +191,11 @@ mod tests {
 
     #[test]
     fn bits31_maps_the_extreme_words_to_the_ends_of_the_unit_interval() {
-        assert_eq!(unit_31(0).to_bits(), 0.0_f32.to_bits());
         assert_eq!(unit_31(1).to_bits(), 0x3000_0000);
         // Spacing below 2^31 is 128: 2^31 − 65 rounds down to 1 − 2^-24, the tie at 2^31 − 64
         // rounds to even, which is 2^31.
         assert_eq!(unit_31(0x7fff_ffbf).to_bits(), 0x3f7f_ffff);
         assert_eq!(unit_31(0x7fff_ffc0), 1.0);
-        assert_eq!(unit_31(0x7fff_ffff), 1.0);
-        assert_eq!(unit_31(0x8000_0000).to_bits(), 0.0_f32.to_bits());
     }
 
     #[test]
@@ -291,42 +221,43 @@ mod tests {
     }
 
     #[test]
-    fn the_adapter_over_a_generator_samples_as_the_generator_itself() {
-        let mut adapted = Bits31(Xorshift128::new());
-        let mut own = Xorshift128::new();
-        for _ in 0..16 {
-            assert_eq!(adapted.sample().to_bits(), own.sample().to_bits());
-        }
-        let mut borrowed = Xorshift128::new();
-        let mut dynamic: Bits31<&mut dyn Rng> = Bits31(&mut borrowed);
+    fn a_closure_is_a_source_drawn_once_per_sample() {
+        let mut calls = 0;
+        let mut closure = || {
+            calls += 1;
+            unit_31(calls << 29)
+        };
         assert_eq!(
-            dynamic.sample().to_bits(),
-            Xorshift128::new().sample().to_bits()
+            [closure.sample(), closure.sample(), closure.sample()],
+            [0.25, 0.5, 0.75]
         );
+        assert_eq!(calls, 3);
     }
 
     #[test]
-    fn a_dynamic_borrowed_or_boxed_source_is_a_source() {
-        let mut rng = Xorshift128::new();
-        let first = RandomSource::sample(&mut &mut rng);
-        let dynamic: &mut dyn RandomSource = &mut rng;
-        let second = dynamic.sample();
-        let mut boxed: Box<dyn RandomSource> = Box::new(rng);
-        let third = boxed.sample();
-        let mut reference = Xorshift128::new();
-        assert_eq!(
-            (first, second, third),
-            (reference.sample(), reference.sample(), reference.sample())
-        );
+    fn a_dynamic_or_boxed_source_forwards_to_the_source() {
+        let mut fixed = FixedRng::HALF;
+        let mut dynamic: &mut dyn RandomSource = &mut fixed;
+        assert_eq!(RandomSource::sample(&mut dynamic), 0.5);
+        let mut sendable: &mut (dyn RandomSource + Send) = &mut fixed;
+        assert_eq!(RandomSource::sample(&mut sendable), 0.5);
+        let mut boxed: Box<dyn RandomSource> = Box::new(FixedRng::ONE);
+        assert_eq!(boxed.sample(), 1.0);
+        let mut boxed: Box<dyn RandomSource + Send> = Box::new(|| 0.125);
+        assert_eq!(boxed.sample(), 0.125);
+        let mut count = 0.0;
+        let mut closure = || {
+            count += 1.0;
+            count
+        };
+        let borrowed = &mut closure;
+        assert_eq!((borrowed.sample(), borrowed.sample()), (1.0, 2.0));
     }
 
     #[test]
     fn the_sources_are_send_and_sync() {
         fn send_sync<T: Send + Sync>() {}
-        send_sync::<MersenneTwister>();
-        send_sync::<Bits31<Xorshift128>>();
         send_sync::<FixedRng>();
-        send_sync::<Xorshift128>();
     }
 
     #[test]
@@ -340,15 +271,8 @@ mod tests {
             assert_eq!(FixedRng::from_sample(expected), Some(source));
         }
         let mut fixed = FixedRng(0x1234_5678);
-        assert_eq!(
-            (fixed.next_u32(), fixed.next_u32()),
-            (0x1234_5678, 0x1234_5678)
-        );
-        assert_eq!(fixed.next_u64(), 0x1234_5678_1234_5678);
-        let mut bytes = [0_u8; 6];
-        fixed.fill_bytes(&mut bytes);
-        assert_eq!(bytes, [0x78, 0x56, 0x34, 0x12, 0x78, 0x56]);
-        assert_eq!(fixed.sample(), Bits31(fixed).sample());
+        assert_eq!(fixed.sample(), unit_31(0x1234_5678));
+        assert_eq!(fixed.sample(), unit_31(0x1234_5678));
         assert_eq!(fixed, FixedRng(0x1234_5678), "drawing leaves it as it was");
     }
 
@@ -386,9 +310,8 @@ mod tests {
 
     #[test]
     fn every_word_round_trips_through_from_sample() {
-        let mut rng = Xorshift128::new();
-        for _ in 0..10_000 {
-            let value = FixedRng(rng.next_u32()).sample();
+        for word in words(10_000) {
+            let value = FixedRng(word).sample();
             assert_eq!(
                 FixedRng::from_sample(value).map(|mut f| f.sample().to_bits()),
                 Some(value.to_bits())

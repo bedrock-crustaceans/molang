@@ -20,6 +20,8 @@ pub mod declared;
 pub mod host;
 #[cfg(feature = "compiler")]
 pub mod measured;
+#[cfg(feature = "compiler")]
+pub mod rng;
 
 pub const HELPER_SET: QuerySetMask = QuerySetMask::host(0).unwrap();
 pub const HELPER_EXPERIMENT: Experiment = Experiment::new(63).unwrap();

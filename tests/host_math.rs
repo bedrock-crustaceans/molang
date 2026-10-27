@@ -3,6 +3,8 @@
 
 #![cfg(all(feature = "compiler", feature = "stdlib"))]
 
+mod common;
+
 use molang::catalog::{Arity, MathCatalog, MathDecl, MathError};
 use molang::compile::{CompileFailure, CompileOptions, Compiled, Expr, ProgramFlags, compile};
 use molang::diag::{DiagCode, Severity};
@@ -434,8 +436,9 @@ fn the_disassembly_and_the_tree_notation_name_the_function() {
 #[cfg(feature = "vm")]
 mod evaluation {
     use super::*;
+    use crate::common::rng::Xorshift128;
     use molang::numeric::{Platform, PostOp};
-    use molang::rng::{RandomSource, Xorshift128, rand_core::SeedableRng};
+    use molang::rng::RandomSource;
     use molang::stdlib::math;
     use molang::vm::{NoHostEnv, Value, VariableName};
     use std::sync::Arc;
@@ -516,8 +519,7 @@ mod evaluation {
             "v.a = math.random(0, 1); v.b = math.draw(10); v.c = math.random(0, 1); return v.b;",
             &math,
         );
-        let mut env = NoHostEnv::new();
-        env.rng = Xorshift128::seed_from_u64(7);
+        let mut env = NoHostEnv::new().with_rng(Xorshift128::seed_from_u64(7));
         let mut samples = Xorshift128::seed_from_u64(7);
         let (first, second, third) = (samples.sample(), samples.sample(), samples.sample());
         assert_eq!(call.eval_f32(&mut env.cx()), 10.0 + second);
@@ -551,7 +553,7 @@ mod evaluation {
             expr("math.random(v.x, 1)", &math).eval_f32(&mut env.cx()),
             91.0
         );
-        env.rng = Xorshift128::seed_from_u64(3);
+        let mut env = env.with_rng(Xorshift128::seed_from_u64(3));
         let draw = Xorshift128::seed_from_u64(3).sample();
         assert_eq!(
             expr("math.random_integer(v.x, 1)", &math).eval_f32(&mut env.cx()),

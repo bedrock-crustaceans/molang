@@ -507,7 +507,7 @@ mod vm {
 
     use molang::catalog::{QueryAdmission, QuerySetMask, Side};
     use molang::compile::{CompileOptions, compile};
-    use molang::rng::{RandomSource, Xorshift128};
+    use molang::rng::{FixedRng, RandomSource};
     use molang::stdlib::query;
     use molang::version::MolangVersion;
     use molang::vm::{
@@ -705,7 +705,7 @@ mod vm {
         let context = ContextMap::<Farm>::new();
         let mut queries = QueryTable::<Farm>::new(molang::stdlib::queries(Side::Server));
         queries.set(query::IS_BABY, actor_number).unwrap();
-        let mut rng = Xorshift128::new();
+        let mut rng = FixedRng::HALF;
         let mut sink = CollectSink::new();
         let mut cx = EvalCx {
             subjects: Subjects::actor(3),
@@ -1096,31 +1096,9 @@ mod stdlib {
 #[cfg(all(feature = "vm", feature = "stdlib"))]
 mod rng {
     use molang::compile::{CompileOptions, compile};
-    use molang::rng::{
-        Bits31, FixedRng, MersenneTwister, RandomSource, Xorshift128,
-        rand_core::{Infallible, Rng, SeedableRng, TryRng},
-    };
+    use molang::rng::{FixedRng, RandomSource, unit_31, unit_32};
     use molang::version::MolangVersion;
     use molang::vm::{HostEnv, NoHost, NoHostEnv, ProcessRng, Subjects};
-
-    /// A host's own generator, written against the re-exported `rand_core`: under [`Bits31`] each
-    /// sample is one `next_u32`.
-    #[derive(Debug, Default)]
-    struct Counter(u32);
-
-    impl TryRng for Counter {
-        type Error = Infallible;
-        fn try_next_u32(&mut self) -> Result<u32, Infallible> {
-            self.0 += 1 << 28;
-            Ok(self.0)
-        }
-        fn try_next_u64(&mut self) -> Result<u64, Infallible> {
-            unreachable!("a sample is one next_u32")
-        }
-        fn try_fill_bytes(&mut self, _: &mut [u8]) -> Result<(), Infallible> {
-            unreachable!("a sample is one next_u32")
-        }
-    }
 
     /// A source of the host's own, mapping included.
     #[derive(Debug)]
@@ -1143,13 +1121,16 @@ mod rng {
     }
 
     #[test]
-    fn a_host_generator_is_the_random_source_through_bits31() {
-        let mut env = HostEnv::<NoHost>::default().with_rng(Bits31(Counter::default()));
+    fn a_closure_over_a_host_generator_is_the_random_source() {
+        let mut word = 0_u32;
+        let mut env = HostEnv::<NoHost>::default().with_rng(move || {
+            word += 1 << 28;
+            unit_31(word)
+        });
         assert_eq!(
             random_twice().eval_f32(&mut env.cx(&mut NoHost, Subjects::none())),
             2.0 + 4.0 * 100.0
         );
-        assert_eq!(env.rng.0.0, 2 << 28);
         let dynamic: &mut dyn RandomSource = &mut env.rng;
         assert_eq!(dynamic.sample(), 0.375);
         let mut env = HostEnv::<NoHost>::default().with_rng(Quarter);
@@ -1157,6 +1138,8 @@ mod rng {
             random_twice().eval_f32(&mut env.cx(&mut NoHost, Subjects::none())),
             4.0 + 4.0 * 100.0
         );
+        let mut env = NoHostEnv::new().with_rng(FixedRng::HALF);
+        assert_eq!(random_twice().eval_f32(&mut env.cx()), 8.0 + 8.0 * 100.0);
     }
 
     #[test]
@@ -1167,44 +1150,20 @@ mod rng {
             [FixedRng::ZERO, FixedRng::HALF, FixedRng::ONE].map(|mut f| f.sample()),
             [0.0, 0.5, 1.0]
         );
-        let mut seeded = Xorshift128::seed_from_u64(7);
-        assert_eq!(
-            seeded,
-            Xorshift128::from_seed(bytes(Xorshift128::seed_from_u64(7).state()))
-        );
-        assert_eq!(
-            seeded.sample(),
-            Xorshift128::with_state(Xorshift128::seed_from_u64(7).state()).sample()
-        );
-        let _: fn(&mut NoHostEnv) -> &mut Xorshift128 = |env| &mut env.rng;
+        let _: fn(&mut NoHostEnv) -> &mut ProcessRng = |env| &mut env.rng;
+        let _: fn(HostEnv<NoHost>) -> ProcessRng = |env| env.rng;
         let _: fn(&mut ProcessRng) -> &mut dyn RandomSource = |rng| rng;
-        let _: Box<dyn RandomSource> = Box::new(Bits31(&mut seeded as &mut dyn Rng));
+        let _: fn() = ProcessRng::reset;
+        let _: Box<dyn RandomSource> = Box::new(|| 0.5);
+        let _: Box<dyn RandomSource + Send> = Box::new(FixedRng::ONE);
     }
 
     #[test]
-    fn the_mersenne_twister_and_its_world_generation_seeds() {
-        let mut mt: MersenneTwister = MersenneTwister::new(5489);
-        assert_eq!(mt.seed(), 5489);
-        assert_eq!(mt.clone().next_u32(), 3_499_211_612);
-        assert_eq!(mt.sample(), (3_499_211_612.0_f64 / 4_294_967_296.0) as f32);
-        assert_eq!(mt.next_int(), 581_869_302 >> 1);
-        assert_eq!(mt.next_int_below(0), 0);
-        assert_eq!(mt.next_int_below(10), 3_890_346_734 % 10);
-        let chunk = MersenneTwister::for_chunk_decoration(12_345, 3, -7);
-        assert_eq!(chunk.seed(), 1_197_795_863);
-        let mut start = MersenneTwister::for_structure_start(12_345, 3, -7);
-        assert_eq!(
-            (start.seed(), start.next_u32()),
-            (1_197_795_863, 244_950_694)
-        );
-        let rule = MersenneTwister::for_feature_rule(chunk.seed(), 0xf7a7_6dfd);
-        assert_eq!(rule.seed(), 3_348_516_332);
-        assert!(format!("{rule:?}").starts_with("MersenneTwister { seed: 3348516332"));
-    }
-
-    fn bytes(state: [u32; 4]) -> [u8; 16] {
-        let bytes: Vec<u8> = state.iter().flat_map(|word| word.to_le_bytes()).collect();
-        bytes.try_into().expect("16 bytes")
+    fn the_mappings_of_a_generator_word() {
+        const HALF: (f32, f32) = (unit_31(1 << 30), unit_32(1 << 31));
+        assert_eq!(HALF, (0.5, 0.5));
+        let _: fn(u32) -> f32 = unit_31;
+        let _: fn(u32) -> f32 = unit_32;
     }
 }
 

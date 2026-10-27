@@ -5,8 +5,7 @@
 //! - `stdlib`: the standard library, the `math.*` functions and the queries a script can name out
 //!   of the box, and `CompileOptions::server` / `client`. Without it no `math.*` name is known and
 //!   every query comes from a host catalogue.
-//! - `compiler`: the modules `compile`, `diag`, `numeric` and `rng` (over the re-exported
-//!   `rand_core` 0.10), host math functions (`catalog::MathCatalog`) and, with `stdlib`,
+//! - `compiler`: the modules `compile`, `diag`, `numeric` and `rng`, host math functions (`catalog::MathCatalog`) and, with `stdlib`,
 //!   `stdlib::math`.
 //! - `vm`, `cache`: the modules of the same name (each implies `compiler`).
 //! - `facet`: `Facet` impls for [`json::MolangSource`] and [`json::MolangValueRepr`]; the optional

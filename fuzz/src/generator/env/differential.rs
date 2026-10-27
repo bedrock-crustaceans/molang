@@ -138,8 +138,8 @@ mod tests {
     };
     use molang::catalog::Side;
     use molang::compile::compile;
+    use molang::internals::Xorshift128;
     use molang::numeric::Platform;
-    use molang::rng::Xorshift128;
     use molang::rng::{FixedRng, RandomSource};
     use molang::version::RawVersion;
     use molang::vm::{Access, EvalLimits, TempName, Value, VariableName};

@@ -223,6 +223,7 @@ pub(crate) mod test_support {
     use crate::compile::{CompileOptions, Expr, compile};
     use crate::hash::HashedStr;
     use crate::numeric::PostOp;
+    use crate::rng::xorshift::Xorshift128;
     use crate::version::MolangVersion;
     use crate::vm::name::{ContextName, VariableName};
     use crate::vm::test_support::TestHost;
@@ -235,6 +236,13 @@ pub(crate) mod test_support {
     };
 
     pub(crate) type NV = Value<NoHost>;
+
+    /// An environment with a generator of its own, so a test may compare its state.
+    pub(crate) type TestEnv = NoHostEnv<Xorshift128>;
+
+    pub(crate) fn test_env() -> TestEnv {
+        NoHostEnv::new().with_rng(Xorshift128::new())
+    }
 
     pub(crate) type HV = Value<TestHost>;
 
@@ -271,7 +279,7 @@ pub(crate) mod test_support {
     pub(crate) struct Ran {
         pub(crate) value: NV,
         pub(crate) msgs: Vec<String>,
-        pub(crate) env: NoHostEnv,
+        pub(crate) env: TestEnv,
     }
 
     impl Ran {
@@ -286,27 +294,27 @@ pub(crate) mod test_support {
 
     /// Every query is a stub until a test installs a function.
     #[track_caller]
-    pub(crate) fn server_env() -> NoHostEnv {
+    pub(crate) fn server_env() -> TestEnv {
         NoHostEnv {
             queries: Some(QueryTable::new(crate::stdlib::queries(Side::Server))),
-            ..NoHostEnv::new()
+            ..test_env()
         }
     }
 
     /// The query table of a [`server_env`].
-    pub(crate) fn table(env: &mut NoHostEnv) -> &mut QueryTable<NoHost> {
+    pub(crate) fn table(env: &mut TestEnv) -> &mut QueryTable<NoHost> {
         env.queries.as_mut().expect("a server environment")
     }
 
     /// An environment that keeps `temp.*` across evaluations.
-    pub(crate) fn kept_temps_env() -> NoHostEnv {
+    pub(crate) fn kept_temps_env() -> TestEnv {
         NoHostEnv {
             temps: Temps::Kept(TempMap::new()),
-            ..NoHostEnv::new()
+            ..test_env()
         }
     }
 
-    pub(crate) fn ran(src: &str, setup: impl FnOnce(&mut NoHostEnv)) -> Ran {
+    pub(crate) fn ran(src: &str, setup: impl FnOnce(&mut TestEnv)) -> Ran {
         let expr = compile_ok(src);
         let mut env = server_env();
         setup(&mut env);
@@ -315,7 +323,7 @@ pub(crate) mod test_support {
         Ran { value, msgs, env }
     }
 
-    pub(crate) fn set(env: &mut NoHostEnv, vars: &[(&str, f32)]) {
+    pub(crate) fn set(env: &mut TestEnv, vars: &[(&str, f32)]) {
         for &(name, value) in vars {
             env.variables.set(key(name), Value::Float(value));
         }
@@ -323,7 +331,7 @@ pub(crate) mod test_support {
 
     /// `v.x` 2, `v.y` 3, `v.z` 4, `v.a` 6, `v.b` 2, `v.n` 3, `v.m` 0, `v.zero` 0, `c.foo` 1 and
     /// `this` 1.5.
-    pub(crate) fn sample_vars(env: &mut NoHostEnv) {
+    pub(crate) fn sample_vars(env: &mut TestEnv) {
         set(
             env,
             &[
@@ -348,7 +356,7 @@ pub(crate) mod test_support {
 
     /// The smallest `total_steps` with which `src` completes.
     #[track_caller]
-    pub(crate) fn steps_needed(src: &str, setup: impl Fn(&mut NoHostEnv)) -> u64 {
+    pub(crate) fn steps_needed(src: &str, setup: impl Fn(&mut TestEnv)) -> u64 {
         let expr = compile_ok(src);
         steps_needed_of(&expr, setup, |expr, env| expr.eval(&mut env.cx()))
     }
@@ -356,8 +364,8 @@ pub(crate) mod test_support {
     #[track_caller]
     pub(crate) fn steps_needed_of(
         expr: &Expr,
-        setup: impl Fn(&mut NoHostEnv),
-        run: impl Fn(&Expr, &mut NoHostEnv) -> NV,
+        setup: impl Fn(&mut TestEnv),
+        run: impl Fn(&Expr, &mut TestEnv) -> NV,
     ) -> u64 {
         let completes = |steps: u64| {
             let mut env = server_env();
@@ -387,7 +395,7 @@ pub(crate) mod test_support {
         hi
     }
 
-    pub(crate) fn eval_general(expr: &Expr, env: &mut NoHostEnv) -> NV {
+    pub(crate) fn eval_general(expr: &Expr, env: &mut TestEnv) -> NV {
         let program = expr.program().unwrap();
         let mut cx = env.cx();
         Vm::<NoHost, NV>::new(program, cx.limits.total_steps).finish(program, &mut cx, 0)
@@ -432,7 +440,7 @@ pub(crate) mod test_support {
     pub(crate) const PLAIN: PostIdx = PostIdx::PLAIN;
 
     /// The value and the steps left.
-    pub(crate) fn run_general(program: &Program, env: &mut NoHostEnv, steps: u64) -> (NV, u64) {
+    pub(crate) fn run_general(program: &Program, env: &mut TestEnv, steps: u64) -> (NV, u64) {
         let mut vm = Vm::<NoHost, NV>::new(program, Some(steps));
         let mut cx = env.cx();
         let value = vm.finish(program, &mut cx, 0);
@@ -486,7 +494,7 @@ pub(crate) mod test_support {
         Ok(Value::Float(5.0))
     }
 
-    pub(crate) fn strings(env: &mut NoHostEnv) {
+    pub(crate) fn strings(env: &mut TestEnv) {
         env.variables.set(key("s"), NV::string("moo"));
         set(env, &[("t", 4.0)]);
     }
@@ -494,7 +502,7 @@ pub(crate) mod test_support {
     pub(crate) const DEPTH_MSG: &str =
         "molang: evaluation stopped: a struct would nest deeper than its budget of 2 levels";
 
-    pub(crate) fn limited(depth: Option<u32>, members: Option<u32>) -> impl Fn(&mut NoHostEnv) {
+    pub(crate) fn limited(depth: Option<u32>, members: Option<u32>) -> impl Fn(&mut TestEnv) {
         move |env| {
             env.limits.struct_depth = depth;
             env.limits.struct_members = members;
@@ -509,7 +517,7 @@ mod tests {
     use crate::compile::program::{ConstIdx, HashIdx};
     use crate::compile::{CompileFailure, CompileOptions, compile};
     use crate::diag::LanguageMessage;
-    use crate::rng::Xorshift128;
+    use crate::rng::xorshift::Xorshift128;
     use crate::stdlib::query;
     use crate::version::MolangVersion;
     use crate::vm::name::ContextName;
@@ -557,7 +565,7 @@ mod tests {
     #[test]
     fn a_string_result_is_the_low_bits_of_its_hash_as_a_float() {
         let hash = HashedStr::new("walk").as_u64();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.variables.set(key("k"), NV::string("walk"));
         let f = compile_ok("v.k").eval_f32(&mut env.cx());
         assert_eq!(f.to_bits(), hash as u32);
@@ -572,7 +580,7 @@ mod tests {
         assert_eq!(c.failure(), Some(CompileFailure::Rejected));
         let expr = c.expr_or_zero().cloned().unwrap();
         assert!(expr.program().is_none());
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         assert_eq!(expr.eval(&mut env.cx()), NV::Float(0.0));
         assert_eq!(expr.eval_f32(&mut env.cx()), 0.0);
         assert!(env.sink.is_empty());
@@ -626,7 +634,7 @@ mod tests {
     }
 
     fn outcome(expr: &Expr, general: bool, steps: u64) -> Outcome {
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         sample_vars(&mut env);
         env.limits.total_steps = Some(steps);
         let value = if general {
@@ -663,7 +671,7 @@ mod tests {
     fn eval_f32_on_the_float_loop_matches_the_general_loop() {
         for src in FLOAT_SOURCES {
             let expr = compile_ok(src);
-            let mut float_env = NoHostEnv::new();
+            let mut float_env = test_env();
             sample_vars(&mut float_env);
             let float = expr.eval_f32(&mut float_env.cx());
             let general = outcome(&expr, true, u64::MAX);
@@ -749,13 +757,13 @@ mod tests {
 
     #[test]
     fn a_context_string_is_read_by_the_general_loop() {
-        let setup = |env: &mut NoHostEnv| {
+        let setup = |env: &mut TestEnv| {
             env.context.set(ContextName::new("k"), NV::string("moo"));
         };
         let r = ran("c.k", setup);
         assert_eq!(r.value, NV::string("moo"));
         let expr = compile_ok("c.k");
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         setup(&mut env);
         assert_eq!(
             expr.eval_f32(&mut env.cx()).to_bits(),
@@ -768,7 +776,7 @@ mod tests {
         let expr = compile_ok("v.x * 2");
         let mut env = NoHostEnv {
             this: 2.0,
-            ..NoHostEnv::new()
+            ..test_env()
         };
         set(&mut env, &[("x", 1.0)]);
         let mut cx = env.cx();
@@ -797,6 +805,6 @@ mod tests {
         );
         let expr = c.expr_or_zero().cloned().unwrap();
         assert_eq!(expr.as_constant(), Some(0.0));
-        assert_eq!(expr.eval(&mut NoHostEnv::new().cx()), NV::Float(0.0));
+        assert_eq!(expr.eval(&mut test_env().cx()), NV::Float(0.0));
     }
 }

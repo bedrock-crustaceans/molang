@@ -502,6 +502,8 @@ dependencies = [
  "nohash-hasher",
  "proptest",
  "rand_core 0.10.1",
+ "rand_mt",
+ "rand_xorshift 0.5.0",
  "rustc-hash",
  "semver",
  "serde_json",
@@ -593,7 +595,7 @@ dependencies = [
  "num-traits",
  "rand",
  "rand_chacha",
- "rand_xorshift",
+ "rand_xorshift 0.4.0",
  "regex-syntax",
  "unarray",
 ]
@@ -649,12 +651,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
+name = "rand_mt"
+version = "6.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab79b42e3c44cf58883b476bbcfa5750130c28cb0c6a9bcbc76ad820aed05873"
+
+[[package]]
 name = "rand_xorshift"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "513962919efc330f829edb2535844d1b912b0fbe2ca165d613e4e8788bb05a5a"
 dependencies = [
  "rand_core 0.9.5",
+]
+
+[[package]]
+name = "rand_xorshift"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60aa6af80be32871323012e02e6e65f8a7cc7890931ae421d217ad8fe0df2ccf"
+dependencies = [
+ "rand_core 0.10.1",
 ]
 
 [[package]]

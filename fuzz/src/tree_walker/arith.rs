@@ -356,8 +356,9 @@ mod tests {
     use super::*;
     use crate::tree_walker::test_support::*;
     use molang::compile::compile;
+    use molang::internals::Xorshift128;
     use molang::numeric::Platform;
-    use molang::rng::{RandomSource, Xorshift128};
+    use molang::rng::RandomSource;
 
     #[test]
     fn arithmetic_with_post_ops() {

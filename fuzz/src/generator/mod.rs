@@ -18,9 +18,10 @@ pub use style::Style;
 
 use arbitrary::{Arbitrary, Result, Unstructured};
 use env::{FuzzRng, Subject, TempLifetime};
+use molang::internals::Xorshift128;
 use molang::json::{JsonScalar, MolangSource, MolangValueRepr, OtherJson, ReaderKind, SourceForm};
 use molang::numeric::{LinuxRelease, Platform};
-use molang::rng::{FixedRng, Xorshift128};
+use molang::rng::FixedRng;
 use molang::version::RawVersion;
 use molang::vm::EvalLimits;
 use std::sync::Arc;

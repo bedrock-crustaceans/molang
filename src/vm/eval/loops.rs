@@ -502,7 +502,7 @@ mod tests {
         );
         // Another evaluation logs it again.
         let expr = compile_ok("loop(10, { v.n = v.n + 1; });");
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.loop_iterations = Some(3);
         set(&mut env, &[("n", 0.0)]);
         expr.eval(&mut env.cx());
@@ -611,8 +611,8 @@ mod tests {
         ]))
     }
 
-    fn counted_env() -> NoHostEnv {
-        let mut env = NoHostEnv::new();
+    fn counted_env() -> TestEnv {
+        let mut env = test_env();
         env.variables.set(key("n"), Value::Float(0.0));
         env
     }
@@ -699,7 +699,7 @@ mod tests {
         let expr = compile_ok(source);
         let mut env = NoHostEnv {
             limits: EvalLimits::NONE,
-            ..NoHostEnv::new()
+            ..test_env()
         };
         assert_eq!(expr.eval_f32(&mut env.cx()), 0.0);
         assert_eq!(
@@ -709,7 +709,7 @@ mod tests {
             ]
         );
         // Under the default guard the inner loop is left after 1024 passes instead.
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         assert_eq!(expr.eval_f32(&mut env.cx()), 1.0);
         assert_eq!(
             env.sink.take(),
@@ -728,7 +728,7 @@ mod tests {
         // Exactly the cap: no trip (the top is 0, so the loop is left).
         let mut env = NoHostEnv {
             limits: EvalLimits::NONE,
-            ..NoHostEnv::new()
+            ..test_env()
         };
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, None);
@@ -758,7 +758,7 @@ mod tests {
             n: NameIdx(0),
             exit: 1,
         });
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         // Exactly the cap: no trip (there is no frame, so the step leaves the loop).
         let mut vm = Vm::<NoHost, NV>::new(&program, None);

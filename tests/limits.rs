@@ -1212,7 +1212,7 @@ mod eval_budgets {
     #[test]
     fn nested_query_arguments_at_the_limit() {
         use crate::common::host::Env;
-        use molang::rng::Xorshift128;
+        use crate::common::rng::Xorshift128;
         use molang::vm::CollectSink;
         let nested = |depth: usize| format!("{}1{}", "query.log(".repeat(depth), ")".repeat(depth));
         assert_eq!(
@@ -1241,7 +1241,7 @@ mod eval_budgets {
     #[test]
     fn query_depth_budget() {
         use crate::common::host::Env;
-        use molang::rng::Xorshift128;
+        use crate::common::rng::Xorshift128;
         use molang::vm::{CollectSink, EvalLimits};
         assert_eq!(EvalLimits::DEFAULT.query_depth, None);
         assert_eq!(EvalLimits::NONE.query_depth, None);
@@ -1282,7 +1282,7 @@ mod eval_budgets {
         use crate::common::compile_support::server_expr;
         use crate::common::host::Env;
 
-        use molang::rng::Xorshift128;
+        use crate::common::rng::Xorshift128;
         use molang::vm::{CollectSink, EvalLimits, NoHostEnv, Value, VariableName};
 
         fn eval_in(env: &mut NoHostEnv, source: &str) -> f32 {

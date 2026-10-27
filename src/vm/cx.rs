@@ -3,6 +3,7 @@
 use std::fmt::{self, Debug};
 
 use super::arrays::{ArrayProvider, ArrayTable};
+use super::global_rng::ProcessRng;
 use super::host::{ContextMap, ContextProvider, Host, HostAccess, NoHost, Subjects};
 use super::limits::EvalLimits;
 use super::name::{ContextName, VariableName};
@@ -10,7 +11,7 @@ use super::query::QueryTable;
 use super::sink::{BoundedSink, RuntimeSink};
 use super::value::Value;
 use super::vars::{TempMap, VariableMap, VariableStore};
-use crate::rng::{RandomSource, Xorshift128};
+use crate::rng::RandomSource;
 
 /// The context of one evaluation: its subjects and the host-owned state around it.
 ///
@@ -30,9 +31,8 @@ pub struct EvalCx<'a, 'w, H: Host> {
     pub arrays: &'a dyn ArrayProvider,
     /// The host's query implementations; `None`: every call returns its declared default.
     pub queries: Option<&'a QueryTable<H>>,
-    /// The random source: [`Xorshift128`], [`MersenneTwister`](crate::rng::MersenneTwister),
-    /// [`FixedRng`](crate::rng::FixedRng), [`ProcessRng`](super::ProcessRng), a `rand_core`
-    /// generator in [`Bits31`](crate::rng::Bits31), or any other [`RandomSource`].
+    /// The random source: [`ProcessRng`], [`FixedRng`](crate::rng::FixedRng), a closure over a
+    /// generator of the host's, or any other [`RandomSource`].
     pub rng: &'a mut dyn RandomSource,
     /// Where run-time diagnostics go: [`BoundedSink`], [`LogOnce`](super::LogOnce),
     /// [`NullSink`](super::NullSink) or the unbounded [`CollectSink`](super::CollectSink).
@@ -188,7 +188,7 @@ impl<H: Host> EvalCx<'_, '_, H> {
 /// assert_eq!(cx.subjects.this, 2.34);
 /// ```
 #[derive(Debug)]
-pub struct NoHostEnv {
+pub struct NoHostEnv<R = ProcessRng> {
     /// `variable.*`: the detached map.
     pub variables: VariableMap<NoHost>,
     /// `context.*`.
@@ -197,8 +197,9 @@ pub struct NoHostEnv {
     pub arrays: ArrayTable,
     /// The query implementations; none by default (see [`EvalCx::queries`]).
     pub queries: Option<QueryTable<NoHost>>,
-    /// The random source, from the standard seeds: the same sequence in every `NoHostEnv`.
-    pub rng: Xorshift128,
+    /// The random source; [`ProcessRng`] by default, the one sequence of the process, and
+    /// replaced with [`with_rng`](Self::with_rng).
+    pub rng: R,
     /// The last run-time messages.
     pub sink: BoundedSink,
     /// `this`.
@@ -212,19 +213,38 @@ pub struct NoHostEnv {
 }
 
 impl NoHostEnv {
-    /// An empty environment with the default budgets and no query implemented.
+    /// An empty environment with the default budgets, the process's random source and no query
+    /// implemented.
     pub fn new() -> Self {
         Self {
             variables: VariableMap::new(),
             context: ContextMap::new(),
             arrays: ArrayTable::new(),
             queries: None,
-            rng: Xorshift128::new(),
+            rng: ProcessRng,
             sink: BoundedSink::new(),
             this: 0.0,
             limits: EvalLimits::DEFAULT,
             temps: Temps::PerEvaluation,
             host: NoHost,
+        }
+    }
+}
+
+impl<R: RandomSource> NoHostEnv<R> {
+    /// The same environment with another random source.
+    pub fn with_rng<R2: RandomSource>(self, rng: R2) -> NoHostEnv<R2> {
+        NoHostEnv {
+            variables: self.variables,
+            context: self.context,
+            arrays: self.arrays,
+            queries: self.queries,
+            rng,
+            sink: self.sink,
+            this: self.this,
+            limits: self.limits,
+            temps: self.temps,
+            host: self.host,
         }
     }
 
@@ -311,7 +331,7 @@ pub struct HostEnv<
     H: Host,
     V = VariableMap<H>,
     C = ContextMap<H>,
-    R = Xorshift128,
+    R = ProcessRng,
     S = BoundedSink,
     A = ArrayTable,
 > {
@@ -323,10 +343,8 @@ pub struct HostEnv<
     pub arrays: A,
     /// The query implementations, if any (see [`EvalCx::queries`]).
     pub queries: Option<QueryTable<H>>,
-    /// The random source. [`HostEnv::new`] starts it from the standard seeds, the same in every
-    /// environment; seed each one
-    /// ([`seed_from_u64`](crate::rng::rand_core::SeedableRng::seed_from_u64)) unless identical
-    /// sequences are wanted.
+    /// The random source; [`ProcessRng`] by default, the one sequence of the process, and
+    /// replaced with [`with_rng`](Self::with_rng).
     pub rng: R,
     /// Where run-time diagnostics go.
     pub sink: S,
@@ -356,7 +374,7 @@ impl<H: Host> Default for HostEnv<H> {
             context: ContextMap::new(),
             arrays: ArrayTable::new(),
             queries: None,
-            rng: Xorshift128::new(),
+            rng: ProcessRng,
             sink: BoundedSink::new(),
             limits: EvalLimits::DEFAULT,
             temps: Temps::PerEvaluation,
@@ -486,6 +504,7 @@ mod tests {
 
     use super::*;
     use crate::catalog::Side;
+    use crate::rng::xorshift::Xorshift128;
     use crate::rng::{FixedRng, RandomSource};
     use crate::stdlib::{self, query};
     use crate::vm::{
@@ -956,7 +975,8 @@ mod tests {
         let mut env = NoHostEnv {
             this: 2.34,
             ..NoHostEnv::new()
-        };
+        }
+        .with_rng(Xorshift128::new());
         env.variables.set(VariableName::new("x"), Value::Float(3.0));
         env.context
             .set(ContextName::new("moo"), Value::string("moo"));
@@ -997,7 +1017,7 @@ mod tests {
             assert!(env.variables.is_empty());
             assert!(env.context.is_empty());
             assert!(env.queries.is_none());
-            assert_eq!(env.rng, Xorshift128::new());
+            assert_eq!(env.rng, ProcessRng);
             assert!(env.sink.is_empty());
             assert_eq!(env.this.to_bits(), 0);
             assert_eq!(env.limits, EvalLimits::DEFAULT);
@@ -1108,7 +1128,7 @@ mod tests {
         assert_eq!(env.queries.as_ref().map(QueryTable::implemented), Some(1));
         assert_eq!(env.limits, EvalLimits::DEFAULT);
         assert!(matches!(env.temps, Temps::PerEvaluation));
-        assert_eq!(env.rng, Xorshift128::new());
+        assert_eq!(env.rng, ProcessRng);
         assert!(env.variables.is_empty());
         assert!(env.context.is_empty());
         assert!(env.sink.is_empty());

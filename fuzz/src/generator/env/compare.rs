@@ -141,7 +141,8 @@ mod tests {
         ACTORS, FuzzActor, FuzzRng, Subject, TempLifetime, test_support::*,
     };
     use molang::hash::HashedStr;
-    use molang::rng::{FixedRng, RandomSource, Xorshift128};
+    use molang::internals::Xorshift128;
+    use molang::rng::{FixedRng, RandomSource};
     use molang::vm::{Access, EvalLimits, StructValue, TempName};
     use std::thread;
 

@@ -15,7 +15,7 @@ use molang::numeric::Platform;
 #[cfg(feature = "vm")]
 use crate::common::host::{Env, LevelSink};
 #[cfg(feature = "vm")]
-use molang::rng::Xorshift128;
+use crate::common::rng::Xorshift128;
 #[cfg(feature = "vm")]
 use molang::vm::{EvalLimits, LogLevel, Value, VariableName};
 

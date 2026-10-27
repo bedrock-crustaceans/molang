@@ -115,7 +115,7 @@ mod tests {
     use crate::stdlib::query;
     use crate::vm::eval::test_support::*;
     use crate::vm::{
-        NoHost, NoHostEnv, QueryError, QueryResult, host::Host, name::TempName, query::QueryCx,
+        NoHost, QueryError, QueryResult, host::Host, name::TempName, query::QueryCx,
         value::ResourceRef,
     };
 
@@ -143,7 +143,7 @@ mod tests {
         let expr = compile_ok("v.s");
         let program = expr.program().unwrap();
         assert!(program.float_loop);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         strings(&mut env);
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, f32>::new(program, Some(10));
@@ -160,7 +160,7 @@ mod tests {
         let r = ran("v.s", strings);
         assert_eq!(r.value, NV::string("moo"));
         let expr = compile_ok("v.s");
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         strings(&mut env);
         assert_eq!(
             expr.eval_f32(&mut env.cx()).to_bits(),
@@ -195,7 +195,7 @@ mod tests {
     fn a_hand_over_in_the_middle_keeps_the_operand_stack() {
         let expr = compile_ok("v.t == v.s");
         let program = expr.program().unwrap();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         strings(&mut env);
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, f32>::new(program, Some(100));
@@ -211,7 +211,7 @@ mod tests {
     fn a_hand_over_in_the_middle_keeps_the_temps() {
         let expr = compile_ok("t.a = 5; t.b = v.s; return t.a;");
         let program = expr.program().unwrap();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         strings(&mut env);
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, f32>::new(program, Some(100));
@@ -240,7 +240,7 @@ mod tests {
         let src = "loop(3, { v.n = v.n + (v.nope ?? 1); v.r = v.s; }); return v.n;";
         let expr = compile_ok(src);
         assert!(expr.program().unwrap().float_loop);
-        let setup = |env: &mut NoHostEnv| {
+        let setup = |env: &mut TestEnv| {
             strings(env);
             set(env, &[("n", 0.0)]);
         };
@@ -258,7 +258,7 @@ mod tests {
     fn strings_and_resources_need_the_general_loop() {
         let mut p = asm(vec![Instr::Hash { h: HashIdx(0) }, Instr::End]);
         p.hashes = vec![HashedStr::new("moo").as_u64()].into_boxed_slice();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, f32>::new(&p, Some(10));
         expect_deopt_at(&mut vm, &p, &mut cx, 0);
@@ -284,7 +284,7 @@ mod tests {
     fn a_float_variable_never_hands_over() {
         let expr = compile_ok("v.x * 2 + v.y");
         let program = expr.program().unwrap();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         set(&mut env, &[("x", 2.0), ("y", 3.0)]);
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, f32>::new(program, Some(100));
@@ -296,7 +296,7 @@ mod tests {
     fn a_post_op_on_a_string_variable_reads_its_bits_without_handing_over() {
         let expr = compile_ok("v.s * 2");
         let program = expr.program().unwrap();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         strings(&mut env);
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, f32>::new(program, Some(100));
@@ -307,7 +307,7 @@ mod tests {
         );
     }
 
-    fn query_env(f: fn(&mut QueryCx<'_, '_, NoHost>) -> QueryResult<NoHost>) -> NoHostEnv {
+    fn query_env(f: fn(&mut QueryCx<'_, '_, NoHost>) -> QueryResult<NoHost>) -> TestEnv {
         let mut env = server_env();
         table(&mut env).set(query::IS_BABY, f).unwrap();
         env
@@ -422,7 +422,7 @@ mod tests {
     #[test]
     fn a_hand_over_after_a_query_costs_what_the_general_loop_costs() {
         let expr = compile_ok("v.z = q.is_baby; return v.z;");
-        let setup = |env: &mut NoHostEnv| {
+        let setup = |env: &mut TestEnv| {
             table(env).set(query::IS_BABY, string_x).unwrap();
         };
         let float_start = steps_needed_of(&expr, setup, |e, env| e.eval(&mut env.cx()));

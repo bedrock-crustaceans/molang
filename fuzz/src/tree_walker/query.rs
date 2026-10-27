@@ -107,7 +107,8 @@ impl<H: Host> Walker<H> {
 mod tests {
     use super::*;
     use crate::tree_walker::test_support::*;
-    use molang::rng::{RandomSource, Xorshift128};
+    use molang::internals::Xorshift128;
+    use molang::rng::RandomSource;
     use molang::vm::QueryCx;
 
     #[test]

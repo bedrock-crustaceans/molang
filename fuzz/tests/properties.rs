@@ -36,7 +36,7 @@ mod lowering {
     use crate::common::client_at;
     use arbitrary::{Arbitrary, Unstructured};
     use molang::compile::{Compiled, Expr, compile};
-    use molang::rng::Xorshift128;
+    use molang::internals::Xorshift128;
     use molang::vm::EvalLimits;
     use molang_fuzz::generator::env::{
         FuzzEnv, FuzzRng, Subject, TempLifetime, same_value, state_difference,

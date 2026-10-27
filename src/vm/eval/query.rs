@@ -137,12 +137,13 @@ mod tests {
     use super::*;
     use crate::catalog::{DefaultReturn, QueryCatalog, QueryDecl, QueryShape, Side};
     use crate::compile::{CompileOptions, compile};
-    use crate::rng::{RandomSource, Xorshift128};
+    use crate::rng::RandomSource;
+    use crate::rng::xorshift::Xorshift128;
     use crate::stdlib::query;
     use crate::version::MolangVersion;
     use crate::vm::eval::test_support::*;
     use crate::vm::eval::{Base, Stop};
-    use crate::vm::{NoHost, NoHostEnv, QueryError};
+    use crate::vm::{NoHost, QueryError};
 
     fn nested_call(limit: u32) -> Ran {
         ran(
@@ -199,7 +200,7 @@ mod tests {
         let expr = compile_ok("q.position(1)");
         let program = expr.program().unwrap();
         let start = program.calls[0].args[0];
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.query_depth = Some(1);
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(program, Some(100));
@@ -223,7 +224,7 @@ mod tests {
     fn run_sub_gives_zero_for_an_argument_that_aborts() {
         let expr = compile_ok("q.position(v.nope)");
         let program = expr.program().unwrap();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(program, Some(100));
         vm.acc = NV::Float(8.0);
@@ -240,7 +241,7 @@ mod tests {
     fn a_stopped_evaluation_runs_nothing_more() {
         let expr = compile_ok("v.x * 2");
         let program = expr.program().unwrap();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         set(&mut env, &[("x", 1.0)]);
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(program, Some(100));
@@ -413,7 +414,7 @@ mod tests {
         }
     }
 
-    fn probe_env() -> NoHostEnv {
+    fn probe_env() -> TestEnv {
         let mut env = server_env();
         table(&mut env).set(query::IS_BABY, probe).unwrap();
         table(&mut env).set(query::POSITION, probe).unwrap();
@@ -472,7 +473,7 @@ mod tests {
     fn a_stub_gives_the_default_of_its_return_type_on_either_loop() {
         let expr = compile_ok("q.is_baby");
         let default = is_baby_default();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         assert_eq!(expr.eval(&mut env.cx()), default);
         assert_eq!(eval_general(&expr, &mut env), default);
         assert!(env.sink.is_empty());
@@ -481,7 +482,7 @@ mod tests {
     #[test]
     fn without_a_table_every_call_returns_its_declared_default_and_evaluates_no_argument() {
         let options = CompileOptions::client(MolangVersion::LATEST);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         for (src, want) in [
             ("q.is_baby(math.random(0, 1))", NV::Float(0.0)),
             ("q.armor_color_slot(math.random(0, 1))", NV::Float(1.0)),

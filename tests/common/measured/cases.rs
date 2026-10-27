@@ -4,12 +4,13 @@
 //! initial map, a row that only reads sees the map as the previous rows left it. Random draws are
 //! the case's [`EvalCase::fixed_random`], else the xorshift128 sequence.
 
+use crate::common::rng::Xorshift128;
 use molang::catalog::{QueryAdmission, QueryAllowList, QuerySetMask};
 use molang::compile::{CompileOptions, Expr, compile};
 use molang::diag::LanguageMessage;
 use molang::hash::HashedStr;
 use molang::numeric::Platform;
-use molang::rng::{FixedRng, Xorshift128};
+use molang::rng::FixedRng;
 use molang::version::{ExperimentMask, MolangVersion, RawVersion};
 
 use super::math_call::{evaluate_call, parse_call, uses_random};

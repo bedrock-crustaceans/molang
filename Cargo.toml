@@ -20,7 +20,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = ["stdlib"]
 stdlib = ["dep:libm"]
-compiler = ["dep:rand_core"]
+compiler = []
 vm = ["compiler", "dep:smallvec", "dep:rustc-hash", "dep:nohash-hasher"]
 cache = ["compiler", "dep:dashmap"]
 facet = ["dep:facet"]
@@ -37,7 +37,6 @@ smallvec = { version = "1.13", optional = true }
 rustc-hash = { version = "2.1", optional = true, default-features = false }
 nohash-hasher = { version = "0.2", optional = true, default-features = false }
 dashmap = { version = "6.1", optional = true }
-rand_core = { version = "0.10.1", optional = true, default-features = false }
 facet = { version = "0.50.0-rc.7", optional = true }
 
 [dev-dependencies]
@@ -45,6 +44,9 @@ proptest = { version = "1.11.0", default-features = false, features = ["std"] }
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 serde_json = "1.0"
 facet-json = "0.50.0-rc.7"
+rand_xorshift = "0.5"
+rand_core = { version = "0.10.1", default-features = false }
+rand_mt = { version = "6.1", default-features = false }
 
 [[example]]
 name = "cache"

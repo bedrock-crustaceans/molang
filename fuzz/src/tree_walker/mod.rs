@@ -157,11 +157,12 @@ pub(crate) mod test_support {
             ..options(version)
         }
     }
+    use molang::internals::Xorshift128;
     pub(crate) use molang::internals::tree;
     use molang::internals::{Node, Payload};
     use molang::numeric::PostOp;
     use molang::ops::ExpressionOp as Op;
-    use molang::rng::{FixedRng, Xorshift128};
+    use molang::rng::FixedRng;
     use molang::stdlib::query;
     use molang::vm::{
         CollectSink, ContextMap, ContextName, EvalCx, EvalLimits, Host, HostAccess, QueryCx,

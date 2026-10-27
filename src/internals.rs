@@ -6,6 +6,9 @@ pub use crate::catalog::math::MathRef;
 pub use crate::compile::ast::{Name, Node, Payload, QueryRef};
 #[cfg(feature = "compiler")]
 pub use crate::compile::probe::tokens;
+/// The xorshift128 behind `vm::ProcessRng`, as a generator of its own per fuzz run.
+#[cfg(feature = "vm")]
+pub use crate::rng::xorshift::Xorshift128;
 
 #[cfg(feature = "vm")]
 use crate::catalog::QueryCatalog;

@@ -362,7 +362,7 @@ mod tests {
 
     #[test]
     fn constants_and_string_literals_run_nothing() {
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.total_steps = Some(0);
         assert_eq!(compile_ok("1 + 2").eval(&mut env.cx()), NV::Float(3.0));
         assert_eq!(compile_ok("'moo'").eval(&mut env.cx()), NV::string("moo"));
@@ -376,7 +376,7 @@ mod tests {
 
     #[test]
     fn an_expression_with_a_zero_budget_runs_nothing_and_says_so() {
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.total_steps = Some(0);
         env.variables.set(key("x"), Value::Float(7.0));
         assert_eq!(compile_ok("v.x").eval(&mut env.cx()), NV::ZERO);
@@ -499,7 +499,7 @@ mod tests {
     fn a_budget_ends_a_fused_push_constant_where_the_pair_would() {
         let (fused, pair) = clamp_programs();
         for budget in 0..=9 {
-            let (mut env_fused, mut env_pair) = (NoHostEnv::new(), NoHostEnv::new());
+            let (mut env_fused, mut env_pair) = (test_env(), test_env());
             env_fused.variables.set(key("x"), Value::Float(5.0));
             env_pair.variables.set(key("x"), Value::Float(5.0));
             let (value_fused, left_fused) = run_general(&fused, &mut env_fused, budget);
@@ -527,7 +527,7 @@ mod tests {
     #[test]
     fn the_second_step_of_a_fused_push_is_charged_between_its_halves() {
         let (fused, _) = clamp_programs();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.total_steps = Some(3);
         env.variables.set(key("x"), Value::Float(5.0));
         // Budget 3 pays the load, the first push and its constant; the next instruction finds it
@@ -544,7 +544,7 @@ mod tests {
         assert!(vm.stopped);
         assert_eq!(env.sink.take(), [step_msg(3)]);
         // Budget 2: the push half runs, the constant's step is not paid.
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.total_steps = Some(2);
         env.variables.set(key("x"), Value::Float(5.0));
         let mut vm = Vm::<NoHost, NV>::new(&fused, Some(2));
@@ -562,7 +562,7 @@ mod tests {
     #[test]
     fn charge_pays_up_to_the_remaining_budget() {
         let program = asm(vec![Instr::End]);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.total_steps = Some(77);
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(10));
@@ -578,7 +578,7 @@ mod tests {
     #[test]
     fn charge_past_the_budget_spends_it_stops_and_reports_the_whole_budget() {
         let program = asm(vec![Instr::End]);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.total_steps = Some(77);
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(10));
@@ -595,7 +595,7 @@ mod tests {
     #[test]
     fn a_member_store_charges_four_per_new_level_and_writes() {
         let program = asm(vec![Instr::End]);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(100));
         let whole = vm
@@ -616,7 +616,7 @@ mod tests {
     #[test]
     fn a_member_store_of_an_actor_array_also_pays_one_step_per_entry() {
         let program = asm(vec![Instr::End]);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(100));
         let herd = NV::actor_array([(); 3]);
@@ -636,7 +636,7 @@ mod tests {
                 total_steps: Some(50),
                 ..EvalLimits::DEFAULT
             },
-            ..NoHostEnv::new()
+            ..test_env()
         };
         let mut cx = env.cx();
         // The budget cannot pay the 4 steps: the step message wins over width and depth.
@@ -653,7 +653,7 @@ mod tests {
     #[test]
     fn a_member_store_that_widens_a_full_struct_stops_and_writes_nothing() {
         let program = asm(vec![Instr::End]);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.struct_members = Some(2);
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(100));
@@ -671,7 +671,7 @@ mod tests {
         );
 
         // An existing member is never refused.
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.struct_members = Some(2);
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(100));
@@ -685,7 +685,7 @@ mod tests {
     #[test]
     fn a_member_store_that_nests_too_deep_stops_with_the_depth_message() {
         let program = asm(vec![Instr::End]);
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.struct_depth = Some(2);
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(100));
@@ -712,7 +712,7 @@ mod tests {
         assert_eq!(steps_needed("v.s.a.b = 1;", |_| {}), 4 + 8);
         assert_eq!(steps_needed("v.s.a.b.c = 1;", |_| {}), 4 + 12);
         // A struct already holding three members pays them too.
-        let three = |env: &mut NoHostEnv| {
+        let three = |env: &mut TestEnv| {
             env.variables
                 .set(key("s"), NV::structure(StructValue::xyz(1.0, 2.0, 3.0)));
         };
@@ -744,7 +744,7 @@ mod tests {
     #[test]
     fn storing_an_actor_array_costs_one_step_per_entry() {
         let with = |len: usize| {
-            move |env: &mut NoHostEnv| {
+            move |env: &mut TestEnv| {
                 env.context
                     .set(ContextName::new("arr"), NV::actor_array(vec![(); len]));
             }
@@ -767,7 +767,7 @@ mod tests {
     #[test]
     fn a_store_that_the_budget_cannot_pay_stops_before_writing() {
         let expr = compile_ok("v.x = c.arr; v.y = 1;");
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.total_steps = Some(6);
         env.context
             .set(ContextName::new("arr"), NV::actor_array(vec![(); 10]));
@@ -792,7 +792,7 @@ mod tests {
     #[test]
     fn a_step_budget_applies_to_each_evaluation_separately() {
         let expr = compile_ok("v.x * v.y");
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         env.limits.total_steps = Some(5);
         set(&mut env, &[("x", 2.0), ("y", 3.0)]);
         for _ in 0..3 {
@@ -826,10 +826,10 @@ mod tests {
             &["variable.x"],
             &[],
         );
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         assert_eq!(run_general(&p, &mut env, 100), (NV::Float(13.0), 97));
         assert_eq!(env.variables.get(x), Some(&NV::Float(5.0)));
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, f32>::new(&p, Some(100));
         vm.run(&p, &mut cx, 0, Base::ROOT).unwrap();
@@ -844,7 +844,7 @@ mod tests {
             &["temp.t"],
             &[0],
         );
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&p, Some(100));
         vm.run(&p, &mut cx, 0, Base::ROOT).unwrap();
@@ -864,7 +864,7 @@ mod tests {
             path: vec![HashedStr::new("m")].into_boxed_slice(),
         }]
         .into_boxed_slice();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         assert_eq!(run_general(&p, &mut env, 100).0, NV::Float(13.0));
         let stored = env
             .variables
@@ -889,7 +889,7 @@ mod tests {
             Instr::End,
         ]);
         p.consts = vec![5.0].into_boxed_slice();
-        let mut env = NoHostEnv::new();
+        let mut env = test_env();
         assert_eq!(run_general(&p, &mut env, 100).0, NV::Float(5.0));
         let mut p = asm(vec![
             Instr::Const { c: ConstIdx(0) },

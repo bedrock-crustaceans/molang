@@ -11,10 +11,10 @@
 
 #[cfg(feature = "vm")]
 use crate::common::host::{Env, LevelSink};
+#[cfg(feature = "vm")]
+use crate::common::rng::Xorshift128;
 use molang::compile::{CompileFailure, CompileOptions, Deviations, compile};
 use molang::numeric::{LinuxRelease, Platform};
-#[cfg(feature = "vm")]
-use molang::rng::Xorshift128;
 use molang::version::MolangVersion;
 #[cfg(feature = "vm")]
 use molang::vm::{LogLevel, Value};

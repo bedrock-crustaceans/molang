@@ -2459,20 +2459,9 @@ mod fixed_generator {
 }
 
 mod generator {
-    use molang::rng::{
-        FixedRng, RandomSource, Xorshift128,
-        rand_core::{Rng, SeedableRng},
-    };
+    use molang::rng::{FixedRng, RandomSource, unit_31};
 
-    #[test]
-    fn standard_seeds() {
-        assert_eq!(
-            Xorshift128::STANDARD_SEED,
-            [123_456_789, 362_436_069, 521_288_629, 88_675_123]
-        );
-        assert_eq!(Xorshift128::new().state(), Xorshift128::STANDARD_SEED);
-        assert_eq!(Xorshift128::default(), Xorshift128::new());
-    }
+    use crate::common::rng::Xorshift128;
 
     #[test]
     fn first_outputs_from_the_standard_seeds() {
@@ -2518,34 +2507,8 @@ mod generator {
 
     #[test]
     fn a_sample_can_round_to_exactly_one() {
-        // With x = 0 the next output is w ^ (w >> 19); 0xffffe000 maps to 0xffffffff, whose low 31
-        // bits round up to 2^31 when converted to f32.
-        let mut rng = Xorshift128::with_state([0, 1, 2, 0xffff_e000]);
-        assert_eq!(rng.clone().next_u32(), 0xffff_ffff);
-        assert_eq!(rng.sample(), 1.0);
-    }
-
-    #[test]
-    fn state_and_seed_constructors() {
-        let state = [1, 2, 3, 4];
-        assert_eq!(Xorshift128::with_state(state).state(), state);
-        // The all-zero state is a fixed point of xorshift; it falls back to the standard seeds.
-        assert_eq!(Xorshift128::with_state([0; 4]), Xorshift128::new());
-
-        let (mut a, mut b, mut c) = (
-            Xorshift128::seed_from_u64(1),
-            Xorshift128::seed_from_u64(1),
-            Xorshift128::seed_from_u64(2),
-        );
-        assert_ne!(a.state(), [0; 4]);
-        assert_ne!(Xorshift128::seed_from_u64(0).state(), [0; 4]);
-        let (xs, ys, zs): (Vec<u32>, Vec<u32>, Vec<u32>) = (
-            (0..8).map(|_| a.next_u32()).collect(),
-            (0..8).map(|_| b.next_u32()).collect(),
-            (0..8).map(|_| c.next_u32()).collect(),
-        );
-        assert_eq!(xs, ys);
-        assert_ne!(xs, zs);
+        // The low 31 bits of 0xffffffff round up to 2^31 when converted to f32.
+        assert_eq!(unit_31(0xffff_ffff), 1.0);
     }
 
     #[test]
@@ -2563,12 +2526,12 @@ mod generator {
     }
 
     #[test]
-    fn a_mutable_reference_is_a_source() {
+    fn a_closure_or_a_dynamic_reference_is_a_source() {
         fn draw_two(mut rng: impl RandomSource) -> (f32, f32) {
             (rng.sample(), rng.sample())
         }
         let mut rng = Xorshift128::new();
-        let first = draw_two(&mut rng);
+        let first = draw_two(|| rng.sample());
         let dynamic: &mut dyn RandomSource = &mut rng;
         let second = draw_two(dynamic);
         let mut reference = Xorshift128::new();

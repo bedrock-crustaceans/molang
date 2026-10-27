@@ -17,7 +17,7 @@ mod differential {
         host::{Actor, Env, LIVE_ACTOR, SECOND_ACTOR},
     };
     use molang::compile::{CompileOptions, compile};
-    use molang::rng::Xorshift128;
+    use molang::internals::Xorshift128;
     use molang::version::MolangVersion;
     use molang::vm::{ContextName, EvalLimits, Value, VariableName};
     use molang_fuzz::generator::env::FuzzRng;

@@ -120,7 +120,8 @@ fn log(cx: &mut Cx<'_, '_>) -> QueryResult<FuzzHost> {
 mod tests {
     use super::*;
     use crate::generator::env::{FuzzEnv, FuzzRng, Subject, TempLifetime, test_support::*};
-    use molang::rng::{FixedRng, RandomSource, Xorshift128};
+    use molang::internals::Xorshift128;
+    use molang::rng::{FixedRng, RandomSource};
     use molang::vm::EvalLimits;
 
     #[test]
