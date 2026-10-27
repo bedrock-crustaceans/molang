@@ -291,6 +291,44 @@ mod tests {
     }
 
     #[test]
+    fn the_linux_releases_differ_only_in_the_nan_of_ln() {
+        let arguments = [
+            -INF,
+            -2.0,
+            -1.0,
+            -0.5,
+            -0.0,
+            0.0,
+            1e-30,
+            0.3,
+            0.5,
+            1.0,
+            2.0,
+            13.0,
+            1e30,
+            INF,
+            NAN,
+            f32::from_bits(0x3288_85a3),
+            f32::from_bits(0x3982_6222),
+            f32::from_bits(0x3d8d_6b23),
+            f32::from_bits(0xbd8d_6b23),
+        ];
+        for x in arguments {
+            for y in arguments {
+                assert_eq!(bits(atan2(LINUX, y, x)), bits(atan2(LINUX_1_26_36, y, x)));
+                assert_eq!(bits(pow(LINUX, y, x)), bits(pow(LINUX_1_26_36, y, x)));
+            }
+            for f in [sin, cos, asin, acos, atan, exp, exp2] {
+                assert_eq!(bits(f(LINUX, x)), bits(f(LINUX_1_26_36, x)), "{x}");
+            }
+            if x >= 0.0 || x.is_nan() {
+                assert_eq!(bits(ln(LINUX, x)), bits(ln(LINUX_1_26_36, x)), "{x}");
+            }
+        }
+        assert_ne!(bits(ln(LINUX, -1.0)), bits(ln(LINUX_1_26_36, -1.0)));
+    }
+
+    #[test]
     fn android_takes_exp2_from_pow() {
         for x in [-10.0_f32, -1.0, -0.5, 0.0, 0.3, 1.0, 7.25, 128.0, -150.0] {
             assert_bits(exp2(ANDROID, x), pow(ANDROID, 2.0, x));

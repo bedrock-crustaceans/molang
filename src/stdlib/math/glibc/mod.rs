@@ -4,22 +4,23 @@
 //! On such a CPU glibc runs a build of `sinf`, `cosf`, `expf`, `exp2f`, `logf`, `log2f` and `powf`
 //! compiled for FMA, in which the compiler fused most `a·b + c`: every `mul_add` here stands where
 //! that build has a fused instruction, and every other operation is rounded on its own. `asinf`,
-//! `acosf`, `atanf` and `atan2f` have a single build and fuse only where their source calls `fma`.
+//! `acosf` and `atanf` are correctly rounded, so they take the `f64` functions rounded once, with
+//! a table of the arguments where that differs; `atan2f`, correctly rounded too, is ported.
 //!
 //! A NaN argument comes back quiet (of two, the one glibc adds first); an invalid operation gives
 //! `0xffc00000`, a compatibility wrapper's domain error `0x7fc00000`. A `_compat` suffix marks the
 //! `GLIBC_2.2.5` wrapper where its results differ from the current symbol's.
 
-mod asin_acos;
-mod atan;
+mod atan2;
 mod exp;
+mod inverse_trig;
 mod log;
 mod pow;
 mod sincos;
 
-pub(crate) use asin_acos::{acosf, asinf};
-pub(crate) use atan::{atan2f, atanf};
+pub(crate) use atan2::atan2f;
 pub(crate) use exp::{exp2f, expf};
+pub(crate) use inverse_trig::{acosf, asinf, atanf};
 #[cfg(feature = "fuzz")]
 pub(crate) use log::log2f;
 pub(crate) use log::{logf, logf_compat};

@@ -1,7 +1,8 @@
-//! `atanf` and `atan2f`, correctly rounded: a rational approximation in `f64`, and for `atan2f`
-//! a double-double fallback near rounding boundaries.
+//! `atan2f`, correctly rounded: a rational approximation in `f64`, and a double-double fallback
+//! near rounding boundaries. Unlike the one-argument functions, the `f64` result rounded once
+//! misses it, on subnormal quotients and on rare hard cases.
 
-use super::{hex, nan_sum, quiet};
+use super::{hex, nan_sum};
 
 const PI2: f64 = hex("0x1.921fb54442d18p+0");
 
@@ -22,57 +23,6 @@ fn rational(z2: f64, cn: &[f64; 7], cd: &[f64; 7]) -> (f64, f64) {
     cd4 += z4 * cd[6];
     cd0 += z8 * cd4;
     (cn0, cd0)
-}
-
-const ATAN_CN: [f64; 7] = [
-    hex("0x1.51eccde075d67p-2"),
-    hex("0x1.a76bb5637f2f2p-1"),
-    hex("0x1.81e0eed20de88p-1"),
-    hex("0x1.376c8ca67d11dp-2"),
-    hex("0x1.aec7b69202ac6p-5"),
-    hex("0x1.9561899acc73ep-9"),
-    hex("0x1.bf9fa5b67e6p-16"),
-];
-
-const ATAN_CD: [f64; 7] = [
-    hex("0x1.51eccde075d66p-2"),
-    hex("0x1.dfbdd7b392d28p-1"),
-    hex("0x1p+0"),
-    hex("0x1.fd22bf0e89b54p-2"),
-    hex("0x1.d91ff8b576282p-4"),
-    hex("0x1.653ea99fc9bbp-7"),
-    hex("0x1.1e7fcc202340ap-12"),
-];
-
-/// `atanf`.
-pub(crate) fn atanf(x: f32) -> f32 {
-    let t = x.to_bits();
-    let e = (t >> 23) & 0xff;
-    let gt = e >= 127;
-    let ta = t & 0x7fff_ffff;
-    if ta >= 0x4c70_0518 {
-        if ta > 0x7f80_0000 {
-            return quiet(x);
-        }
-        return PI2.copysign(f64::from(x)) as f32;
-    }
-    if e < 127 - 13 {
-        if e < 127 - 25 {
-            if t << 1 == 0 {
-                return x;
-            }
-            return (-x).mul_add(x.abs(), x);
-        }
-        return (hex("-0x1.5555555555555p-2") as f32 * x).mul_add(x * x, x);
-    }
-    let z = if gt { 1.0 / f64::from(x) } else { f64::from(x) };
-    let (cn0, cd0) = rational(z * z, &ATAN_CN, &ATAN_CD);
-    let r = cn0 * z / cd0;
-    if !gt {
-        return r as f32;
-    }
-    let r = hex("0x1.0fdaa22168c23p-7").copysign(z) - r + hex("0x1.9p0").copysign(z);
-    r as f32
 }
 
 const ATAN2_CN: [f64; 7] = [
@@ -289,12 +239,6 @@ pub(crate) fn atan2f(y: f32, x: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stdlib::math::glibc::test_support::check_rows;
-
-    #[test]
-    fn atanf_matches_glibc() {
-        check_rows("atanf", atanf, ATANF);
-    }
 
     #[test]
     fn atan2f_matches_glibc() {
@@ -304,44 +248,29 @@ mod tests {
         }
     }
 
-    /// Reference results of glibc's `atanf`.
-    const ATANF: &[(u32, u32)] = &[
-        (0x0000_0000, 0x0000_0000),
-        (0x8000_0000, 0x8000_0000),
-        (0x7f80_0000, 0x3fc9_0fdb),
-        (0xff80_0000, 0xbfc9_0fdb),
-        (0x7fc0_0000, 0x7fc0_0000),
-        (0xffc0_0000, 0xffc0_0000),
-        (0x7f80_0001, 0x7fc0_0001),
-        (0xffc1_2345, 0xffc1_2345),
-        (0x0000_0001, 0x0000_0001),
-        (0x807f_ffff, 0x807f_ffff),
-        (0x0080_0000, 0x0080_0000),
-        (0x7f7f_ffff, 0x3fc9_0fdb),
-        (0xff7f_ffff, 0xbfc9_0fdb),
-        (0x3f80_0000, 0x3f49_0fdb),
-        (0xbf80_0000, 0xbf49_0fdb),
-        (0x4c70_0518, 0x3fc9_0fdb),
-        (0x4c70_0517, 0x3fc9_0fda),
-        (0x3900_0000, 0x3900_0000),
-        (0x38ff_ffff, 0x38ff_ffff),
-        (0x3300_0000, 0x3300_0000),
-        (0x32ff_ffff, 0x32ff_ffff),
-        (0x3d8d_6b23, 0x3d8d_31c3),
-        (0x4bff_ffff, 0x3fc9_0fda),
-        (0xc22d_f52e, 0xbfc6_1e84),
-        (0xc213_7187, 0xbfc5_971c),
-        (0x41e8_9220, 0x3fc4_a924),
-        (0xc22f_4960, 0xbfc6_243a),
-        (0x41bd_cbd8, 0x3fc3_ab7c),
-        (0xc1a4_ca70, 0xbfc2_da55),
-        (0xc187_a700, 0xbfc1_859f),
-        (0xc0fb_e2c0, 0xbfb8_e322),
-        (0xc0ec_7c00, 0xbfb7_d89b),
-        (0xc209_ca43, 0xbfc5_58e1),
-        (0x41fb_b918, 0x3fc4_fece),
-        (0xc16a_2a38, 0xbfc0_545c),
-    ];
+    #[test]
+    fn atan2f_rounds_where_the_rounded_f64_result_does_not() {
+        for &(y, x, expected) in &[
+            // y/x is a midpoint of two subnormals: glibc rounds toward zero.
+            (0x007f_ffff_u32, 0x4000_0000_u32, 0x003f_ffff_u32),
+            (0x807f_ffff, 0x4000_0000, 0x803f_ffff),
+            (0x0000_0003, 0x4000_0000, 0x0000_0001),
+            (0x00ff_ffff, 0x4000_0000, 0x007f_ffff),
+            (0x4080_89d4, 0xc01d_7cd0, 0x4007_b537),
+            (0xbfdc_6bc0, 0xc244_e269, 0xc046_d2e1),
+            (0x402d_8a54, 0xc113_a9c8, 0x4036_c5cf),
+        ] {
+            let (yf, xf) = (f32::from_bits(y), f32::from_bits(x));
+            let got = atan2f(yf, xf).to_bits();
+            assert_eq!(got, expected, "atan2f({y:#010x}, {x:#010x}) = {got:#010x}");
+            let rounded = crate::stdlib::math::transcendental::atan2(yf, xf).to_bits();
+            assert_eq!(
+                rounded.abs_diff(expected),
+                1,
+                "atan2f({y:#010x}, {x:#010x})"
+            );
+        }
+    }
 
     /// Reference results of glibc's `atan2f`, as `(y, x, atan2f(y, x))`.
     const ATAN2F: &[(u32, u32, u32)] = &[

@@ -382,6 +382,16 @@ fn check_binary(index: usize) {
             }
         }
     }
+    if name.starts_with("atan2f") {
+        // Subnormal quotients, where an exact `y/x` can be a midpoint of two results.
+        let divisors = [1.5_f32, 2.0, 3.0, 5.0, 7.0, 10.0, 1e3, 2e20, 3e30];
+        for b in (1..0x0080_0000_u32).step_by(97) {
+            for x in divisors {
+                check(f32::from_bits(b), x);
+                check(f32::from_bits(b | 0x8000_0000), x);
+            }
+        }
+    }
     m.assert_none();
 }
 
