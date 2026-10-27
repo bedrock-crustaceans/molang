@@ -201,7 +201,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | --- | --- | --- |
 | (always) | `version`: `MolangVersion`, `RawVersion`, `EngineVersion` and the engine-version map, experiments, the re-exported `semver`; `json`: `MolangSource`, `MolangValueRepr` and its readers; `hash`: `HashedStr`; `catalog`: the query catalogue and declaration types; `ops`: the operator table and `OpSet` | |
 | `stdlib` | `stdlib`: the queries (`stdlib::queries`, `stdlib::query`), the `math.*` table (`MathFn`) and, with `compiler`, the math library (`stdlib::math`) and `CompileOptions::server` / `client` | |
-| `compiler` | `compile`: `compile`, `CompileOptions`, `Compiled`, `Expr`, `ProgramFlags` and the limits (`MAX_DEPTH`, `MAX_SOURCE_LEN`, `MAX_DIAGNOSTICS`); `diag`: `Diagnostic` and `LanguageMessage`; `numeric`: the float semantics; `rng`: the random sources, over `rand_core` 0.10; `catalog::MathCatalog`: host math functions | |
+| `compiler` | `compile`: `compile`, `CompileOptions`, `Compiled`, `Expr`, `ProgramFlags` and the limits (`MAX_DEPTH`, `MAX_SOURCE_LEN`, `MAX_DIAGNOSTICS`); `diag`: `Diagnostic` and `LanguageMessage`; `numeric`: the float semantics; `rng`: the random sources and the mappings of a generator word; `catalog::MathCatalog`: host math functions | |
 | `vm` | `vm`: `Value`, the `Host` traits, variable storage and `EvalLimits`; `Expr::eval` | `compiler` |
 | `cache` | `cache::CompileCache`, a concurrent compile cache keyed by version, options and source | `compiler` |
 | `facet` | `Facet` impls for `json::MolangSource` and `json::MolangValueRepr` | |
@@ -264,7 +264,7 @@ assert_eq!(expr.platform(), Platform::BdsWindows);
 assert_eq!(expr.as_constant(), Some(-1.0));
 ```
 
-Every platform rounds each multiply, add and divide on its own in formula order, makes every comparison with a NaN false and returns the second operand from `math.min` / `math.max` when either is NaN. The servers return the left NaN operand of an arithmetic operation quietened and `0xffc00000` for an invalid one; Android returns the first signalling NaN operand quietened, else the first quiet one, `0x7fc00000` for an invalid one, and saturates a float → int conversion (`loop` and die counts, array indices) with NaN as 0 where the servers give `i32::MIN`. The NaN of an invalid standard function differs too: `math.ln` of a negative number changed sign between Linux releases. The transcendental functions are ports of glibc's single-precision ones on Linux and, as the closest match, on Android; on Windows they are evaluated in `f64` and rounded once. `numeric::Platform` lists every difference.
+Every platform rounds each multiply, add and divide on its own in formula order, makes every comparison with a NaN false and returns the second operand from `math.min` / `math.max` when either is NaN. The servers return the left NaN operand of an arithmetic operation quietened and `0xffc00000` for an invalid one; Android returns the first signalling NaN operand quietened, else the first quiet one, `0x7fc00000` for an invalid one, and saturates a float → int conversion (`loop` and die counts, array indices) with NaN as 0 where the servers give `i32::MIN`. The NaN of an invalid standard function differs too: `math.ln` of a negative number changed sign between Linux releases. The transcendental functions are glibc's single-precision ones on Linux. Android takes glibc's algorithms for `sin`, `cos`, `exp`, `exp2`, `ln` and `pow`, which its C library shares, and FreeBSD's for `asin`, `acos`, `atan` and `atan2`, which its C library builds from: a best effort, not checked against a device. On Windows they are evaluated in `f64` and rounded once. `numeric::Platform` lists every difference.
 
 The arithmetic and the standard functions choose the sign and payload of the NaNs they return, so those are the same on every host too. On 32-bit x86 a value returned through the x87 register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
 
@@ -294,19 +294,60 @@ assert!(!limits.is_unlimited());
 
 `temp.*` starts empty in every evaluation; `temps: Temps::Kept(TempMap::new())` on a `HostEnv` or `NoHostEnv` keeps them in a map nothing clears.
 
-The random source is any `rng::RandomSource`: each draw of `math.random*` and `math.die_roll*` is one `sample()`, and the source decides how its generator's output becomes the sample. Which source to use depends on where the expression runs:
+The random source is any `rng::RandomSource`: each draw of `math.random*` and `math.die_roll*` is one `sample()`, and the source decides how its generator's word becomes the sample. A closure `FnMut() -> f32` is a source. `HostEnv` and `NoHostEnv` draw from `vm::ProcessRng` unless `with_rng` gives them another. Which source to use depends on where the expression runs:
 
-| Where | Generator | Sample from one 32-bit output `u` | Source |
+| Where | Generator | Sample from one 32-bit word `u` | Source |
 |---|---|---|---|
-| Entities, items, blocks, commands, scripting, camera, and `math.random` in particles | one xorshift128 for the whole process, from the standard seeds | `(u & 0x7fff_ffff) · 2^-31` in `f32` | `ProcessRng`, or a `Xorshift128` per environment |
+| Entities, items, blocks, commands, scripting, camera, and `math.random` in particles | one xorshift128 for the whole process, from the standard seeds | `rng::unit_31(u)`: `(u & 0x7fff_ffff) · 2^-31` in `f32` | `ProcessRng`, the default |
 | The UI player preview (paper doll) | none: a constant | 0 | `FixedRng::ZERO` |
-| A feature rule's expressions | MT19937 seeded per chunk | `u · 2^-32` in `f64`, then rounded to `f32` | `MersenneTwister::for_chunk_decoration(level_seed, chunk_x, chunk_z)` |
-| A scatter feature placed by a feature rule | MT19937 seeded per rule, shared with the scatter's own placement draws | as above | `MersenneTwister::for_feature_rule(MersenneTwister::for_chunk_decoration(..).seed(), identifier_hash)` |
-| Expressions evaluated directly by sapling growth, `/place feature` and other helper-placed features | MT19937 seeded from the system's random device | as above | `MersenneTwister::new(seed)` |
+| A feature rule's expressions | MT19937 seeded per chunk | `rng::unit_32(u)`: `u · 2^-32` in `f64`, then rounded to `f32` | the host's MT19937, mapped with `unit_32` |
+| A scatter feature placed by a feature rule | MT19937 seeded per rule, shared with the scatter's own placement draws | as above | as above |
+| Expressions evaluated directly by sapling growth, `/place feature` and other helper-placed features | MT19937 per thread, seeded from the system's random device | as above | as above |
 
-The rule's generator for a scatter exists only when the rule's iterations are more than 0. A scatter nested under a helper-placed feature draws from its own placement generator instead (the level's for `/place feature`), and `/place featurerule` runs the feature-rule pass with the level's generator in place of the per-chunk one. The identifier hash is the host's to supply; only its low 32 bits count, and a level seed is taken as its low 32 bits.
+Both mappings can give exactly 1. The crate has no MT19937 of its own; a host seeds one (the `rand_mt` crate's `Mt`, say) as follows:
 
-Both mappings can give exactly 1. Each environment has its own `Xorshift128` started from the same standard seeds, so give each one `Xorshift128::seed_from_u64(...)` (`SeedableRng`) unless identical sequences are wanted; `HostEnv::with_rng(ProcessRng)` gives one process-wide generator, `HostEnv::with_rng(Bits31(generator))` a `rand_core` 0.10 generator of your own under the 31-bit mapping, and `FixedRng` the same sample on every draw. `rand_core` is re-exported as `molang::rng::rand_core` (a new major version of it is a breaking change of this crate).
+- **Chunk seed.** With `S` the level seed as 32 bits, take `a` and `b`, the first two words of `MT(S)` each shifted right by 1 and with the low bit set; the chunk `(cx, cz)` seeds `MT((cx·a + cz·b) ^ S)` in wrapping 32-bit arithmetic. That generator drives the `math.random` of every rule in the chunk's feature-rule pass, one state across the rules.
+- **Rule seed.** Each rule seeds `MT(((s << 6) + (s >> 2) + h + 0x9e3779b9) ^ s)`, wrapping, with `s` the chunk generator's seed (not its state) and `h` the low 32 bits of the rule identifier's hash. It draws the rule's chance, iterations and coordinate distributions; when the iterations are more than 0, the placed scatter feature gets a second generator, a fresh one of the same seed.
+- **Structure start.** A structure start seeds as the chunk does and then discards one word.
+
+The host supplies `h`, and decides how a 64-bit level seed becomes `S`: taking its low 32 bits is this crate's assumption, not established. `/place featurerule` runs the feature-rule pass with the level's generator in place of the per-chunk one.
+
+```rust
+use molang::compile::{CompileOptions, compile};
+use molang::rng::unit_32;
+use molang::version::MolangVersion;
+use molang::vm::NoHostEnv;
+use rand_mt::Mt;
+
+/// The seed of a chunk's feature-rule pass.
+fn chunk_seed(level_seed: u32, chunk_x: i32, chunk_z: i32) -> u32 {
+    let mut level = Mt::new(level_seed);
+    let a = (level.next_u32() >> 1) | 1;
+    let b = (level.next_u32() >> 1) | 1;
+    (chunk_x.cast_unsigned().wrapping_mul(a)).wrapping_add(chunk_z.cast_unsigned().wrapping_mul(b))
+        ^ level_seed
+}
+
+/// The seed of one rule, from the chunk's seed and the identifier hash's low 32 bits.
+fn rule_seed(chunk_seed: u32, hash: u32) -> u32 {
+    let s = chunk_seed;
+    ((s << 6).wrapping_add(s >> 2).wrapping_add(hash).wrapping_add(0x9e37_79b9)) ^ s
+}
+
+let seed = chunk_seed(12_345, 3, -7);
+assert_eq!((seed, rule_seed(seed, 0xf7a7_6dfd)), (1_197_795_863, 3_348_516_332));
+
+let (expr, _) = compile("math.random(0, 10)", &CompileOptions::server(MolangVersion::LATEST))
+    .into_result()
+    .unwrap();
+let mut chunk = Mt::new(seed);
+let mut source = || unit_32(chunk.next_u32());
+let mut env = NoHostEnv::new();
+let mut cx = env.cx();
+cx.rng = &mut source;
+let value = expr.eval_f32(&mut cx);
+assert!((0.0..=10.0).contains(&value));
+```
 
 The default message sink, `BoundedSink`, keeps the last 64 messages, each cut to 1 KiB; `LogOnce` drops repeats.
 
