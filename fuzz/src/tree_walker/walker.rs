@@ -202,7 +202,7 @@ pub(super) fn with_post<H: Host>(platform: Platform, value: Value<H>, post: Post
     if post.is_identity() {
         value
     } else {
-        Value::Float(post.apply(platform, value.as_f32()))
+        Value::Float(post.apply(platform, value.to_f32()))
     }
 }
 
@@ -301,7 +301,7 @@ mod tests {
             assert_eq!(
                 walker
                     .run(tree(&expr).expect("a tree"), &mut env.cx())
-                    .as_f32(),
+                    .to_f32(),
                 expected,
                 "{src}"
             );
@@ -445,9 +445,9 @@ mod tests {
         );
         // A non-float is read as its float first.
         let hash = Value::<World>::string("a");
-        let expected = PostOp::new(2.0, 1.0).apply(Platform::default(), hash.as_f32());
+        let expected = PostOp::new(2.0, 1.0).apply(Platform::default(), hash.to_f32());
         assert_eq!(
-            bits(post(hash, PostOp::new(2.0, 1.0)).as_f32()),
+            bits(post(hash, PostOp::new(2.0, 1.0)).to_f32()),
             bits(expected)
         );
     }
@@ -595,7 +595,7 @@ mod tests {
         );
         let got = walk(&mut walker, &pi, &mut env.cx());
         assert_eq!(
-            got.map(|v| v.as_f32()),
+            got.map(|v| v.to_f32()),
             Some(std::f32::consts::PI * 2.0 + 1.0)
         );
         assert_eq!(walker.steps, 1);

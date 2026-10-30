@@ -928,7 +928,7 @@ mod tests {
             .set(var("n"), float(f32::from_bits(0x7fc0_1234)));
         assert!(state_difference(&a, &payload).is_some());
         let mut sign = a.clone();
-        let n = a.vars.local.get(var("n")).expect("n").as_f32();
+        let n = a.vars.local.get(var("n")).expect("n").to_f32();
         sign.vars.local.set(var("n"), float(-n));
         assert!(state_difference(&a, &sign).is_some());
         let mut number = a.clone();

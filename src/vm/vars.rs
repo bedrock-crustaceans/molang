@@ -761,7 +761,7 @@ mod tests {
         }
         let mut seen: Vec<(HashedStr, f32)> = map
             .iter()
-            .map(|(name, value)| (name.hashed(), value.as_f32()))
+            .map(|(name, value)| (name.hashed(), value.to_f32()))
             .collect();
         seen.sort_by_key(|(name, _)| *name);
         let mut want: Vec<(HashedStr, f32)> = names

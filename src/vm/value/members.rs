@@ -423,7 +423,7 @@ mod tests {
         s.set(h("b"), V::Float(20.0));
         let members: Vec<_> = s
             .iter()
-            .map(|(name, value)| (name, value.as_f32()))
+            .map(|(name, value)| (name, value.to_f32()))
             .collect();
         assert_eq!(members, [(h("b"), 20.0), (h("a"), 1.0), (h("c"), 3.0)]);
     }
@@ -516,7 +516,7 @@ mod tests {
             V::Struct(Arc::new(s.clone()))
                 .member_path(&path)
                 .unwrap_or_else(|| panic!("{names:?}"))
-                .as_f32()
+                .to_f32()
         };
         let xy = M::xy(1.0, 2.0);
         assert_eq!(

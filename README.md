@@ -56,7 +56,7 @@ fn main() -> Result<(), molang::compile::CompileError> {
 | experience reward entries | `round_to_int(platform)` per entry, which the caller sums |
 | int entity-property defaults | `to_property_int(min..=max, platform)`: `clamp(trunc(x + 2^-23), min, max)` |
 | float entity-property defaults | `to_property_float(min..=max)`: `x > max ? max : (x > min ? x : min)`, so NaN is `min` |
-| animation values, render-controller colours and the other float fields | `as_f32()` |
+| animation values, render-controller colours and the other float fields | `to_f32()` |
 
 ```rust
 use molang::compile::{CompileOptions, compile};

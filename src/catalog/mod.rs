@@ -102,7 +102,7 @@ mod tests {
     #[test]
     fn value_type_re_exports_are_usable() {
         assert_eq!(QuerySide::default(), QuerySide::BOTH);
-        assert_eq!(DefaultReturn::ZERO.as_f32().to_bits(), 0.0_f32.to_bits());
+        assert_eq!(DefaultReturn::ZERO.to_f32().to_bits(), 0.0_f32.to_bits());
         assert!(ReturnType::NUMBER.contains(ReturnType::BOOL));
         assert!(Reads::empty().is_empty());
         assert_eq!(VersionRange::ALWAYS.sets(), QuerySetMask::DEFAULT);

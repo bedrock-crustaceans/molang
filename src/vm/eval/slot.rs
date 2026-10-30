@@ -6,7 +6,7 @@ use crate::vm::{cx::EvalCx, host::Host, value::Value};
 /// What a value is to one instantiation of the interpreter.
 pub(super) trait Slot<H: Host>: Clone + Sized {
     fn float(x: f32) -> Self;
-    /// [`Value::as_f32`].
+    /// [`Value::to_f32`].
     fn f32(&self) -> f32;
     /// `None` when this instantiation cannot hold `value` (deoptimise).
     fn from_ref(value: &Value<H>) -> Option<Self>;
@@ -81,7 +81,7 @@ impl<H: Host> Slot<H> for Value<H> {
 
     #[inline]
     fn f32(&self) -> f32 {
-        self.as_f32()
+        self.to_f32()
     }
 
     #[inline]
@@ -166,7 +166,7 @@ mod tests {
         );
         assert_eq!(
             <NV as Slot<NoHost>>::f32(&NV::string("moo")).to_bits(),
-            NV::string("moo").as_f32().to_bits()
+            NV::string("moo").to_f32().to_bits()
         );
         assert_eq!(<NV as Slot<NoHost>>::float(1.0), NV::Float(1.0));
         assert_eq!(<f32 as Slot<NoHost>>::float(1.0), 1.0);

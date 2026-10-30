@@ -252,7 +252,7 @@ mod float_loop {
                 let float = expr.eval_f32(&mut f32_env.cx());
                 assert_eq!(
                     float.to_bits(),
-                    reference.as_f32().to_bits(),
+                    reference.to_f32().to_bits(),
                     "{source} under {limits:?}: eval_f32"
                 );
                 assert_eq!(
@@ -337,7 +337,7 @@ mod public_api {
         .cloned()
         .expect("expr");
         let mut env = NoHostEnv::new();
-        assert_eq!(tree_walker::eval(&expr, &mut env.cx()).as_f32(), 10.0);
-        assert_eq!(expr.eval(&mut env.cx()).as_f32(), 10.0);
+        assert_eq!(tree_walker::eval(&expr, &mut env.cx()).to_f32(), 10.0);
+        assert_eq!(expr.eval(&mut env.cx()).to_f32(), 10.0);
     }
 }

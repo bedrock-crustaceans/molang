@@ -897,7 +897,7 @@ mod tests {
         let mut env = test_env();
         env.limits.total_steps = Some(12);
         set(&mut env, &[("n", 5.0)]);
-        assert!(expr.eval(&mut env.cx()).as_f32() >= 5.0);
+        assert!(expr.eval(&mut env.cx()).to_f32() >= 5.0);
         assert!(env.sink.is_empty());
     }
 

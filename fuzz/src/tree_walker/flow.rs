@@ -157,7 +157,7 @@ impl<H: Host> Walker<H> {
     /// false with a NaN, so a NaN count never runs out.
     #[inline(never)]
     pub(super) fn counted_loop(&mut self, n: &Node, cx: &mut EvalCx<'_, '_, H>) -> Eval<H> {
-        let count = self.node(child(n, 0), cx)?.as_f32();
+        let count = self.node(child(n, 0), cx)?.to_f32();
         self.step(cx)?;
         if !numeric::le(count, 0.0) {
             self.in_loop(|walker| walker.count_down(count, child(n, 1), cx))?;
@@ -279,7 +279,7 @@ mod tests {
         assert_eq!(float("v.zero || v.y"), 1.0);
         assert_eq!(float("v.zero || v.zero"), 0.0);
         // The right operand is a block with a side effect: it runs only when it can decide.
-        let hit = |src: &str| both(src).env.vars.get(var("hit")).map(V::as_f32);
+        let hit = |src: &str| both(src).env.vars.get(var("hit")).map(V::to_f32);
         assert_eq!(hit("v.zero && { v.hit = 1; };"), None);
         assert_eq!(hit("v.x || { v.hit = 1; };"), None);
         assert_eq!(hit("v.x && { v.hit = 5; };"), Some(5.0));
@@ -542,7 +542,7 @@ mod tests {
         let mut walker = Walker::<World>::new(&expr);
         let mut env = Env::new();
         let value = walker.run(tree(&expr).expect("a tree"), &mut env.cx());
-        assert_eq!(value.as_f32(), 5.0);
+        assert_eq!(value.to_f32(), 5.0);
         assert!(!walker.scope.in_loop && !walker.scope.in_handler);
     }
 

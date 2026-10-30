@@ -853,7 +853,7 @@ mod folding {
                 .cloned()
                 .expect("expr")
                 .eval_f32(&mut env.cx());
-            let stored = env.variables.get(VariableName::new("r")).map(Value::as_f32);
+            let stored = env.variables.get(VariableName::new("r")).map(Value::to_f32);
             (result, stored)
         };
         assert_eq!(

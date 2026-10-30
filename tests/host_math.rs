@@ -526,7 +526,7 @@ mod evaluation {
         let read = |name: &str| {
             env.variables
                 .get(VariableName::new(name))
-                .map(Value::as_f32)
+                .map(Value::to_f32)
         };
         let random = |sample| math::random(Platform::default(), 0.0, 1.0, sample, PostOp::IDENTITY);
         assert_eq!(

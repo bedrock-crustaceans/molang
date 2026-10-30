@@ -285,10 +285,10 @@ mod tests {
     fn probe<H: Host>(cx: &mut QueryCx<'_, '_, H>) -> Result<Value<H>, QueryError> {
         let x = cx
             .variable(VariableName::new("x"))
-            .map_or(0.0, |v| v.as_f32());
+            .map_or(0.0, |v| v.to_f32());
         let k = cx
             .context(ContextName::new("k"))
-            .map_or(0.0, |v| v.as_f32());
+            .map_or(0.0, |v| v.to_f32());
         let this = cx.subjects().this;
         let sample = cx.rng().sample();
         cx.sink().runtime(RuntimeMsg::LoopLimit { limit: 7 });

@@ -87,7 +87,7 @@ fn get_name_test(cx: &mut Cx<'_, '_>) -> Result {
 fn sum_test(cx: &mut Cx<'_, '_>) -> Result {
     let mut sum = 0.0f32;
     for i in 0..cx.arg_count() {
-        sum += cx.arg(i).map_or(0.0, |v| v.as_f32());
+        sum += cx.arg(i).map_or(0.0, |v| v.to_f32());
     }
     Ok(Value::Float(sum))
 }

@@ -575,13 +575,13 @@ mod vm {
     /// `==` takes the right operand's kind, so a string equals the float of its own low bits only
     /// with the string on the left.
     #[test]
-    fn as_f32_and_mixed_equality() {
+    fn to_f32_and_mixed_equality() {
         let low = f32::from_bits(molang::hash::HashedStr::new("a").as_u64() as u32);
         assert_eq!(
-            Value::<NoHost>::string("a").as_f32().to_bits(),
+            Value::<NoHost>::string("a").to_f32().to_bits(),
             low.to_bits()
         );
-        assert_eq!(Value::<NoHost>::Actor(()).as_f32(), 0.0);
+        assert_eq!(Value::<NoHost>::Actor(()).to_f32(), 0.0);
         let eval = |source: &str| {
             compile(source, &CompileOptions::server(MolangVersion::LATEST))
                 .expr()
@@ -2350,10 +2350,10 @@ mod catalog_and_tables {
                 .unwrap_or(DefaultReturn::ZERO);
             assert_eq!(decl.shape().default_return, expected, "{}", decl.name());
         }
-        assert_eq!(DefaultReturn::ONE.as_f32(), 1.0);
-        assert_eq!(DefaultReturn::NEG_ONE.as_f32(), -1.0);
-        assert_eq!(DefaultReturn::EmptyString.as_f32(), 0.0);
-        assert_eq!(DefaultReturn::float(6.0).as_f32(), 6.0);
+        assert_eq!(DefaultReturn::ONE.to_f32(), 1.0);
+        assert_eq!(DefaultReturn::NEG_ONE.to_f32(), -1.0);
+        assert_eq!(DefaultReturn::EmptyString.to_f32(), 0.0);
+        assert_eq!(DefaultReturn::float(6.0).to_f32(), 6.0);
         assert_eq!(FloatBits::new(6.0).to_f32(), 6.0);
         assert_eq!(
             DefaultReturn::float(6.0),

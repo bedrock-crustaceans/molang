@@ -41,7 +41,7 @@ impl<H: Host> Walker<H> {
         let Payload::ArrayVariable(name) = n.value() else {
             return Ok(Value::ZERO);
         };
-        let index = self.node(child(n, 0), cx)?.as_f32();
+        let index = self.node(child(n, 0), cx)?.to_f32();
         self.step(cx)?;
         let element = self.element_of(cx, name, index);
         Ok(with_post(self.platform, element, n.post()))
@@ -297,7 +297,7 @@ mod tests {
                 .temps
                 .as_ref()
                 .and_then(|t| t.get(temp_key("keep")))
-                .map(V::as_f32),
+                .map(V::to_f32),
             Some(6.0)
         );
         let second = both_on("return t.keep + 1;", &first.env);

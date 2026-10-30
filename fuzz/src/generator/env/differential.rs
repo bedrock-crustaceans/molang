@@ -47,7 +47,7 @@ pub fn differential(case: &FuzzCase) -> Result<Verdict, String> {
     let float = expr.eval_f32(&mut again.cx());
     #[cfg(test)]
     let (value, again) = hooks::tamper(&hooks::TAMPER_EARLY, value, again);
-    if float.to_bits() != value.as_f32().to_bits() {
+    if float.to_bits() != value.to_f32().to_bits() {
         return Err(format!(
             "{source:?}: eval_f32 {float} is not the float of eval {value:?}"
         ));
@@ -808,7 +808,7 @@ mod tests {
             ..random
         });
         assert_eq!(
-            value.as_f32().to_bits(),
+            value.to_f32().to_bits(),
             Xorshift128::new().sample().to_bits()
         );
         assert!(matches!(env.rng, FuzzRng::Xorshift(_)));
@@ -875,7 +875,7 @@ mod tests {
                 ..simple(Ex::Bin(BinOp::Div, b(n(2)), b(entity(1))))
             });
             assert_eq!(verdict, Ok(Verdict::Agree), "version {version}");
-            value.as_f32()
+            value.to_f32()
         };
         assert_eq!(division(13), 2.0 / -3.0);
         assert_eq!(division(7), 2.0 / -3.0);
@@ -888,7 +888,7 @@ mod tests {
         // v.n is a NaN: the division gives NaN.
         let (verdict, value, _) = observe(&simple(Ex::Bin(BinOp::Div, b(n(1)), b(entity(2)))));
         assert_eq!(verdict, Ok(Verdict::Agree));
-        assert!(value.as_f32().is_nan());
+        assert!(value.to_f32().is_nan());
     }
 
     #[test]

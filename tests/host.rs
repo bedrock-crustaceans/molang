@@ -51,7 +51,7 @@ mod queries {
     fn reads_variable(cx: &mut QueryCx<'_, '_, NoHost>) -> Result {
         let base = cx
             .variable(VariableName::new("base"))
-            .map_or(0.0, |v| v.as_f32());
+            .map_or(0.0, |v| v.to_f32());
         Ok(Value::Float(base + cx.arg_f32(0).unwrap_or(0.0)))
     }
 
@@ -1394,7 +1394,7 @@ mod public_variables {
     fn hp(env: &mut FarmEnv, actor: u32) -> f32 {
         let (value, messages) = eval_as(env, actor, 0, "v.hp");
         assert!(messages.is_empty(), "{messages:?}");
-        value.as_f32()
+        value.to_f32()
     }
 
     #[test]
@@ -1696,20 +1696,20 @@ mod value_type {
 
     /// Every other non-float kind reads 0.0.
     #[test]
-    fn as_f32_reinterprets_hash_low_bits() {
-        assert_eq!(V::Float(2.5).as_f32(), 2.5);
+    fn to_f32_reinterprets_hash_low_bits() {
+        assert_eq!(V::Float(2.5).to_f32(), 2.5);
         assert_eq!(
-            V::Hash(HashedStr::from_u64(0xdead_beef_3fc0_0000)).as_f32(),
+            V::Hash(HashedStr::from_u64(0xdead_beef_3fc0_0000)).to_f32(),
             1.5
         );
         let hash = h("a").as_u64();
-        assert_eq!(V::string("a").as_f32().to_bits(), hash as u32);
-        assert_eq!(V::Actor(3).as_f32(), 0.0);
-        assert_eq!(V::Item(3).as_f32(), 0.0);
-        assert_eq!(V::actor_array([1]).as_f32(), 0.0);
-        assert_eq!(V::structure(StructValue::xy(1.0, 2.0)).as_f32(), 0.0);
-        assert_eq!(V::identity_matrix().as_f32(), 0.0);
-        assert_eq!(V::Resource(ResourceRef::new("geometry.x")).as_f32(), 0.0);
+        assert_eq!(V::string("a").to_f32().to_bits(), hash as u32);
+        assert_eq!(V::Actor(3).to_f32(), 0.0);
+        assert_eq!(V::Item(3).to_f32(), 0.0);
+        assert_eq!(V::actor_array([1]).to_f32(), 0.0);
+        assert_eq!(V::structure(StructValue::xy(1.0, 2.0)).to_f32(), 0.0);
+        assert_eq!(V::identity_matrix().to_f32(), 0.0);
+        assert_eq!(V::Resource(ResourceRef::new("geometry.x")).to_f32(), 0.0);
     }
 
     /// `is_nonzero` is `x != 0.0`: NaN is true, −0.0 false.
@@ -1758,8 +1758,8 @@ mod value_type {
         assert!(V::Float(1.5).molang_eq(&V::Hash(HashedStr::from_u64(0x3fc0_0000)), alive));
         assert!(!V::Float(1.5).molang_eq(&V::Hash(HashedStr::from_u64(0x1_3fc0_0000)), alive));
         let a = V::string("a");
-        assert!(a.molang_eq(&V::Float(a.as_f32()), alive));
-        assert!(!V::Float(a.as_f32()).molang_eq(&a, alive));
+        assert!(a.molang_eq(&V::Float(a.to_f32()), alive));
+        assert!(!V::Float(a.to_f32()).molang_eq(&a, alive));
         // No payload bits: unequal.
         assert!(!V::Float(0.0).molang_eq(&V::Actor(1), alive));
         assert!(!V::Actor(1).molang_eq(&V::Float(0.0), alive));
@@ -1840,7 +1840,7 @@ mod value_type {
             DefaultReturn::EmptyActorArray,
             DefaultReturn::StructRgba0,
         ] {
-            assert_eq!(V::from(d).as_f32(), d.as_f32());
+            assert_eq!(V::from(d).to_f32(), d.to_f32());
         }
     }
 

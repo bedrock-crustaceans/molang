@@ -80,7 +80,7 @@ impl Expr {
         result
     }
 
-    /// The [`Value::as_f32`] of [`Expr::eval`]; a
+    /// The [`Value::to_f32`] of [`Expr::eval`]; a
     /// [`ProgramFlags::FLOAT_ONLY`](crate::compile::ProgramFlags::FLOAT_ONLY) program does not
     /// allocate.
     ///
@@ -90,7 +90,7 @@ impl Expr {
     /// A string result becomes the **low 32 bits of its hash as an `f32`** (often a NaN or a
     /// denormal, not 0); any other handle becomes 0.0. Needs the stack [`Expr::eval`] needs.
     pub fn eval_f32<H: Host>(&self, cx: &mut EvalCx<'_, '_, H>) -> f32 {
-        self.eval(cx).as_f32()
+        self.eval(cx).to_f32()
     }
 }
 
@@ -288,7 +288,7 @@ pub(crate) mod test_support {
         }
 
         pub(crate) fn num(&self, name: &str) -> f32 {
-            self.var(name).map_or(f32::NAN, Value::as_f32)
+            self.var(name).map_or(f32::NAN, Value::to_f32)
         }
     }
 
@@ -644,10 +644,10 @@ mod tests {
         };
         let vars = ["a", "b", "n", "m", "r", "s", "t", "x", "y", "z"]
             .iter()
-            .map(|n| env.variables.get(key(n)).map(|v| v.as_f32().to_bits()))
+            .map(|n| env.variables.get(key(n)).map(|v| v.to_f32().to_bits()))
             .collect();
         Outcome {
-            value: value.as_f32().to_bits(),
+            value: value.to_f32().to_bits(),
             msgs: env.sink.take(),
             vars,
             rng: env.rng,
@@ -767,7 +767,7 @@ mod tests {
         setup(&mut env);
         assert_eq!(
             expr.eval_f32(&mut env.cx()).to_bits(),
-            NV::string("moo").as_f32().to_bits()
+            NV::string("moo").to_f32().to_bits()
         );
     }
 

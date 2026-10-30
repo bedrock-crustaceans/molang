@@ -42,7 +42,7 @@ fn get_name_test(cx: &mut Cx<'_, '_>) -> QueryResult<FuzzHost> {
 fn sum_test(cx: &mut Cx<'_, '_>) -> QueryResult<FuzzHost> {
     let mut sum = 0.0f32;
     for i in 0..cx.arg_count() {
-        sum += cx.arg(i).map_or(0.0, |v| v.as_f32());
+        sum += cx.arg(i).map_or(0.0, |v| v.to_f32());
     }
     Ok(Value::Float(sum))
 }
@@ -169,7 +169,7 @@ mod tests {
         }
 
         fn number(src: &str) -> f32 {
-            value(src).as_f32()
+            value(src).to_f32()
         }
 
         /// How many random draws running `src` takes (counted up to 10).
@@ -210,13 +210,13 @@ mod tests {
             );
             let mut detached = detached_env();
             assert_eq!(
-                run("q.is_baby", &mut detached).as_f32(),
+                run("q.is_baby", &mut detached).to_f32(),
                 0.0,
                 "no subject actor"
             );
             let mut babies = env();
             babies.world.baby = 0b0010;
-            assert_eq!(run("q.is_baby", &mut babies).as_f32(), 1.0);
+            assert_eq!(run("q.is_baby", &mut babies).to_f32(), 1.0);
         }
 
         #[test]
@@ -303,7 +303,7 @@ mod tests {
             assert_eq!(env.rng, FuzzRng::Xorshift(reference));
             // The first one is the value, and it is drawn first.
             let mut env = xorshift_env();
-            let first = run("q.log(math.random(0, 1), math.random(0, 1))", &mut env).as_f32();
+            let first = run("q.log(math.random(0, 1), math.random(0, 1))", &mut env).to_f32();
             assert_eq!(first.to_bits(), Xorshift128::new().sample().to_bits());
         }
 
@@ -400,7 +400,7 @@ mod tests {
             assert_eq!(draws("q.experimental_test"), 0);
             // The value is the sum of the values drawn.
             let mut env = xorshift_env();
-            let total = run("q.sum_test(math.random(0, 1), math.random(0, 1))", &mut env).as_f32();
+            let total = run("q.sum_test(math.random(0, 1), math.random(0, 1))", &mut env).to_f32();
             let mut reference = Xorshift128::new();
             let expected = reference.sample() + reference.sample();
             assert_eq!(total.to_bits(), expected.to_bits());

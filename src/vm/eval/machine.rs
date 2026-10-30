@@ -44,7 +44,7 @@ impl<H: Host, R: Slot<H>> Vm<H, R> {
             R::from_ref(value)
         } else {
             Some(R::float(
-                program.post(p).apply(program.platform, value.as_f32()),
+                program.post(p).apply(program.platform, value.to_f32()),
             ))
         }
     }
@@ -368,7 +368,7 @@ mod tests {
         assert_eq!(compile_ok("'moo'").eval(&mut env.cx()), NV::string("moo"));
         assert_eq!(
             compile_ok("'moo'").eval_f32(&mut env.cx()).to_bits(),
-            NV::string("moo").as_f32().to_bits()
+            NV::string("moo").to_f32().to_bits()
         );
         assert_eq!(compile_ok("2.5").eval_f32(&mut env.cx()), 2.5);
         assert!(env.sink.is_empty());

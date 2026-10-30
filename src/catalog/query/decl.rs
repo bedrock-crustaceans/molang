@@ -149,7 +149,7 @@ impl DefaultReturn {
 
     /// The float the default reads as in arithmetic; 0 for the non-float defaults (the empty
     /// string hashes to 0).
-    pub const fn as_f32(self) -> f32 {
+    pub const fn to_f32(self) -> f32 {
         match self {
             Self::Float(bits) => bits.to_f32(),
             Self::EmptyString | Self::EmptyActorArray | Self::StructRgba0 => 0.0,
@@ -561,7 +561,7 @@ mod tests {
     }
 
     #[test]
-    fn default_return_as_f32_for_every_variant() {
+    fn default_return_to_f32_for_every_variant() {
         for (default, value) in [
             (DefaultReturn::ZERO, 0.0f32),
             (DefaultReturn::ONE, 1.0),
@@ -572,7 +572,7 @@ mod tests {
             (DefaultReturn::EmptyActorArray, 0.0),
             (DefaultReturn::StructRgba0, 0.0),
         ] {
-            assert_eq!(default.as_f32().to_bits(), value.to_bits(), "{default:?}");
+            assert_eq!(default.to_f32().to_bits(), value.to_bits(), "{default:?}");
         }
         assert_eq!(DefaultReturn::default(), DefaultReturn::ZERO);
         assert_eq!(format!("{:?}", DefaultReturn::float(6.0)), "Float(6.0)");

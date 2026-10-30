@@ -1169,7 +1169,7 @@ mod eval_budgets {
                             "took {:?}",
                             started.elapsed()
                         );
-                        let passes = env.variables.get(VariableName::new("i")).map(Value::as_f32);
+                        let passes = env.variables.get(VariableName::new("i")).map(Value::to_f32);
                         (result, env.sink.take(), passes)
                     })
                     .expect("thread")
@@ -1400,7 +1400,7 @@ mod eval_budgets {
             assert_eq!(
                 run(2, true),
                 (
-                    Value::Float(Value::<molang::vm::NoHost>::string("moo").as_f32()),
+                    Value::Float(Value::<molang::vm::NoHost>::string("moo").to_f32()),
                     vec![]
                 )
             );

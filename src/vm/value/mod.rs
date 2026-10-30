@@ -165,7 +165,7 @@ impl<H: Host> Value<H> {
     /// The value as arithmetic reads it, never `None`: a float is itself, a string is the low 32
     /// bits of its hash reinterpreted as an `f32`, and every other kind is 0.0.
     #[inline]
-    pub const fn as_f32(&self) -> f32 {
+    pub const fn to_f32(&self) -> f32 {
         match self {
             Self::Float(x) => *x,
             Self::Hash(h) => f32::from_bits(h.as_u64() as u32),
@@ -173,7 +173,7 @@ impl<H: Host> Value<H> {
         }
     }
 
-    /// The number of a float value; `None` for every other kind (see [`as_f32`](Self::as_f32)).
+    /// The number of a float value; `None` for every other kind (see [`to_f32`](Self::to_f32)).
     pub const fn as_float(&self) -> Option<f32> {
         match self {
             Self::Float(x) => Some(*x),
@@ -483,24 +483,24 @@ mod tests {
     }
 
     #[test]
-    fn as_f32_reinterprets_hash_low_bits() {
-        assert_eq!(V::Float(2.5).as_f32(), 2.5);
+    fn to_f32_reinterprets_hash_low_bits() {
+        assert_eq!(V::Float(2.5).to_f32(), 2.5);
         assert_eq!(
-            V::Hash(HashedStr::from_u64(0xdead_beef_3fc0_0000)).as_f32(),
+            V::Hash(HashedStr::from_u64(0xdead_beef_3fc0_0000)).to_f32(),
             1.5
         );
         let hash = h("a").as_u64();
-        assert_eq!(V::string("a").as_f32().to_bits(), hash as u32);
-        assert_eq!(V::Actor(3).as_f32(), 0.0);
-        assert_eq!(V::Item(3).as_f32(), 0.0);
-        assert_eq!(V::actor_array([1]).as_f32(), 0.0);
-        assert_eq!(V::structure(StructValue::xy(1.0, 2.0)).as_f32(), 0.0);
-        assert_eq!(V::identity_matrix().as_f32(), 0.0);
-        assert_eq!(V::Resource(ResourceRef::new("geometry.x")).as_f32(), 0.0);
+        assert_eq!(V::string("a").to_f32().to_bits(), hash as u32);
+        assert_eq!(V::Actor(3).to_f32(), 0.0);
+        assert_eq!(V::Item(3).to_f32(), 0.0);
+        assert_eq!(V::actor_array([1]).to_f32(), 0.0);
+        assert_eq!(V::structure(StructValue::xy(1.0, 2.0)).to_f32(), 0.0);
+        assert_eq!(V::identity_matrix().to_f32(), 0.0);
+        assert_eq!(V::Resource(ResourceRef::new("geometry.x")).to_f32(), 0.0);
     }
 
     #[test]
-    fn as_f32_of_a_non_float_is_positive_zero_not_negative_zero() {
+    fn to_f32_of_a_non_float_is_positive_zero_not_negative_zero() {
         let others = [
             V::Actor(3),
             V::Item(3),
@@ -510,16 +510,16 @@ mod tests {
             V::Resource(ResourceRef::new("texture.default")),
         ];
         for value in others {
-            assert_eq!(value.as_f32().to_bits(), 0, "{value:?}");
+            assert_eq!(value.to_f32().to_bits(), 0, "{value:?}");
         }
         // The empty string hashes to 0.
-        assert_eq!(V::string("").as_f32().to_bits(), 0);
+        assert_eq!(V::string("").to_f32().to_bits(), 0);
     }
 
     #[test]
-    fn as_f32_of_a_float_keeps_every_bit_pattern() {
+    fn to_f32_of_a_float_keeps_every_bit_pattern() {
         for bits in [0u32, 0x8000_0000, 1, 0x7f80_0000, 0xff80_0000, 0x7fc0_0001] {
-            assert_eq!(V::Float(f32::from_bits(bits)).as_f32().to_bits(), bits);
+            assert_eq!(V::Float(f32::from_bits(bits)).to_f32().to_bits(), bits);
         }
     }
 
@@ -621,7 +621,7 @@ mod tests {
             DefaultReturn::EmptyActorArray,
             DefaultReturn::StructRgba0,
         ] {
-            assert_eq!(V::from(d).as_f32(), d.as_f32());
+            assert_eq!(V::from(d).to_f32(), d.to_f32());
         }
     }
 
@@ -790,8 +790,8 @@ mod tests {
         assert!(V::Float(1.5).molang_eq(&V::Hash(HashedStr::from_u64(0x3fc0_0000)), alive));
         assert!(!V::Float(1.5).molang_eq(&V::Hash(HashedStr::from_u64(0x1_3fc0_0000)), alive));
         let a = V::string("a");
-        assert!(a.molang_eq(&V::Float(a.as_f32()), alive));
-        assert!(!V::Float(a.as_f32()).molang_eq(&a, alive));
+        assert!(a.molang_eq(&V::Float(a.to_f32()), alive));
+        assert!(!V::Float(a.to_f32()).molang_eq(&a, alive));
         // No payload bits: unequal.
         assert!(!V::Float(0.0).molang_eq(&V::Actor(1), alive));
         assert!(!V::Actor(1).molang_eq(&V::Float(0.0), alive));
@@ -831,8 +831,8 @@ mod tests {
         assert!(!V::Float(1.5).molang_eq(&V::Hash(HashedStr::from_u64(0x1_3fc0_0000)), alive));
         // Asymmetric: the string equals the float built from its low bits, not the other way round.
         let a = V::string("a");
-        assert!(a.molang_eq(&V::Float(a.as_f32()), alive));
-        assert!(!V::Float(a.as_f32()).molang_eq(&a, alive));
+        assert!(a.molang_eq(&V::Float(a.to_f32()), alive));
+        assert!(!V::Float(a.to_f32()).molang_eq(&a, alive));
         // NaN bits are compared as bits on this side, so a NaN equals the hash of its own bits.
         assert!(
             V::Float(f32::from_bits(0x7fc0_0000))

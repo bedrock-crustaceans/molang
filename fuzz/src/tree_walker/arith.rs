@@ -82,12 +82,12 @@ impl<H: Host> Walker<H> {
     /// `a / b` (`Div`): the divisor first, then the guard; the numerator only if it passes.
     #[inline(never)]
     fn div(&mut self, n: &Node, cx: &mut EvalCx<'_, '_, H>) -> Eval<H> {
-        let d = self.node(child(n, 1), cx)?.as_f32();
+        let d = self.node(child(n, 1), cx)?.to_f32();
         self.step(cx)?;
         match numeric::div_guard(self.signed_division, d) {
             None => Ok(Value::ZERO),
             Some(divisor) => {
-                let a = self.node(child(n, 0), cx)?.as_f32();
+                let a = self.node(child(n, 0), cx)?.to_f32();
                 self.step(cx)?;
                 Ok(Value::Float(numeric::div(
                     self.platform,
@@ -110,7 +110,7 @@ impl<H: Host> Walker<H> {
     /// A prefix operator or a one-operand math function.
     #[inline(never)]
     fn unary_math(&mut self, f: Unary, n: &Node, cx: &mut EvalCx<'_, '_, H>) -> Eval<H> {
-        let x = self.node(child(n, 0), cx)?.as_f32();
+        let x = self.node(child(n, 0), cx)?.to_f32();
         self.step(cx)?;
         Ok(Value::Float(f(self.platform, x, n.post())))
     }
@@ -119,7 +119,7 @@ impl<H: Host> Walker<H> {
     #[inline(never)]
     fn ternary_math(&mut self, function: Ternary, n: &Node, cx: &mut EvalCx<'_, '_, H>) -> Eval<H> {
         let (a, b) = self.two(n, cx)?;
-        let c = self.node(child(n, 2), cx)?.as_f32();
+        let c = self.node(child(n, 2), cx)?.to_f32();
         self.step(cx)?;
         Ok(Value::Float(function(self.platform, a, b, c, n.post())))
     }
@@ -131,7 +131,7 @@ impl<H: Host> Walker<H> {
         let mut args = [0.0; MAX_MATH_ARGS as usize];
         let count = n.children().len().min(args.len());
         for (arg, c) in args.iter_mut().zip(n.children()) {
-            *arg = self.node(c, cx)?.as_f32();
+            *arg = self.node(c, cx)?.to_f32();
             // The push after each argument but the last, then the call itself.
             self.step(cx)?;
         }
@@ -155,7 +155,7 @@ impl<H: Host> Walker<H> {
         cx: &mut EvalCx<'_, '_, H>,
     ) -> Eval<H> {
         let (count, a) = self.two(n, cx)?;
-        let b = self.node(child(n, 2), cx)?.as_f32();
+        let b = self.node(child(n, 2), cx)?.to_f32();
         self.step(cx)?;
         let mut roll = start(self.platform, count, a, b);
         while roll.remaining() > 0 {
@@ -203,7 +203,7 @@ impl<H: Host> Walker<H> {
         // A constant operand counts as the second operand whichever side it was written on (shared
         // with the VM).
         if n.children().len() == 1 {
-            let a = self.node(child(n, 0), cx)?.as_f32();
+            let a = self.node(child(n, 0), cx)?.to_f32();
             self.step(cx)?;
             Ok((a, moved_constant(n)))
         } else {
@@ -231,7 +231,7 @@ impl<H: Host> Walker<H> {
         self.step(cx)?;
         let b = self.node(child(n, 1), cx)?;
         self.step(cx)?;
-        Ok((a.as_f32(), b.as_f32()))
+        Ok((a.to_f32(), b.to_f32()))
     }
 
     /// The n-ary `+` (`Add`): the first term pushed, the middle ones accumulated into it, the
@@ -247,14 +247,14 @@ impl<H: Host> Walker<H> {
             let value = self.node(first, cx)?;
             return self.post_step(value, post, cx);
         };
-        let mut sum = self.node(first, cx)?.as_f32();
+        let mut sum = self.node(first, cx)?.to_f32();
         self.step(cx)?;
         for term in middle {
-            let value = self.node(term, cx)?.as_f32();
+            let value = self.node(term, cx)?.to_f32();
             self.step(cx)?;
             sum = arith::add(self.platform, sum, value);
         }
-        let value = self.node(last, cx)?.as_f32();
+        let value = self.node(last, cx)?.to_f32();
         self.step(cx)?;
         Ok(Value::Float(numeric::add(self.platform, value, sum, post)))
     }
@@ -804,7 +804,7 @@ mod tests {
         let literal = walker
             .arithmetic(Op::Mod, &one, &mut cx)
             .ok()
-            .map(|v| v.as_f32());
+            .map(|v| v.to_f32());
         assert!(
             literal.is_some_and(f32::is_nan),
             "a literal zero divisor has no zero test: {literal:?}"
@@ -814,7 +814,7 @@ mod tests {
             walker
                 .arithmetic(Op::Mod, &two, &mut cx)
                 .ok()
-                .map(|v| v.as_f32()),
+                .map(|v| v.to_f32()),
             Some(0.0)
         );
     }

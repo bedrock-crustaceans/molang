@@ -264,7 +264,7 @@ mod tests {
     fn iterations(count: f32) -> f32 {
         let r = ran(COUNT_LOOP, |env| set(env, &[("c", count), ("n", 0.0)]));
         assert!(r.msgs.is_empty(), "{:?}", r.msgs);
-        r.value.as_f32()
+        r.value.to_f32()
     }
 
     #[test]

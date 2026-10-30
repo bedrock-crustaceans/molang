@@ -164,7 +164,7 @@ mod tests {
         strings(&mut env);
         assert_eq!(
             expr.eval_f32(&mut env.cx()).to_bits(),
-            NV::string("moo").as_f32().to_bits()
+            NV::string("moo").to_f32().to_bits()
         );
     }
 
@@ -303,7 +303,7 @@ mod tests {
         vm.run(program, &mut cx, 0, Base::ROOT).unwrap();
         assert_eq!(
             vm.acc.to_bits(),
-            (NV::string("moo").as_f32() * 2.0).to_bits()
+            (NV::string("moo").to_f32() * 2.0).to_bits()
         );
     }
 
@@ -394,7 +394,7 @@ mod tests {
         assert_eq!(calls(), 1);
         reset_calls();
         let bits = compile_ok("q.is_baby").eval_f32(&mut env.cx()).to_bits();
-        assert_eq!(bits, NV::string("x").as_f32().to_bits());
+        assert_eq!(bits, NV::string("x").to_f32().to_bits());
         assert_eq!(calls(), 1);
     }
 
@@ -415,7 +415,7 @@ mod tests {
         let mut env = query_env(string_x);
         let expr = compile_ok("q.is_baby * 2");
         let value = expr.eval(&mut env.cx());
-        assert_eq!(value, NV::Float(NV::string("x").as_f32() * 2.0));
+        assert_eq!(value, NV::Float(NV::string("x").to_f32() * 2.0));
         assert_eq!(calls(), 1);
     }
 
@@ -447,7 +447,7 @@ mod tests {
         let value = compile_ok("return t.s * 2;").eval_f32(&mut env.cx());
         assert_eq!(
             value.to_bits(),
-            (NV::string("moo").as_f32() * 2.0).to_bits()
+            (NV::string("moo").to_f32() * 2.0).to_bits()
         );
     }
 }

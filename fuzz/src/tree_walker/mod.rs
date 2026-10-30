@@ -49,8 +49,8 @@ use molang::vm::{EvalCx, Host, Subjects, TempMap, Value};
 /// .into_result()
 /// .unwrap();
 /// let mut env = NoHostEnv::new();
-/// assert_eq!(tree_walker::eval(&expr, &mut env.cx()).as_f32(), 10.0);
-/// assert_eq!(expr.eval(&mut env.cx()).as_f32(), 10.0);
+/// assert_eq!(tree_walker::eval(&expr, &mut env.cx()).to_f32(), 10.0);
+/// assert_eq!(expr.eval(&mut env.cx()).to_f32(), 10.0);
 /// ```
 pub fn eval<H: Host>(expr: &Expr, cx: &mut EvalCx<'_, '_, H>) -> Value<H> {
     // A folded or rejected expression runs nothing.
@@ -322,7 +322,7 @@ pub(crate) mod test_support {
         }
 
         pub(crate) fn float(&self, name: &str) -> f32 {
-            self.vars.get(var(name)).map_or(f32::NAN, V::as_f32)
+            self.vars.get(var(name)).map_or(f32::NAN, V::to_f32)
         }
 
         pub(crate) fn messages(&self) -> &[String] {
@@ -355,7 +355,7 @@ pub(crate) mod test_support {
 
     impl Run {
         pub(crate) fn f(&self) -> f32 {
-            self.value.as_f32()
+            self.value.to_f32()
         }
     }
 
@@ -604,7 +604,7 @@ mod tests {
             } else {
                 expr.eval(&mut cx)
             };
-            assert_eq!(value.as_f32(), 1.0, "walker: {walker}");
+            assert_eq!(value.to_f32(), 1.0, "walker: {walker}");
             assert_eq!(cx.subjects, before, "walker: {walker}");
         }
     }

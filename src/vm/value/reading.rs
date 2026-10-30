@@ -12,8 +12,8 @@ use crate::vm::host::Host;
 /// What an int entity property adds before it truncates: 2^-23.
 const PROPERTY_BIAS: f32 = f32::EPSILON;
 
-/// The readings of a result. Each starts from [`Value::as_f32`] (a string is the low bits of its
-/// hash, every handle and resource 0.0), and a field that wants a float takes `as_f32` as is. The
+/// The readings of a result. Each starts from [`Value::to_f32`] (a string is the low bits of its
+/// hash, every handle and resource 0.0), and a field that wants a float takes `to_f32` as is. The
 /// readings that truncate depend on the [`Platform`]: out of range or NaN gives `i32::MIN` on a
 /// server and saturates (NaN to 0) on [`Platform::AndroidArm64`].
 ///
@@ -26,38 +26,38 @@ const PROPERTY_BIAS: f32 = f32::EPSILON;
 /// | experience reward entries (summed by the caller) | [`round_to_int`](Self::round_to_int) |
 /// | int entity-property defaults | [`to_property_int`](Self::to_property_int) |
 /// | float entity-property defaults | [`to_property_float`](Self::to_property_float) |
-/// | animation values, render-controller colours and the other float fields | [`as_f32`](Self::as_f32) |
+/// | animation values, render-controller colours and the other float fields | [`to_f32`](Self::to_f32) |
 impl<H: Host> Value<H> {
     /// `x != 0`: NaN is true, `-0.0` false. The reading of item and block descriptor `tags` and of
     /// bool entity-property defaults.
     #[inline]
     pub fn is_nonzero(&self) -> bool {
-        truthy(self.as_f32())
+        truthy(self.to_f32())
     }
 
     /// `x > 0`: NaN is false. The reading of anger-sound conditions.
     #[inline]
     pub fn is_positive(&self) -> bool {
-        self.as_f32() > 0.0
+        self.to_f32() > 0.0
     }
 
     /// `x > 2^-23`: NaN is false. The reading of ambient-sound conditions.
     #[inline]
     pub fn exceeds_epsilon(&self) -> bool {
-        self.as_f32() > f32::EPSILON
+        self.to_f32() > f32::EPSILON
     }
 
     /// `x` truncated to an int as `platform` converts: `2.9` is 2, `-2.9` is −2.
     #[inline]
     pub fn to_int(&self, platform: Platform) -> i32 {
-        to_int(platform, self.as_f32())
+        to_int(platform, self.to_f32())
     }
 
     /// `x` rounded half away from zero, then truncated as `platform` converts. The reading of an
     /// experience reward entry, which the caller sums.
     #[inline]
     pub fn round_to_int(&self, platform: Platform) -> i32 {
-        to_int(platform, self.as_f32().round())
+        to_int(platform, self.to_f32().round())
     }
 
     /// `(int)round(x) != 0`: `0.4` is false and `0.5` true, and a NaN or an `x` beyond the int
