@@ -37,7 +37,7 @@ fn main() -> Result<(), molang::compile::CompileError> {
     assert!(diagnostics.is_empty());
 
     let mut env = NoHostEnv::new();
-    env.variables.set(VariableName::new("speed"), Value::Float(1.5));
+    env.variables_mut().set(VariableName::new("speed"), Value::Float(1.5));
     assert_eq!(expr.eval_f32(&mut env.cx()), 8.0);
     Ok(())
 }
@@ -107,7 +107,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut queries = QueryTable::new(&catalog);
     queries.set("query.double", double)?;
-    let mut env = NoHostEnv { queries: Some(queries), ..NoHostEnv::new() };
+    let mut env = NoHostEnv::new().with_queries(queries);
     assert_eq!(expr.eval_f32(&mut env.cx()), 42.0);
     Ok(())
 }
@@ -127,10 +127,10 @@ fn main() -> Result<(), molang::compile::CompileError> {
     let (expr, _) = compile("c.damage * 0.5 + (c.bonus ?? 1)", &options).into_result()?;
 
     let mut env = NoHostEnv::new();
-    env.context.set(ContextName::new("damage"), Value::Float(4.0));
+    env.context_mut().set(ContextName::new("damage"), Value::Float(4.0));
     assert_eq!(expr.eval_f32(&mut env.cx()), 3.0);
 
-    env.context.set(ContextName::new("bonus"), Value::Float(2.0));
+    env.context_mut().set(ContextName::new("bonus"), Value::Float(2.0));
     assert_eq!(expr.eval_f32(&mut env.cx()), 4.0);
     Ok(())
 }
@@ -155,8 +155,8 @@ fn main() -> Result<(), molang::compile::CompileError> {
 
     let mut env = NoHostEnv::new();
     let skins = [ResourceRef::new("texture.default"), ResourceRef::new("texture.red")];
-    env.arrays.set(ArrayName::new("skins"), skins);
-    env.variables.set(VariableName::new("variant"), Value::Float(3.0));
+    env.arrays_mut().set(ArrayName::new("skins"), skins);
+    env.variables_mut().set(VariableName::new("variant"), Value::Float(3.0));
     assert_eq!(expr.eval(&mut env.cx()), Value::Resource(skins[1]));
     Ok(())
 }
@@ -278,7 +278,7 @@ let limits = EvalLimits::DEFAULT
 assert!(!limits.is_unlimited());
 ```
 
-`temp.*` starts empty in every evaluation; `temps: Temps::Kept(TempMap::new())` on a `HostEnv` or `NoHostEnv` keeps them in a map nothing clears.
+`temp.*` starts empty in every evaluation; `with_temps(Temps::Kept(TempMap::new()))` on a `HostEnv` or `NoHostEnv` keeps them in a map nothing clears.
 
 The random source is any `rng::RandomSource`: each draw of `math.random*` and `math.die_roll*` is one `sample()`, and the source decides how its generator's word becomes the sample. A closure `FnMut() -> f32` is a source. `HostEnv` and `NoHostEnv` draw from `vm::ProcessRng` unless `with_rng` gives them another. Which source to use depends on where the expression runs:
 

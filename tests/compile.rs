@@ -526,7 +526,7 @@ mod lexing {
                 "{source}"
             );
             assert_eq!(
-                env.sink.take(),
+                env.sink_mut().take(),
                 [format!(
                     "Error: unhandled request for unknown variable '{name}'"
                 )],
@@ -841,7 +841,7 @@ mod folding {
             assert_eq!(compiled.failure(), None, "{source}");
             let mut env = NoHostEnv::new();
             for (name, value) in [("x", 2.0), ("y", 3.0), ("z", 5.0), ("w", 0.5), ("c", 1.0)] {
-                env.variables
+                env.variables_mut()
                     .set(VariableName::new(name), Value::Float(value));
             }
             let result = compiled
@@ -849,7 +849,10 @@ mod folding {
                 .cloned()
                 .expect("expr")
                 .eval_f32(&mut env.cx());
-            let stored = env.variables.get(VariableName::new("r")).map(Value::to_f32);
+            let stored = env
+                .variables()
+                .get(VariableName::new("r"))
+                .map(Value::to_f32);
             (result, stored)
         };
         assert_eq!(
@@ -1118,7 +1121,7 @@ mod parsing {
             let logged = messages(&compiled);
             let mut env = NoHostEnv::new();
             for (name, value) in set {
-                env.variables
+                env.variables_mut()
                     .set(VariableName::new(name), Value::Float(*value));
             }
             let value = compiled
@@ -1127,9 +1130,9 @@ mod parsing {
                 .expect("expr")
                 .eval_f32(&mut env.cx());
             assert!(
-                env.sink.is_empty(),
+                env.sink().is_empty(),
                 "{source}: no run-time message, got {:?}",
-                env.sink.take()
+                env.sink_mut().take()
             );
             (value, logged)
         };
@@ -1527,9 +1530,9 @@ mod strings {
                 .expect("compiled")
                 .eval(&mut env.cx());
             assert!(
-                env.sink.messages().is_empty(),
+                env.sink().messages().is_empty(),
                 "{source:?}: {:?}",
-                env.sink.messages()
+                env.sink().messages()
             );
             value
         }
@@ -3193,12 +3196,9 @@ mod pitfalls {
     #[cfg(feature = "vm")]
     fn eval_limited(source: &str, limits: EvalLimits) -> (f32, Vec<String>) {
         let expr = server_expr(source);
-        let mut env = NoHostEnv {
-            limits,
-            ..NoHostEnv::new()
-        };
+        let mut env = NoHostEnv::new().with_limits(limits);
         let value = expr.eval_f32(&mut env.cx());
-        (value, env.sink.take())
+        (value, env.sink_mut().take())
     }
 
     #[test]
@@ -3396,10 +3396,10 @@ mod pitfalls {
             Value::ZERO
         );
         assert_eq!(
-            env.variables.get(VariableName::new("q")),
+            env.variables().get(VariableName::new("q")),
             Some(&Value::Float(1.0))
         );
-        assert_eq!(env.variables.get(VariableName::new("s")), None);
+        assert_eq!(env.variables().get(VariableName::new("s")), None);
     }
 
     /// `math.max` keeps a NaN second operand, and the post-op is rounded twice.
@@ -3439,10 +3439,7 @@ mod pitfalls {
             "t.st = 1; v.x = 0; v.a = 0; for_each(v.x, v.a, 1); t.st = 2; return t.st;",
             13,
         );
-        let mut env = NoHostEnv {
-            temps: Temps::Kept(VariableMap::new()),
-            ..NoHostEnv::new()
-        };
+        let mut env = NoHostEnv::new().with_temps(Temps::Kept(VariableMap::new()));
         assert_eq!(
             compiled
                 .expr()
@@ -3848,7 +3845,7 @@ mod shapes_by_value {
         let expr = client_expr_at(source, version);
         let mut env = NoHostEnv::new().with_rng(Xorshift128::new());
         for &(name, value) in vars {
-            env.variables
+            env.variables_mut()
                 .set(VariableName::new(name), Value::Float(value));
         }
         expr.eval_f32(&mut env.cx())
@@ -4335,9 +4332,9 @@ mod shapes_by_value {
             assert_eq!(run(source, 13, &[("x", x)]), expected, "{source}");
         }
         let mut env = NoHostEnv::new();
-        env.variables
+        env.variables_mut()
             .set(VariableName::new("x"), Value::string("abc"));
-        env.variables
+        env.variables_mut()
             .set(VariableName::new("s"), Value::string("abd"));
         for (source, expected) in [
             ("v.x == 'abc'", 1.0),
@@ -4350,7 +4347,7 @@ mod shapes_by_value {
         let assign = at("v.y = 1;", 13).expr().cloned().expect("compiles");
         assign.eval_f32(&mut env.cx());
         assert_eq!(
-            env.variables.get(VariableName::new("y")),
+            env.variables().get(VariableName::new("y")),
             Some(&Value::Float(1.0))
         );
         at("v.z = 'abc';", 13)
@@ -4359,7 +4356,7 @@ mod shapes_by_value {
             .expect("compiles")
             .eval_f32(&mut env.cx());
         assert_eq!(
-            env.variables.get(VariableName::new("z")),
+            env.variables().get(VariableName::new("z")),
             Some(&Value::string("abc")),
             "a string stays a child of `=`"
         );
@@ -4403,7 +4400,7 @@ mod shapes_by_value {
     #[test]
     fn member_accessors_carry_their_name() {
         let mut env = NoHostEnv::new();
-        env.variables.set(
+        env.variables_mut().set(
             VariableName::new("x"),
             Value::structure(StructValue::from([("y", 2.0), ("z", 5.0)])),
         );

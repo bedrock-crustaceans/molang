@@ -515,15 +515,15 @@ mod eval_budgets {
                         let (result, messages, depth) = on_small_stack(move || {
                             let mut env = NoHostEnv::new();
                             if persistent_temps {
-                                env.temps = Temps::Kept(TempMap::new());
+                                *env.temps_mut() = Temps::Kept(TempMap::new());
                             }
-                            env.limits = limits;
+                            *env.limits_mut() = limits;
                             let result = expr.eval_f32(&mut env.cx());
-                            let messages = env.sink.take();
+                            let messages = env.sink_mut().take();
                             let stored = match root {
-                                "v" => env.variables.get(VariableName::new("a")),
+                                "v" => env.variables().get(VariableName::new("a")),
                                 _ => env
-                                    .temps
+                                    .temps()
                                     .kept()
                                     .and_then(|temps| temps.get(TempName::new("a"))),
                             };
@@ -562,32 +562,29 @@ mod eval_budgets {
             let store = |members: usize| format!("v.x{} = 1; return 7;", ".m".repeat(members));
             let mut env = NoHostEnv::new();
             assert_eq!(expr(&store(32)).eval_f32(&mut env.cx()), 7.0);
-            assert!(env.sink.is_empty());
+            assert!(env.sink().is_empty());
             assert_eq!(
-                env.variables
+                env.variables()
                     .get(VariableName::new("x"))
                     .map(Value::struct_depth),
                 Some(32)
             );
             let mut env = NoHostEnv::new();
             assert_eq!(expr(&store(33)).eval_f32(&mut env.cx()), 0.0);
-            assert_eq!(env.sink.take(), [DEPTH_LIMIT]);
-            assert_eq!(env.variables.get(VariableName::new("x")), None);
+            assert_eq!(env.sink_mut().take(), [DEPTH_LIMIT]);
+            assert_eq!(env.variables().get(VariableName::new("x")), None);
             // Storing a 32-deep value one level down is 33 levels.
             let mut env = NoHostEnv::new();
             let nested =
                 |members: usize| format!("v.x{} = 1; v.y.z = v.x; return 7;", ".m".repeat(members));
             assert_eq!(expr(&nested(31)).eval_f32(&mut env.cx()), 7.0);
-            assert!(env.sink.is_empty());
+            assert!(env.sink().is_empty());
             assert_eq!(expr(&nested(32)).eval_f32(&mut env.cx()), 0.0);
-            assert_eq!(env.sink.take(), [DEPTH_LIMIT]);
-            let mut env = NoHostEnv {
-                limits: EvalLimits::NONE,
-                ..NoHostEnv::new()
-            };
+            assert_eq!(env.sink_mut().take(), [DEPTH_LIMIT]);
+            let mut env = NoHostEnv::new().with_limits(EvalLimits::NONE);
             assert_eq!(expr(&store(200)).eval_f32(&mut env.cx()), 7.0);
             assert_eq!(
-                env.variables
+                env.variables()
                     .get(VariableName::new("x"))
                     .map(Value::struct_depth),
                 Some(200)
@@ -635,22 +632,20 @@ mod eval_budgets {
                     assert_eq!(value.struct_depth(), 100_000);
 
                     // A member store into it is over the default budget, and written without one.
-                    let mut env = NoHostEnv {
-                        limits,
-                        ..NoHostEnv::new()
-                    };
-                    env.variables.set(VariableName::new("deep"), value);
+                    let mut env = NoHostEnv::new().with_limits(limits);
+                    env.variables_mut().set(VariableName::new("deep"), value);
                     let read = expr("v.copy = v.deep; v.deep.x = 2; return v.deep.c;")
                         .eval_f32(&mut env.cx());
-                    let deep = env.variables.get(VariableName::new("deep")).expect("set");
+                    let messages = env.sink_mut().take();
+                    let deep = env.variables().get(VariableName::new("deep")).expect("set");
                     if limits == EvalLimits::NONE {
                         assert_eq!(read, 1.0);
                         assert_eq!(deep.member(HashedStr::new("x")), Some(&Value::Float(2.0)));
                     } else {
-                        assert_eq!((read, env.sink.take()), (0.0, vec![DEPTH_LIMIT.to_owned()]));
+                        assert_eq!((read, messages), (0.0, vec![DEPTH_LIMIT.to_owned()]));
                         assert_eq!(deep.member(HashedStr::new("x")), None);
                     }
-                    assert!(env.variables.get(VariableName::new("copy")).is_some());
+                    assert!(env.variables().get(VariableName::new("copy")).is_some());
                     drop(env);
                 });
             }
@@ -737,15 +732,12 @@ mod eval_budgets {
         /// The result, the messages, the time and the members the variables keep.
         fn run(source: &str, limits: EvalLimits) -> (f32, Vec<String>, Duration, usize) {
             let expr = expr(source);
-            let mut env = NoHostEnv {
-                limits,
-                ..NoHostEnv::new()
-            };
+            let mut env = NoHostEnv::new().with_limits(limits);
             let started = Instant::now();
             let result = expr.eval_f32(&mut env.cx());
             let took = started.elapsed();
-            let retained = retained_members(&env.variables, 4_000_000);
-            (result, env.sink.take(), took, retained)
+            let retained = retained_members(env.variables(), 4_000_000);
+            (result, env.sink_mut().take(), took, retained)
         }
 
         /// Under the defaults the width budget stops these while `v.s` is built; with it off the
@@ -833,7 +825,7 @@ mod eval_budgets {
                 })
             };
             let width = |env: &NoHostEnv| {
-                env.variables
+                env.variables()
                     .get(VariableName::new("s"))
                     .and_then(Value::as_struct)
                     .map(StructValue::len)
@@ -844,10 +836,10 @@ mod eval_budgets {
                 expr(&format!("{} v.s.m0 = 7; return 1;", fill(256))).eval_f32(&mut env.cx()),
                 1.0
             );
-            assert!(env.sink.is_empty());
+            assert!(env.sink().is_empty());
             assert_eq!(width(&env), Some(256));
             assert_eq!(expr("v.s.m257 = 1; return 1;").eval_f32(&mut env.cx()), 0.0);
-            assert_eq!(env.sink.take(), [WIDTH_LIMIT]);
+            assert_eq!(env.sink_mut().take(), [WIDTH_LIMIT]);
             assert_eq!(width(&env), Some(256), "nothing written");
             // A nested struct at the budget, through a longer path; a temp too.
             let mut env = NoHostEnv::new();
@@ -859,32 +851,29 @@ mod eval_budgets {
                 .eval_f32(&mut env.cx()),
                 0.0
             );
-            assert_eq!(env.sink.take(), [WIDTH_LIMIT]);
+            assert_eq!(env.sink_mut().take(), [WIDTH_LIMIT]);
             assert_eq!(
-                env.variables.get(VariableName::new("ok")),
+                env.variables().get(VariableName::new("ok")),
                 Some(&Value::Float(1.0))
             );
-            assert_eq!(env.variables.get(VariableName::new("not")), None);
+            assert_eq!(env.variables().get(VariableName::new("not")), None);
 
             // A struct the host stored, wider than the budget: its members can be written, not
             // added.
             let mut env = NoHostEnv::new();
             let names: Vec<String> = (0..300).map(|i| format!("m{i}")).collect();
             let wide: StructValue<NoHost> = names.iter().map(|name| (name.as_str(), 1.0)).collect();
-            env.variables
+            env.variables_mut()
                 .set(VariableName::new("s"), Value::structure(wide));
             assert_eq!(
                 expr("v.s.m299 = 5; return v.s.m299;").eval_f32(&mut env.cx()),
                 5.0
             );
-            assert!(env.sink.is_empty());
+            assert!(env.sink().is_empty());
             assert_eq!(expr("v.s.m300 = 5; return 1;").eval_f32(&mut env.cx()), 0.0);
-            assert_eq!(env.sink.take(), [WIDTH_LIMIT]);
+            assert_eq!(env.sink_mut().take(), [WIDTH_LIMIT]);
 
-            let mut env = NoHostEnv {
-                limits: EvalLimits::NONE,
-                ..NoHostEnv::new()
-            };
+            let mut env = NoHostEnv::new().with_limits(EvalLimits::NONE);
             assert_eq!(
                 expr(&format!("{} return 1;", fill(1000))).eval_f32(&mut env.cx()),
                 1.0
@@ -892,10 +881,10 @@ mod eval_budgets {
             assert_eq!(width(&env), Some(1000));
             // A budget of 0 refuses every new member, including the first.
             let mut env = NoHostEnv::new();
-            env.limits = env.limits.with_struct_members(Some(0));
+            *env.limits_mut() = env.limits().with_struct_members(Some(0));
             assert_eq!(expr("v.s.a = 1; return 1;").eval_f32(&mut env.cx()), 0.0);
             assert_eq!(
-                env.sink.take(),
+                env.sink_mut().take(),
                 [
                     "molang: evaluation stopped: a struct would hold more than its budget of 0 members"
                 ]
@@ -907,9 +896,9 @@ mod eval_budgets {
             (0..10_000)
                 .find(|&steps| {
                     let mut env = env();
-                    env.limits = env.limits.with_total_steps(Some(steps));
+                    *env.limits_mut() = env.limits().with_total_steps(Some(steps));
                     expr.eval(&mut env.cx());
-                    env.sink.is_empty()
+                    env.sink().is_empty()
                 })
                 .expect("completes within 10,000 steps")
         }
@@ -936,7 +925,7 @@ mod eval_budgets {
                 let outer: StructValue<NoHost> = std::iter::once(("a", Value::structure(inner)))
                     .chain(members)
                     .collect();
-                env.variables
+                env.variables_mut()
                     .set(VariableName::new("s"), Value::structure(outer));
                 env
             };
@@ -951,13 +940,13 @@ mod eval_budgets {
             // An actor array of 1,000 entries (none of which resolves without a host).
             let with_array = || {
                 let mut env = NoHostEnv::new();
-                env.context
+                env.context_mut()
                     .set(ContextName::new("arr"), Value::actor_array(vec![(); 1000]));
                 env
             };
             let with_empty_array = || {
                 let mut env = NoHostEnv::new();
-                env.context
+                env.context_mut()
                     .set(ContextName::new("arr"), Value::actor_array(Vec::new()));
                 env
             };
@@ -982,12 +971,12 @@ mod eval_budgets {
         let run = || {
             let mut env = NoHostEnv::new();
             assert_eq!(expr.eval_f32(&mut env.cx()), 1.0);
-            assert!(env.sink.is_empty());
+            assert!(env.sink().is_empty());
             env
         };
         let env = run();
         let started = std::time::Instant::now();
-        let printed = format!("{:?}", env.variables);
+        let printed = format!("{:?}", env.variables());
         let printed_env = format!("{env:?}");
         assert!(
             printed.len() < 1_000_000 && printed.contains(".."),
@@ -996,15 +985,18 @@ mod eval_budgets {
         );
         assert!(printed_env.len() < 1_000_000, "{} bytes", printed_env.len());
         // The same map (shared structs), and one built separately (equal, nothing shared).
-        assert!(env.variables == env.variables.clone());
+        assert!(*env.variables() == env.variables().clone());
         let other = run();
-        assert!(env.variables == other.variables);
-        let a = env.variables.get(VariableName::new("a")).expect("set");
-        assert_eq!(a, other.variables.get(VariableName::new("a")).expect("set"));
+        assert!(env.variables() == other.variables());
+        let a = env.variables().get(VariableName::new("a")).expect("set");
+        assert_eq!(
+            a,
+            other.variables().get(VariableName::new("a")).expect("set")
+        );
         assert_eq!(
             a.as_struct(),
             other
-                .variables
+                .variables()
                 .get(VariableName::new("a"))
                 .and_then(Value::as_struct)
         );
@@ -1023,7 +1015,7 @@ mod eval_budgets {
         );
         // `v.b` is `v.a` one round earlier: the whole map has the same 32 structs.
         assert_eq!(
-            DistinctStructs::of(env.variables.iter().map(|(_, value)| value)).count(),
+            DistinctStructs::of(env.variables().iter().map(|(_, value)| value)).count(),
             32
         );
         let took = started.elapsed();
@@ -1057,14 +1049,14 @@ mod eval_budgets {
             "{:?}",
             started.elapsed()
         );
-        assert_eq!(env.sink.messages().len(), BoundedSink::DEFAULT_CAPACITY);
-        assert_eq!(env.sink.dropped(), 10_000 - 64);
-        let kept: usize = env.sink.messages().iter().map(String::len).sum();
+        assert_eq!(env.sink().messages().len(), BoundedSink::DEFAULT_CAPACITY);
+        assert_eq!(env.sink().dropped(), 10_000 - 64);
+        let kept: usize = env.sink().messages().iter().map(String::len).sum();
         assert!(
             kept <= 64 * (BoundedSink::MAX_MESSAGE_BYTES + '…'.len_utf8()),
             "{kept} bytes kept"
         );
-        for message in env.sink.messages() {
+        for message in env.sink().messages() {
             assert!(
                 message.starts_with("Error: unhandled request for unknown variable 'variable.aaaa"),
                 "{message}"
@@ -1075,9 +1067,9 @@ mod eval_budgets {
                 message.len()
             );
         }
-        let taken = env.sink.take();
+        let taken = env.sink_mut().take();
         assert_eq!(
-            (taken.len(), env.sink.dropped(), env.sink.is_empty()),
+            (taken.len(), env.sink().dropped(), env.sink().is_empty()),
             (64, 0, true)
         );
 
@@ -1097,7 +1089,11 @@ mod eval_budgets {
         }
         let mut env = HostEnv::<NoHost>::default().with_sink(Lengths(Vec::new()));
         expr.eval_f32(&mut env.cx(&mut NoHost, Subjects::none()));
-        assert_eq!(env.sink.0, [65_009], "the host's sink gets the whole name");
+        assert_eq!(
+            env.sink().0,
+            [65_009],
+            "the host's sink gets the whole name"
+        );
 
         // `LogOnce` keeps at most `SEEN_CAP` hashes: past it a new session starts.
         let mut once = LogOnce::new(NullSink);
@@ -1139,10 +1135,7 @@ mod eval_budgets {
                 let (result, messages, passes) = std::thread::Builder::new()
                     .stack_size(512 * 1024)
                     .spawn(move || {
-                        let mut env = NoHostEnv {
-                            limits,
-                            ..NoHostEnv::new()
-                        };
+                        let mut env = NoHostEnv::new().with_limits(limits);
                         let started = std::time::Instant::now();
                         let result = expr.eval_f32(&mut env.cx());
                         assert!(
@@ -1150,8 +1143,11 @@ mod eval_budgets {
                             "took {:?}",
                             started.elapsed()
                         );
-                        let passes = env.variables.get(VariableName::new("i")).map(Value::to_f32);
-                        (result, env.sink.take(), passes)
+                        let passes = env
+                            .variables()
+                            .get(VariableName::new("i"))
+                            .map(Value::to_f32);
+                        (result, env.sink_mut().take(), passes)
                     })
                     .expect("thread")
                     .join()
@@ -1277,16 +1273,16 @@ mod eval_budgets {
             let mut env = NoHostEnv::new();
             assert_eq!(expr.eval_f32(&mut env.cx()), 1024.0);
             assert_eq!(
-                env.sink.take(),
+                env.sink_mut().take(),
                 vec!["molang: loop stopped after its budget of 1024 iterations".to_owned()]
             );
 
-            env.limits = EvalLimits::NONE;
+            *env.limits_mut() = EvalLimits::NONE;
             assert_eq!(expr.eval_f32(&mut env.cx()), 5000.0);
-            assert!(env.sink.is_empty());
+            assert!(env.sink().is_empty());
 
             // The budget is per loop: each inner loop gets its own.
-            env.limits = EvalLimits::NONE
+            *env.limits_mut() = EvalLimits::NONE
                 .with_loop_iterations(Some(10))
                 .with_total_steps(None);
             assert_eq!(
@@ -1298,7 +1294,7 @@ mod eval_budgets {
             );
             // Eleven loops were left (ten inner, one outer): one message.
             assert_eq!(
-                env.sink.take(),
+                env.sink_mut().take(),
                 vec!["molang: loop stopped after its budget of 10 iterations".to_owned()]
             );
             // Each evaluation reports for itself.
@@ -1306,10 +1302,10 @@ mod eval_budgets {
                 eval_in(&mut env, "t.n = 0; loop(20, {t.n = t.n + 1;}); return t.n;"),
                 10.0
             );
-            assert_eq!(env.sink.take().len(), 1);
+            assert_eq!(env.sink_mut().take().len(), 1);
 
             // 1,024 inner loops left: one loop message, then the step budget ends the evaluation.
-            env.limits = EvalLimits::DEFAULT;
+            *env.limits_mut() = EvalLimits::DEFAULT;
             assert_eq!(
                 eval_in(
                     &mut env,
@@ -1317,7 +1313,7 @@ mod eval_budgets {
                 ),
                 0.0
             );
-            let messages = env.sink.take();
+            let messages = env.sink_mut().take();
             assert_eq!(
                 messages,
                 vec![
@@ -1359,15 +1355,15 @@ mod eval_budgets {
             );
             let run = |steps: u64, as_f32: bool| {
                 let mut env = NoHostEnv::new();
-                env.variables
+                env.variables_mut()
                     .set(VariableName::new("s"), Value::string("moo"));
-                env.limits = EvalLimits::NONE.with_total_steps(Some(steps));
+                *env.limits_mut() = EvalLimits::NONE.with_total_steps(Some(steps));
                 let value = if as_f32 {
                     Value::Float(expr.eval_f32(&mut env.cx()))
                 } else {
                     expr.eval(&mut env.cx())
                 };
-                (value, env.sink.take())
+                (value, env.sink_mut().take())
             };
             assert_eq!(run(2, false), (Value::string("moo"), vec![]));
             assert_eq!(
@@ -1388,13 +1384,13 @@ mod eval_budgets {
             // The store after the hand-over runs within the program's exact budget of four steps.
             let store = server_expr("v.a = v.s;");
             let mut env = NoHostEnv::new();
-            env.variables
+            env.variables_mut()
                 .set(VariableName::new("s"), Value::string("moo"));
-            env.limits = EvalLimits::NONE.with_total_steps(Some(4));
+            *env.limits_mut() = EvalLimits::NONE.with_total_steps(Some(4));
             store.eval(&mut env.cx());
-            assert!(env.sink.is_empty(), "{:?}", env.sink.messages());
+            assert!(env.sink().is_empty(), "{:?}", env.sink().messages());
             assert_eq!(
-                env.variables.get(VariableName::new("a")),
+                env.variables().get(VariableName::new("a")),
                 Some(&Value::string("moo"))
             );
         }
@@ -1403,12 +1399,11 @@ mod eval_budgets {
         /// charged to it one by one.
         #[test]
         fn step_budget() {
-            let mut env = NoHostEnv {
-                limits: EvalLimits::NONE
+            let mut env = NoHostEnv::new().with_limits(
+                EvalLimits::NONE
                     .with_loop_iterations(None)
                     .with_total_steps(Some(10_000)),
-                ..NoHostEnv::new()
-            };
+            );
             // An f32 counter of 1e30 never reaches 0.
             assert_eq!(
                 eval_in(
@@ -1418,14 +1413,14 @@ mod eval_budgets {
                 0.0
             );
             assert_eq!(
-                env.sink.take(),
+                env.sink_mut().take(),
                 vec!["molang: evaluation stopped after its budget of 10000 steps".to_owned()]
             );
             assert_eq!(eval_in(&mut env, "math.die_roll(1000000, 1, 6)"), 0.0);
-            assert_eq!(env.sink.take().len(), 1);
+            assert_eq!(env.sink_mut().take().len(), 1);
             // Within the budget nothing is reported.
             assert_eq!(eval_in(&mut env, "math.die_roll(3, 2, 2)"), 6.0);
-            assert!(env.sink.is_empty());
+            assert!(env.sink().is_empty());
         }
     }
 }
@@ -1444,13 +1439,9 @@ mod eval_limit_fields {
     fn run(limits: EvalLimits, source: &str) -> (f32, Vec<String>) {
         let mut queries = QueryTable::new(molang::stdlib::queries(Side::Server));
         queries.set(query::IS_BABY, first_argument).unwrap();
-        let mut env = NoHostEnv {
-            queries: Some(queries),
-            limits,
-            ..NoHostEnv::new()
-        };
+        let mut env = NoHostEnv::new().with_queries(queries).with_limits(limits);
         let value = server_expr(source).eval_f32(&mut env.cx());
-        (value, env.sink.take())
+        (value, env.sink_mut().take())
     }
 
     /// Evaluates its first argument, one level deeper.

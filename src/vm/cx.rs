@@ -181,35 +181,24 @@ impl<H: Host> EvalCx<'_, '_, H> {
 /// ```
 /// use molang::vm::{NoHostEnv, Value, VariableName};
 ///
-/// let mut env = NoHostEnv { this: 2.34, ..NoHostEnv::new() };
-/// env.variables.set(VariableName::new("x"), Value::Float(3.0));
+/// let mut env = NoHostEnv::new().with_this(2.34);
+/// env.variables_mut().set(VariableName::new("x"), Value::Float(3.0));
 /// let cx = env.cx();
 /// assert_eq!(cx.variable(VariableName::parse("v.x").unwrap()), Some(&Value::Float(3.0)));
 /// assert_eq!(cx.subjects.this, 2.34);
 /// ```
 #[derive(Debug)]
 pub struct NoHostEnv<R = ProcessRng> {
-    /// `variable.*`: the detached map.
-    pub variables: VariableMap<NoHost>,
-    /// `context.*`.
-    pub context: ContextMap<NoHost>,
-    /// `array.*`.
-    pub arrays: ArrayTable,
-    /// The query implementations; none by default (see [`EvalCx::queries`]).
-    pub queries: Option<QueryTable<NoHost>>,
-    /// The random source; [`ProcessRng`] by default, the one sequence of the process, and
-    /// replaced with [`with_rng`](Self::with_rng).
-    pub rng: R,
-    /// The last run-time messages.
-    pub sink: BoundedSink,
-    /// `this`.
-    pub this: f32,
-    /// The budgets.
-    pub limits: EvalLimits,
-    /// Where `temp.*` lives; per evaluation by default.
-    pub temps: Temps<TempMap<NoHost>>,
-    /// The world-access object, which has nothing to access.
-    pub host: NoHost,
+    pub(crate) variables: VariableMap<NoHost>,
+    pub(crate) context: ContextMap<NoHost>,
+    pub(crate) arrays: ArrayTable,
+    pub(crate) queries: Option<QueryTable<NoHost>>,
+    pub(crate) rng: R,
+    pub(crate) sink: BoundedSink,
+    pub(crate) this: f32,
+    pub(crate) limits: EvalLimits,
+    pub(crate) temps: Temps<TempMap<NoHost>>,
+    pub(crate) host: NoHost,
 }
 
 impl NoHostEnv {
@@ -228,6 +217,150 @@ impl NoHostEnv {
             temps: Temps::PerEvaluation,
             host: NoHost,
         }
+    }
+}
+
+impl<R> NoHostEnv<R> {
+    /// `variable.*`: the detached map.
+    pub fn variables(&self) -> &VariableMap<NoHost> {
+        &self.variables
+    }
+
+    /// The variables, mutably.
+    pub fn variables_mut(&mut self) -> &mut VariableMap<NoHost> {
+        &mut self.variables
+    }
+
+    /// `context.*`.
+    pub fn context(&self) -> &ContextMap<NoHost> {
+        &self.context
+    }
+
+    /// The context, mutably.
+    pub fn context_mut(&mut self) -> &mut ContextMap<NoHost> {
+        &mut self.context
+    }
+
+    /// `array.*`.
+    pub fn arrays(&self) -> &ArrayTable {
+        &self.arrays
+    }
+
+    /// The arrays, mutably.
+    pub fn arrays_mut(&mut self) -> &mut ArrayTable {
+        &mut self.arrays
+    }
+
+    /// The query implementations; `None`: every call returns its declared default (see
+    /// [`EvalCx::queries`]).
+    pub fn queries(&self) -> Option<&QueryTable<NoHost>> {
+        self.queries.as_ref()
+    }
+
+    /// The query implementations, mutably; `None` without any.
+    pub fn queries_mut(&mut self) -> Option<&mut QueryTable<NoHost>> {
+        self.queries.as_mut()
+    }
+
+    /// The random source; [`ProcessRng`] by default, the one sequence of the process.
+    pub fn rng(&self) -> &R {
+        &self.rng
+    }
+
+    /// The rng, mutably.
+    pub fn rng_mut(&mut self) -> &mut R {
+        &mut self.rng
+    }
+
+    /// The last run-time messages.
+    pub fn sink(&self) -> &BoundedSink {
+        &self.sink
+    }
+
+    /// The sink, mutably.
+    pub fn sink_mut(&mut self) -> &mut BoundedSink {
+        &mut self.sink
+    }
+
+    /// `this`.
+    pub const fn this(&self) -> f32 {
+        self.this
+    }
+
+    /// The this, mutably.
+    pub fn this_mut(&mut self) -> &mut f32 {
+        &mut self.this
+    }
+
+    /// The budgets.
+    pub const fn limits(&self) -> EvalLimits {
+        self.limits
+    }
+
+    /// The limits, mutably.
+    pub fn limits_mut(&mut self) -> &mut EvalLimits {
+        &mut self.limits
+    }
+
+    /// Where `temp.*` lives; per evaluation by default.
+    pub fn temps(&self) -> &Temps<TempMap<NoHost>> {
+        &self.temps
+    }
+
+    /// The temps, mutably.
+    pub fn temps_mut(&mut self) -> &mut Temps<TempMap<NoHost>> {
+        &mut self.temps
+    }
+
+    /// The same environment with other variables.
+    #[must_use]
+    pub fn with_variables(self, variables: VariableMap<NoHost>) -> Self {
+        Self { variables, ..self }
+    }
+
+    /// The same environment with another context.
+    #[must_use]
+    pub fn with_context(self, context: ContextMap<NoHost>) -> Self {
+        Self { context, ..self }
+    }
+
+    /// The same environment with other arrays.
+    #[must_use]
+    pub fn with_arrays(self, arrays: ArrayTable) -> Self {
+        Self { arrays, ..self }
+    }
+
+    /// The same environment with query implementations.
+    #[must_use]
+    pub fn with_queries(self, queries: QueryTable<NoHost>) -> Self {
+        Self {
+            queries: Some(queries),
+            ..self
+        }
+    }
+
+    /// The same environment with another sink.
+    #[must_use]
+    pub fn with_sink(self, sink: BoundedSink) -> Self {
+        Self { sink, ..self }
+    }
+
+    /// The same environment with another `this`.
+    #[must_use]
+    pub fn with_this(self, this: f32) -> Self {
+        Self { this, ..self }
+    }
+
+    /// The same environment with other budgets.
+    #[must_use]
+    pub fn with_limits(self, limits: EvalLimits) -> Self {
+        Self { limits, ..self }
+    }
+
+    /// The same environment with another home for `temp.*`.
+    #[must_use]
+    pub fn with_temps(self, temps: Temps<TempMap<NoHost>>) -> Self {
+        Self { temps, ..self }
     }
 }
 
@@ -277,8 +410,9 @@ impl Default for NoHostEnv {
 /// An owning evaluation environment for a host: everything an [`EvalCx`] borrows except the
 /// world-access object and the subjects.
 ///
-/// Each part is a type parameter with a ready-made default, replaced by the `with_*` methods; the
-/// budgets and the temps are plain fields.
+/// Each part is a type parameter with a ready-made default, replaced by the `with_*` methods,
+/// which also set the queries, the budgets and the temps. The accessors read each part, and the
+/// `_mut` ones change it in place.
 ///
 /// ```
 /// # #[cfg(feature = "stdlib")]
@@ -315,7 +449,7 @@ impl Default for NoHostEnv {
 /// let mut queries = QueryTable::new(stdlib::queries(Side::Server));
 /// queries.set(query::HEALTH, health)?;
 /// let mut env = HostEnv::new(queries);
-/// env.context.set(ContextName::new("damage"), Value::Float(3.0));
+/// env.context_mut().set(ContextName::new("damage"), Value::Float(3.0));
 /// let mut world = World(vec![10.0, 4.0]);
 /// let (expr, _) = compile(
 ///     "query.health - context.damage",
@@ -335,23 +469,14 @@ pub struct HostEnv<
     S = BoundedSink,
     A = ArrayTable,
 > {
-    /// `variable.*` storage.
-    pub variables: V,
-    /// `context.*`.
-    pub context: C,
-    /// `array.*`.
-    pub arrays: A,
-    /// The query implementations, if any (see [`EvalCx::queries`]).
-    pub queries: Option<QueryTable<H>>,
-    /// The random source; [`ProcessRng`] by default, the one sequence of the process, and
-    /// replaced with [`with_rng`](Self::with_rng).
-    pub rng: R,
-    /// Where run-time diagnostics go.
-    pub sink: S,
-    /// The budgets.
-    pub limits: EvalLimits,
-    /// Where `temp.*` lives.
-    pub temps: Temps<TempMap<H>>,
+    pub(crate) variables: V,
+    pub(crate) context: C,
+    pub(crate) arrays: A,
+    pub(crate) queries: Option<QueryTable<H>>,
+    pub(crate) rng: R,
+    pub(crate) sink: S,
+    pub(crate) limits: EvalLimits,
+    pub(crate) temps: Temps<TempMap<H>>,
 }
 
 impl<H: Host> HostEnv<H> {
@@ -383,6 +508,107 @@ impl<H: Host> Default for HostEnv<H> {
 }
 
 impl<H: Host, V, C, R, S, A> HostEnv<H, V, C, R, S, A> {
+    /// `variable.*` storage.
+    pub fn variables(&self) -> &V {
+        &self.variables
+    }
+
+    /// The variables, mutably.
+    pub fn variables_mut(&mut self) -> &mut V {
+        &mut self.variables
+    }
+
+    /// `context.*`.
+    pub fn context(&self) -> &C {
+        &self.context
+    }
+
+    /// The context, mutably.
+    pub fn context_mut(&mut self) -> &mut C {
+        &mut self.context
+    }
+
+    /// `array.*`.
+    pub fn arrays(&self) -> &A {
+        &self.arrays
+    }
+
+    /// The arrays, mutably.
+    pub fn arrays_mut(&mut self) -> &mut A {
+        &mut self.arrays
+    }
+
+    /// The query implementations; `None`: every call returns its declared default (see
+    /// [`EvalCx::queries`]).
+    pub fn queries(&self) -> Option<&QueryTable<H>> {
+        self.queries.as_ref()
+    }
+
+    /// The query implementations, mutably; `None` without any.
+    pub fn queries_mut(&mut self) -> Option<&mut QueryTable<H>> {
+        self.queries.as_mut()
+    }
+
+    /// The random source; [`ProcessRng`] by default, the one sequence of the process.
+    pub fn rng(&self) -> &R {
+        &self.rng
+    }
+
+    /// The rng, mutably.
+    pub fn rng_mut(&mut self) -> &mut R {
+        &mut self.rng
+    }
+
+    /// Where run-time diagnostics go.
+    pub fn sink(&self) -> &S {
+        &self.sink
+    }
+
+    /// The sink, mutably.
+    pub fn sink_mut(&mut self) -> &mut S {
+        &mut self.sink
+    }
+
+    /// The budgets.
+    pub const fn limits(&self) -> EvalLimits {
+        self.limits
+    }
+
+    /// The limits, mutably.
+    pub fn limits_mut(&mut self) -> &mut EvalLimits {
+        &mut self.limits
+    }
+
+    /// Where `temp.*` lives.
+    pub fn temps(&self) -> &Temps<TempMap<H>> {
+        &self.temps
+    }
+
+    /// The temps, mutably.
+    pub fn temps_mut(&mut self) -> &mut Temps<TempMap<H>> {
+        &mut self.temps
+    }
+
+    /// The same environment with query implementations.
+    #[must_use]
+    pub fn with_queries(self, queries: QueryTable<H>) -> Self {
+        Self {
+            queries: Some(queries),
+            ..self
+        }
+    }
+
+    /// The same environment with other budgets.
+    #[must_use]
+    pub fn with_limits(self, limits: EvalLimits) -> Self {
+        Self { limits, ..self }
+    }
+
+    /// The same environment with another home for `temp.*`.
+    #[must_use]
+    pub fn with_temps(self, temps: Temps<TempMap<H>>) -> Self {
+        Self { temps, ..self }
+    }
     /// The same environment with another variable store.
     pub fn with_variables<V2: VariableStore<H>>(self, variables: V2) -> HostEnv<H, V2, C, R, S, A> {
         HostEnv {
@@ -972,11 +1198,9 @@ mod tests {
 
     #[test]
     fn no_host_environment() {
-        let mut env = NoHostEnv {
-            this: 2.34,
-            ..NoHostEnv::new()
-        }
-        .with_rng(Xorshift128::new());
+        let mut env = NoHostEnv::new()
+            .with_this(2.34)
+            .with_rng(Xorshift128::new());
         env.variables.set(VariableName::new("x"), Value::Float(3.0));
         env.context
             .set(ContextName::new("moo"), Value::string("moo"));
@@ -1050,11 +1274,9 @@ mod tests {
 
     #[test]
     fn the_no_host_context_wires_every_part_of_the_environment() {
-        let mut env = NoHostEnv {
-            this: -1.5,
-            limits: EvalLimits::NONE,
-            ..NoHostEnv::new()
-        };
+        let mut env = NoHostEnv::new()
+            .with_this(-1.5)
+            .with_limits(EvalLimits::NONE);
         env.variables.set(BAA, Value::Float(1.0));
         env.context.set(ContextName::new("moo"), Value::Float(2.0));
         {
@@ -1085,10 +1307,7 @@ mod tests {
 
     #[test]
     fn persistent_temps_stay_in_the_environment_across_contexts() {
-        let mut env = NoHostEnv {
-            temps: Temps::Kept(TempMap::new()),
-            ..NoHostEnv::new()
-        };
+        let mut env = NoHostEnv::new().with_temps(Temps::Kept(TempMap::new()));
         env.cx()
             .temps
             .kept_mut()
@@ -1196,10 +1415,7 @@ mod tests {
 
     #[test]
     fn the_no_host_budgets_are_those_of_its_context() {
-        let mut env = NoHostEnv {
-            limits: EvalLimits::NONE,
-            ..NoHostEnv::new()
-        };
+        let mut env = NoHostEnv::new().with_limits(EvalLimits::NONE);
         assert_eq!(env.cx().limits, EvalLimits::NONE);
         assert_eq!(NoHostEnv::new().limits, EvalLimits::DEFAULT);
     }
@@ -1207,10 +1423,7 @@ mod tests {
     #[test]
     fn the_host_context_borrows_the_world_and_takes_the_subjects_of_the_call() {
         let limits = EvalLimits::NONE;
-        let mut env = HostEnv::<TestHost> {
-            limits,
-            ..HostEnv::default()
-        };
+        let mut env = HostEnv::default().with_limits(limits);
         env.variables.set(BAA, V::Float(1.0));
         env.context.set(ContextName::new("moo"), V::Float(2.0));
         let mut world = World { alive: &[1] };
@@ -1239,10 +1452,7 @@ mod tests {
 
     #[test]
     fn the_host_context_passes_persistent_temps_through() {
-        let mut env = HostEnv::<TestHost> {
-            temps: Temps::Kept(TempMap::new()),
-            ..HostEnv::default()
-        };
+        let mut env = HostEnv::default().with_temps(Temps::Kept(TempMap::new()));
         let mut world = World { alive: &[] };
         env.cx(&mut world, Subjects::none())
             .temps

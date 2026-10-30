@@ -249,21 +249,18 @@ mod control_flow {
                 "v.g = 0; v.h = 0; v.i = 0; v.j = 0; v.z = 0; loop(2, {{ v.g = v.g + 1; v.g > 8 ? {{return 0;}} : 0; v.i = v.i + 1; \
                  loop(3, {{ v.h = v.h + 1; v.h > 12 ? {{return 0;}} : 0; v.j = v.j + 1; v.t = v.z * (v.j > 0 ? {{{jump};}} : 0); }}); }}); return 1;"
             );
-            let mut env = NoHostEnv {
-                limits: EvalLimits::NONE,
-                ..NoHostEnv::new()
-            };
+            let mut env = NoHostEnv::new().with_limits(EvalLimits::NONE);
             assert_eq!(
                 server_expr(&source).eval_f32(&mut env.cx()),
                 0.0,
                 "{jump}: the escape ended it"
             );
             assert_eq!(
-                env.variables.get(VariableName::new("g")),
+                env.variables().get(VariableName::new("g")),
                 Some(&Value::Float(9.0)),
                 "{jump}: the outer loop passed more than 8 times"
             );
-            assert!(env.sink.is_empty());
+            assert!(env.sink().is_empty());
         }
     }
 
@@ -401,7 +398,7 @@ mod control_flow {
             let expr = compiled.expr_or_zero().cloned().expect("the failed node");
             let mut env = NoHostEnv::new();
             assert_eq!(expr.eval(&mut env.cx()), Value::ZERO, "{source:?}");
-            assert!(env.sink.is_empty());
+            assert!(env.sink().is_empty());
         }
     }
 
@@ -409,15 +406,17 @@ mod control_flow {
     #[test]
     fn break_outside_a_loop_ends_the_expression() {
         let mut env = NoHostEnv::new();
-        env.variables.set(VariableName::new("x"), Value::Float(1.0));
+        env.variables_mut()
+            .set(VariableName::new("x"), Value::Float(1.0));
         let expr = server_expr("v.x ? break : 1; v.after = 1;");
         assert_eq!(expr.eval(&mut env.cx()), Value::ZERO);
-        assert_eq!(env.variables.get(VariableName::new("after")), None);
-        assert!(env.sink.is_empty());
-        env.variables.set(VariableName::new("x"), Value::Float(0.0));
+        assert_eq!(env.variables().get(VariableName::new("after")), None);
+        assert!(env.sink().is_empty());
+        env.variables_mut()
+            .set(VariableName::new("x"), Value::Float(0.0));
         expr.eval(&mut env.cx());
         assert_eq!(
-            env.variables.get(VariableName::new("after")),
+            env.variables().get(VariableName::new("after")),
             Some(&Value::Float(1.0))
         );
     }
@@ -476,20 +475,17 @@ mod variables {
         set.eval(&mut ours.cx());
         assert_eq!(get.eval(&mut ours.cx()), Value::ZERO);
         assert_eq!(
-            ours.sink.take(),
+            ours.sink_mut().take(),
             vec!["Error: unhandled request for unknown variable 'temp.persist'".to_owned()]
         );
 
-        let mut persistent = NoHostEnv {
-            temps: Temps::Kept(TempMap::new()),
-            ..NoHostEnv::new()
-        };
+        let mut persistent = NoHostEnv::new().with_temps(Temps::Kept(TempMap::new()));
         set.eval(&mut persistent.cx());
         assert_eq!(get.eval(&mut persistent.cx()), Value::Float(42.0));
-        assert!(persistent.sink.is_empty());
+        assert!(persistent.sink().is_empty());
         assert_eq!(
             persistent
-                .temps
+                .temps()
                 .kept()
                 .and_then(|t| t.get(TempName::new("persist"))),
             Some(&Value::Float(42.0))
@@ -504,13 +500,13 @@ mod variables {
         let expr = server_expr("v.q = 1; v.r = v.missing; v.s = 2; return 3;");
         assert_eq!(expr.eval(&mut env.cx()), Value::ZERO);
         assert_eq!(
-            env.variables.get(VariableName::new("q")),
+            env.variables().get(VariableName::new("q")),
             Some(&Value::Float(1.0))
         );
-        assert_eq!(env.variables.get(VariableName::new("r")), None);
-        assert_eq!(env.variables.get(VariableName::new("s")), None);
+        assert_eq!(env.variables().get(VariableName::new("r")), None);
+        assert_eq!(env.variables().get(VariableName::new("s")), None);
         assert_eq!(
-            env.sink.take(),
+            env.sink_mut().take(),
             vec!["Error: unhandled request for unknown variable 'variable.missing'".to_owned()]
         );
 
@@ -519,7 +515,7 @@ mod variables {
             Value::ZERO
         );
         assert_eq!(
-            env.sink.take(),
+            env.sink_mut().take(),
             vec!["Error: unhandled request for unknown variable 'context.other'".to_owned()]
         );
         assert_eq!(
@@ -527,7 +523,7 @@ mod variables {
             Value::ZERO
         );
         assert_eq!(
-            env.sink.take(),
+            env.sink_mut().take(),
             vec!["Error: unhandled request for unknown variable 'temp.x'".to_owned()]
         );
     }
@@ -557,7 +553,7 @@ mod variables {
         );
         // Only the member miss is logged.
         assert_eq!(
-            env.sink.take(),
+            env.sink_mut().take(),
             vec!["Error: unable to find member variable .b".to_owned()]
         );
     }
@@ -575,7 +571,7 @@ mod variables {
         assert_eq!(eval("v.f = 3; v.f.g = 4; return v.f.g;"), 4.0);
         assert_eq!(eval("t.s.x = 7; return t.s.x;"), 7.0);
         let struct_value = env
-            .variables
+            .variables()
             .get(VariableName::new("a"))
             .cloned()
             .expect("v.a");
@@ -589,7 +585,7 @@ mod variables {
         let expr = server_expr("v.g = 1; return v.g.h;");
         assert_eq!(expr.eval(&mut env.cx()), Value::ZERO);
         assert_eq!(
-            env.sink.take(),
+            env.sink_mut().take(),
             vec![
                 "Error: unable to find member variable .h".to_owned(),
                 "Error: unhandled request for unknown variable '.h'".to_owned()
@@ -605,11 +601,11 @@ mod variables {
             "v.s.c = 1; loop(3, { v.s.b = v.s; }); v.r = v.s.b.b.b.c; return v.s.b.b.b.b.c ?? 0;";
         assert_eq!(server_expr(source).eval_f32(&mut env.cx()), 0.0);
         assert_eq!(
-            env.variables.get(VariableName::new("r")),
+            env.variables().get(VariableName::new("r")),
             Some(&Value::Float(1.0))
         );
         assert_eq!(
-            env.sink.take(),
+            env.sink_mut().take(),
             vec!["Error: unable to find member variable .c".to_owned()]
         );
         // Without `??` the abort names the same member.
@@ -618,7 +614,7 @@ mod variables {
             0.0
         );
         assert_eq!(
-            env.sink.take(),
+            env.sink_mut().take(),
             vec![
                 "Error: unable to find member variable .c".to_owned(),
                 "Error: unhandled request for unknown variable '.c'".to_owned()
@@ -628,10 +624,7 @@ mod variables {
 
     #[test]
     fn this() {
-        let mut env = NoHostEnv {
-            this: 2.34,
-            ..NoHostEnv::new()
-        };
+        let mut env = NoHostEnv::new().with_this(2.34);
         assert_eq!(server_expr("this * 2").eval_f32(&mut env.cx()), 4.68);
     }
 
@@ -639,7 +632,7 @@ mod variables {
     #[test]
     fn mixed_kinds() {
         let mut env = NoHostEnv::new();
-        env.variables
+        env.variables_mut()
             .set(VariableName::new("h"), Value::string("abc"));
         let low = f32::from_bits(HashedStr::new("abc").to_u64() as u32);
         assert_eq!(server_expr("v.h == 1").eval_f32(&mut env.cx()), 0.0);
@@ -724,7 +717,7 @@ mod variables {
     fn a_string_against_a_float_constant_is_read_by_its_low_32_bits() {
         let one_in_the_low_bits = Value::Hash(HashedStr::from_u64(0x1_3f80_0000));
         let mut env = NoHostEnv::new();
-        env.variables
+        env.variables_mut()
             .set(VariableName::new("s"), one_in_the_low_bits);
         let eval = |source: &str, env: &mut NoHostEnv| server_expr(source).eval_f32(&mut env.cx());
         assert_eq!(eval("v.s == 1", &mut env), 1.0);
@@ -732,7 +725,7 @@ mod variables {
         assert_eq!(eval("1 == v.s", &mut env), 1.0);
         assert_eq!(eval("v.s == 2", &mut env), 0.0);
         // Both sides run-time values: the same rule through `Eq`.
-        env.variables
+        env.variables_mut()
             .set(VariableName::new("one"), Value::Float(1.0));
         assert_eq!(eval("v.s == v.one", &mut env), 1.0);
         assert_eq!(eval("v.one == v.s", &mut env), 0.0);
@@ -743,9 +736,9 @@ mod variables {
     #[test]
     fn float_only_programs_hand_over_non_float_values() {
         let mut env = NoHostEnv::new();
-        env.variables
+        env.variables_mut()
             .set(VariableName::new("h"), Value::string("abc"));
-        env.variables.set(
+        env.variables_mut().set(
             VariableName::new("s"),
             Value::structure(StructValue::xy(1.0, 2.0)),
         );
@@ -753,12 +746,12 @@ mod variables {
         assert!(expr.flags().contains(ProgramFlags::FLOAT_ONLY));
         assert_eq!(expr.eval(&mut env.cx()), Value::Float(3.0));
         assert_eq!(
-            env.variables.get(VariableName::new("copy")),
+            env.variables().get(VariableName::new("copy")),
             Some(&Value::string("abc"))
         );
         assert_eq!(
-            env.variables.get(VariableName::new("sc")),
-            env.variables.get(VariableName::new("s"))
+            env.variables().get(VariableName::new("sc")),
+            env.variables().get(VariableName::new("s"))
         );
         // The whole value comes back from `eval`, its float from `eval_f32`.
         assert_eq!(
@@ -778,7 +771,7 @@ mod variables {
             server_expr("v.s = 'abc'; return v.s;").eval(&mut env.cx()),
             abc
         );
-        assert_eq!(env.variables.get(VariableName::new("s")), Some(&abc));
+        assert_eq!(env.variables().get(VariableName::new("s")), Some(&abc));
         assert_eq!(
             server_expr("v.c = 1; return v.c ? 'abc' : 'b';").eval(&mut env.cx()),
             abc
@@ -793,7 +786,7 @@ mod variables {
         );
         let mut host_env = Env::new();
         assert_eq!(run(&mut host_env, "q.any('abc', 'b', 'abc')").0, Value::ONE);
-        assert!(env.sink.is_empty());
+        assert!(env.sink().is_empty());
     }
 }
 
@@ -812,7 +805,7 @@ mod evaluation_model {
     }
 
     fn var(env: &NoHostEnv, name: &str) -> Option<Value<molang::vm::NoHost>> {
-        env.variables.get(VariableName::new(name)).cloned()
+        env.variables().get(VariableName::new(name)).cloned()
     }
 
     /// Negated it gives 0, plus 1 gives 1; its statements still run.
@@ -884,19 +877,18 @@ mod evaluation_model {
     /// [2^24, 2^25) never reach the end; only the step budget ends them.
     #[test]
     fn large_loop_counts_stick() {
-        let mut env = NoHostEnv {
-            limits: EvalLimits::NONE
+        let mut env = NoHostEnv::new().with_limits(
+            EvalLimits::NONE
                 .with_loop_iterations(None)
                 .with_total_steps(Some(20_000)),
-            ..NoHostEnv::new()
-        };
+        );
         for count in ["33554432", "16777220", "16777228", "v.inf"] {
-            env.variables
+            env.variables_mut()
                 .set(VariableName::new("inf"), Value::Float(f32::INFINITY));
             let source = format!("v.i = 0; loop({count}, {{v.i = v.i + 1;}}); return 1;");
             assert_eq!(eval_in(&mut env, &source), 0.0, "{count}");
             assert_eq!(
-                env.sink.take(),
+                env.sink_mut().take(),
                 ["molang: evaluation stopped after its budget of 20000 steps"],
                 "{count}"
             );
@@ -968,11 +960,9 @@ mod names {
 
     #[test]
     fn aliases_name_the_same_variable() {
-        let mut env = NoHostEnv {
-            temps: Temps::Kept(TempMap::new()),
-            ..NoHostEnv::new()
-        };
-        env.context.set(ContextName::new("c"), Value::Float(4.0));
+        let mut env = NoHostEnv::new().with_temps(Temps::Kept(TempMap::new()));
+        env.context_mut()
+            .set(ContextName::new("c"), Value::Float(4.0));
         assert_eq!(
             eval_in(
                 &mut env,
@@ -996,10 +986,7 @@ mod names {
 
     #[test]
     fn this_reads_the_current_value() {
-        let mut env = NoHostEnv {
-            this: 2.34,
-            ..NoHostEnv::new()
-        };
+        let mut env = NoHostEnv::new().with_this(2.34);
         assert_eq!(eval_in(&mut env, "return this;"), 2.34);
     }
 
@@ -1036,7 +1023,8 @@ mod statements {
     fn simple_expression_value() {
         let compiled = compile("v.x+1", &server_at(13));
         let mut env = NoHostEnv::new();
-        env.variables.set(VariableName::new("x"), Value::Float(2.0));
+        env.variables_mut()
+            .set(VariableName::new("x"), Value::Float(2.0));
         assert_eq!(
             compiled
                 .expr()
@@ -1055,7 +1043,7 @@ mod statements {
         let (value, env) = eval_at("v.x = 1; 2;", 13);
         assert_eq!(value, 0.0);
         assert_eq!(
-            env.variables.get(VariableName::new("x")),
+            env.variables().get(VariableName::new("x")),
             Some(&Value::Float(1.0))
         );
     }
@@ -1069,23 +1057,23 @@ mod statements {
         );
         assert_eq!(value, 1.0);
         assert_eq!(
-            env.variables.get(VariableName::new("n")),
+            env.variables().get(VariableName::new("n")),
             Some(&Value::Float(1.0))
         );
-        assert_eq!(env.variables.get(VariableName::new("after")), None);
+        assert_eq!(env.variables().get(VariableName::new("after")), None);
         let (value, env) = eval_at(
             "v.n = 0; v.m = 0; loop(2, { loop(2, { v.n = v.n + 1; return 1; }); v.m = v.m + 1; }); v.after = 1;",
             13,
         );
         assert_eq!(value, 1.0);
         assert_eq!(
-            env.variables.get(VariableName::new("m")),
+            env.variables().get(VariableName::new("m")),
             Some(&Value::Float(0.0))
         );
         let (value, env) = eval_at("v.c = 1; v.c ? { v.s = 3; return 2; } : 0; v.s = 2;", 13);
         assert_eq!(value, 2.0);
         assert_eq!(
-            env.variables.get(VariableName::new("s")),
+            env.variables().get(VariableName::new("s")),
             Some(&Value::Float(3.0))
         );
         assert_eq!(
@@ -1119,16 +1107,16 @@ mod statements {
             let mut env = NoHostEnv::new();
             assert_eq!(expr.eval_f32(&mut env.cx()), 0.0, "{source}");
             assert_eq!(
-                env.variables.get(VariableName::new("x")),
+                env.variables().get(VariableName::new("x")),
                 Some(&Value::Float(5.0)),
                 "{source}"
             );
             assert_eq!(
-                env.variables.get(VariableName::new("after")),
+                env.variables().get(VariableName::new("after")),
                 None,
                 "{source}"
             );
-            assert!(env.sink.is_empty(), "{source}");
+            assert!(env.sink().is_empty(), "{source}");
         }
     }
 }
@@ -1180,7 +1168,7 @@ mod result_kinds {
     #[test]
     fn a_struct_comes_back_whole_and_is_zero_as_a_float() {
         let mut env = NoHostEnv::new();
-        env.variables.set(
+        env.variables_mut().set(
             VariableName::new("s"),
             Value::structure(StructValue::xy(1.0, 2.0)),
         );
@@ -1190,7 +1178,7 @@ mod result_kinds {
             Value::structure(StructValue::xy(1.0, 2.0))
         );
         assert_eq!(read.eval_f32(&mut env.cx()).to_bits(), 0.0_f32.to_bits());
-        assert!(env.sink.is_empty());
+        assert!(env.sink().is_empty());
     }
 
     #[test]
@@ -1225,13 +1213,13 @@ mod result_kinds {
             let program = server_expr(source);
             let mut env = NoHostEnv::new();
             assert_eq!(program.eval(&mut env.cx()), Value::ZERO, "{source}");
-            assert_eq!(env.sink.take().len(), messages, "{source}");
+            assert_eq!(env.sink_mut().take().len(), messages, "{source}");
             assert_eq!(
                 program.eval_f32(&mut env.cx()).to_bits(),
                 0.0_f32.to_bits(),
                 "{source}"
             );
-            assert_eq!(env.sink.take().len(), messages, "{source}");
+            assert_eq!(env.sink_mut().take().len(), messages, "{source}");
         }
         let rejected = compile("1 +", &server_at(13));
         assert_eq!(rejected.failure(), Some(CompileFailure::Rejected));
@@ -1239,7 +1227,7 @@ mod result_kinds {
         let mut env = NoHostEnv::new();
         assert_eq!(rejected.eval(&mut env.cx()), Value::ZERO);
         assert_eq!(rejected.eval_f32(&mut env.cx()), 0.0);
-        assert!(env.sink.is_empty());
+        assert!(env.sink().is_empty());
     }
 
     #[test]
@@ -1280,7 +1268,7 @@ mod threads {
                     let expr = &expr;
                     scope.spawn(move || {
                         let mut env = NoHostEnv::new();
-                        env.variables
+                        env.variables_mut()
                             .set(VariableName::new("n"), Value::Float(n as f32));
                         let mut total = 0.0;
                         for _ in 0..50 {

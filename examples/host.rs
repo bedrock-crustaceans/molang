@@ -216,8 +216,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!(
         "{:?}",
-        env.variables.by_entity.get(&(2, VariableName::new("copy")))
+        env.variables()
+            .by_entity
+            .get(&(2, VariableName::new("copy")))
     );
-    println!("logged: {:?}", env.sink.take());
+    println!("logged: {:?}", env.sink_mut().take());
     Ok(())
 }

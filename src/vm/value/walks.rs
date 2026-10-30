@@ -179,7 +179,7 @@ impl<H: Host> Debug for Value<H> {
 /// .unwrap();
 /// let mut env = NoHostEnv::new();
 /// expr.eval(&mut env.cx());
-/// let a = env.variables.get(VariableName::new("a")).unwrap();
+/// let a = env.variables().get(VariableName::new("a")).unwrap();
 /// assert_eq!(a.distinct_structs().count(), 32);
 /// // 31 structs of {z, x, y} and the innermost {z}.
 /// assert_eq!(a.distinct_structs().map(StructValue::len).sum::<usize>(), 31 * 3 + 1);

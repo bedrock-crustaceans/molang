@@ -96,10 +96,16 @@ mod division_guard {
     fn run(source: &str, version: MolangVersion, a: f32, d: f32) -> f32 {
         let expr = compile_expr(source, &CompileOptions::server(version));
         let mut env = NoHostEnv::new();
-        env.variables.set(VariableName::new("a"), Value::Float(a));
-        env.variables.set(VariableName::new("d"), Value::Float(d));
+        env.variables_mut()
+            .set(VariableName::new("a"), Value::Float(a));
+        env.variables_mut()
+            .set(VariableName::new("d"), Value::Float(d));
         let value = expr.eval_f32(&mut env.cx());
-        assert!(env.sink.is_empty(), "{source}: {:?}", env.sink.messages());
+        assert!(
+            env.sink().is_empty(),
+            "{source}: {:?}",
+            env.sink().messages()
+        );
         value
     }
 
@@ -708,14 +714,14 @@ mod folding {
         })?;
         let mut env = NoHostEnv::new();
         for (i, value) in hidden_values.iter().enumerate() {
-            env.variables
+            env.variables_mut()
                 .set(VariableName::new(&format!("k{i}")), Value::Float(*value));
         }
         let run = hidden_expr.eval_f32(&mut env.cx());
         prop_assert!(
-            env.sink.is_empty(),
+            env.sink().is_empty(),
             "{hidden_source}: {:?}",
-            env.sink.messages()
+            env.sink().messages()
         );
         Ok((constant, run))
     }

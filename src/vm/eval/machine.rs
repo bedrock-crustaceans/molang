@@ -191,7 +191,7 @@ mod tests {
     use crate::vm::eval::test_support::*;
     use crate::vm::eval::{Base, Stop};
     use crate::vm::name::ContextName;
-    use crate::vm::{EvalLimits, NoHost, NoHostEnv, StructValue};
+    use crate::vm::{EvalLimits, NoHost, StructValue};
 
     const WIDTH_MSG: &str =
         "molang: evaluation stopped: a struct would hold more than its budget of 2 members";
@@ -629,13 +629,12 @@ mod tests {
     #[test]
     fn a_member_store_checks_its_cost_before_the_width_and_depth() {
         let program = asm(vec![Instr::End]);
-        let mut env = NoHostEnv {
-            limits: EvalLimits::DEFAULT
+        let mut env = test_env().with_limits(
+            EvalLimits::DEFAULT
                 .with_struct_members(Some(0))
                 .with_struct_depth(Some(1))
                 .with_total_steps(Some(50)),
-            ..test_env()
-        };
+        );
         let mut cx = env.cx();
         // The budget cannot pay the 4 steps: the step message wins over width and depth.
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(3));

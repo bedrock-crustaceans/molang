@@ -43,8 +43,8 @@ impl ArrayProvider for NoArrays {
 /// let skins = ArrayName::new("skins");
 /// let textures = [ResourceRef::new("texture.a"), ResourceRef::new("texture.b")];
 /// let mut env = NoHostEnv::new();
-/// env.arrays.set(skins, textures);
-/// assert_eq!(env.arrays.array(skins), Some(&textures[..]));
+/// env.arrays_mut().set(skins, textures);
+/// assert_eq!(env.arrays().array(skins), Some(&textures[..]));
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ArrayTable {

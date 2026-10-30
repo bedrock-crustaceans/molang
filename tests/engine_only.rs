@@ -127,11 +127,9 @@ mod evaluation {
             .unwrap_or_else(|error| panic!("{src}: {error}"));
         let mut queries = QueryTable::new(&catalog);
         queries.set("query.double", double).expect("declared");
-        let mut env = NoHostEnv {
-            queries: Some(queries),
-            ..NoHostEnv::new()
-        };
-        env.variables.set(VariableName::new("x"), Value::Float(3.0));
+        let mut env = NoHostEnv::new().with_queries(queries);
+        env.variables_mut()
+            .set(VariableName::new("x"), Value::Float(3.0));
         let mut cx = env.cx();
         cx.rng = &mut rng;
         expr.eval_f32(&mut cx)
@@ -157,10 +155,7 @@ mod evaluation {
         .expect("compiles");
         let mut queries = QueryTable::new(&catalog);
         queries.set("query.actors", two_actors).expect("declared");
-        let mut env = NoHostEnv {
-            queries: Some(queries),
-            ..NoHostEnv::new()
-        };
+        let mut env = NoHostEnv::new().with_queries(queries);
         assert_eq!(expr.eval_f32(&mut env.cx()), 2.0);
     }
 

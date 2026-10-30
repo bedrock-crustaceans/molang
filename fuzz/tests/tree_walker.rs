@@ -85,11 +85,11 @@ mod differential {
         assert_eq!(stale.eval(&mut env.cx()), Value::ZERO);
         // The missing `v.never` jumped to the outer handler: `v.a = 2` ran after the loop.
         assert_eq!(
-            env.variables.get(VariableName::new("a")),
+            env.variables().get(VariableName::new("a")),
             Some(&Value::Float(2.0))
         );
         assert_eq!(
-            env.sink.take(),
+            env.sink_mut().take(),
             ["Error: unhandled request for unknown variable 'variable.never'"]
         );
         // Without a loop the jump ends the expression, which the tree walker models.
@@ -191,12 +191,8 @@ mod float_loop {
         queries.set(query::ANGER_LEVEL, hash_query).unwrap();
         queries.set(query::HEALTH, float_query).unwrap();
         queries.set(query::LIFE_TIME, failing_query).unwrap();
-        let mut env = NoHostEnv {
-            queries: Some(queries),
-            limits,
-            ..NoHostEnv::new()
-        };
-        env.variables
+        let mut env = NoHostEnv::new().with_queries(queries).with_limits(limits);
+        env.variables_mut()
             .set(VariableName::new("one"), Value::Float(1.0));
         env
     }
@@ -234,12 +230,13 @@ mod float_loop {
                 let reference = tree_walker::eval(&expr, &mut walker_env.cx());
                 assert_eq!(vm, reference, "{source} under {limits:?}: value");
                 assert_eq!(
-                    vm_env.variables, walker_env.variables,
+                    vm_env.variables(),
+                    walker_env.variables(),
                     "{source} under {limits:?}: variables"
                 );
                 assert_eq!(
-                    vm_env.sink.take(),
-                    walker_env.sink.take(),
+                    vm_env.sink_mut().take(),
+                    walker_env.sink_mut().take(),
                     "{source} under {limits:?}: messages"
                 );
 
@@ -251,7 +248,8 @@ mod float_loop {
                     "{source} under {limits:?}: eval_f32"
                 );
                 assert_eq!(
-                    f32_env.variables, walker_env.variables,
+                    f32_env.variables(),
+                    walker_env.variables(),
                     "{source} under {limits:?}: eval_f32 variables"
                 );
             }
@@ -270,7 +268,7 @@ mod float_loop {
         let mut env = env(EvalLimits::DEFAULT);
         let value = expr.eval(&mut env.cx());
         assert_eq!(value, Value::Hash(HashedStr::new("moo")));
-        assert_eq!(env.variables.get(VariableName::new("copy")), Some(&value));
+        assert_eq!(env.variables().get(VariableName::new("copy")), Some(&value));
     }
 }
 

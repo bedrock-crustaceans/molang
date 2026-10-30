@@ -39,11 +39,7 @@ fn env() -> NoHostEnv {
     // A table for the compile catalogue: calls go straight to their slot.
     let mut queries = QueryTable::new(queries(Side::Server));
     queries.set(query::ANGER_LEVEL, anger_level).unwrap();
-    let mut env = NoHostEnv {
-        queries: Some(queries),
-        this: 2.34,
-        ..NoHostEnv::new()
-    };
+    let mut env = NoHostEnv::new().with_queries(queries).with_this(2.34);
     for (name, value) in [
         ("anger_level", 40.0),
         ("x", 1.5),
@@ -57,10 +53,10 @@ fn env() -> NoHostEnv {
         ("foo", 3.0),
         ("bar", 7.0),
     ] {
-        env.variables
+        env.variables_mut()
             .set(VariableName::new(name), Value::Float(value));
     }
-    env.variables.set(
+    env.variables_mut().set(
         VariableName::new("state"),
         Value::Hash(HashedStr::new("walk")),
     );
@@ -160,7 +156,7 @@ fn budgets(c: &mut Criterion) {
         group.bench_function(*name, |b| b.iter(|| black_box(&e).eval_f32(&mut cx)));
     }
     assert!(
-        env.sink.take().is_empty(),
+        env.sink_mut().take().is_empty(),
         "the budget expressions log nothing"
     );
     group.finish();
@@ -253,7 +249,7 @@ fn shapes(c: &mut Criterion) {
     }
     // `coalesce_missing` reads a missing variable under `??`: no message.
     assert!(
-        env.sink.take().is_empty(),
+        env.sink_mut().take().is_empty(),
         "the shape expressions log nothing"
     );
     group.finish();
@@ -333,7 +329,7 @@ fn tick(c: &mut Criterion) {
             .collect(),
     };
     for i in 0..ENTITIES {
-        let map = env.variables.actor_mut(i);
+        let map = env.variables_mut().actor_mut(i);
         for (name, value) in [
             ("timer", 0.0),
             ("anger", (i % 80) as f32),
@@ -358,7 +354,7 @@ fn tick(c: &mut Criterion) {
     });
     group.finish();
     assert!(
-        env.sink.take().is_empty(),
+        env.sink_mut().take().is_empty(),
         "the tick expressions log nothing"
     );
 }

@@ -8,7 +8,7 @@ use molang::vm::{NoHost, NoHostEnv, QueryTable};
 
 /// The query table of an environment built with one.
 fn table(env: &mut NoHostEnv) -> &mut QueryTable<NoHost> {
-    env.queries.as_mut().expect("a query table")
+    env.queries_mut().expect("a query table")
 }
 
 mod queries {
@@ -58,10 +58,8 @@ mod queries {
     /// Each argument access runs the argument again, so a query decides which run and how often.
     #[test]
     fn arguments_are_evaluated_on_demand() {
-        let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
-            ..NoHostEnv::new()
-        };
+        let mut env =
+            NoHostEnv::new().with_queries(QueryTable::new(molang::stdlib::queries(Side::Server)));
         table(&mut env).set(query::IS_BABY, twice_first).unwrap();
         // `t.n = t.n + 1` is not allowed as an operand, so the side effect is a random draw.
         let expr = client_expr("q.is_baby(math.random(0, 10), math.random(0, 10))");
@@ -80,12 +78,10 @@ mod queries {
 
     #[test]
     fn arguments_share_the_evaluation() {
-        let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
-            ..NoHostEnv::new()
-        };
+        let mut env =
+            NoHostEnv::new().with_queries(QueryTable::new(molang::stdlib::queries(Side::Server)));
         table(&mut env).set(query::IS_BABY, reads_variable).unwrap();
-        env.variables
+        env.variables_mut()
             .set(VariableName::new("base"), Value::Float(10.0));
         let expr =
             client_expr("t.k = 2; v.x = 3; return q.is_baby(t.k * v.x + q.is_baby(1)) * 2 + 1;");
@@ -97,17 +93,15 @@ mod queries {
     /// catch it.
     #[test]
     fn a_missing_read_in_an_argument_ends_only_the_argument() {
-        let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
-            ..NoHostEnv::new()
-        };
+        let mut env =
+            NoHostEnv::new().with_queries(QueryTable::new(molang::stdlib::queries(Side::Server)));
         table(&mut env).set(query::IS_BABY, reads_variable).unwrap();
-        env.variables
+        env.variables_mut()
             .set(VariableName::new("base"), Value::Float(10.0));
         let expr = client_expr("v.r = q.is_baby(v.never_set + 1) ?? 99; return v.r + 1;");
         assert_eq!(expr.eval_f32(&mut env.cx()), 11.0);
         assert_eq!(
-            env.sink.take(),
+            env.sink_mut().take(),
             vec!["Error: unhandled request for unknown variable 'variable.never_set'".to_owned()]
         );
     }
@@ -116,10 +110,8 @@ mod queries {
     /// learns which resolved; an `Err` is logged and the call is worth the default.
     #[test]
     fn stubs_version_ranges_and_failures() {
-        let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
-            ..NoHostEnv::new()
-        };
+        let mut env =
+            NoHostEnv::new().with_queries(QueryTable::new(molang::stdlib::queries(Side::Server)));
         for (name, default) in [
             ("query.is_baby", 0.0),
             ("query.armor_color_slot", 1.0),
@@ -159,7 +151,7 @@ mod queries {
             2.0
         );
         assert_eq!(
-            env.sink.take(),
+            env.sink_mut().take(),
             vec!["Error: query.is_baby is not available here.".to_owned()]
         );
     }
@@ -242,20 +234,14 @@ mod queries {
         .into_result()
         .unwrap();
 
-        let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(&strings)),
-            ..NoHostEnv::new()
-        };
+        let mut env = NoHostEnv::new().with_queries(QueryTable::new(&strings));
         table(&mut env).set("query.double", a_string).unwrap();
         assert_eq!(
             expr.eval(&mut env.cx()),
             Value::Float(1.0),
             "the default 0 of the number declaration, plus 1"
         );
-        let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(&declaring(ReturnType::FLOAT))),
-            ..NoHostEnv::new()
-        };
+        let mut env = NoHostEnv::new().with_queries(QueryTable::new(&declaring(ReturnType::FLOAT)));
         table(&mut env).set("query.double", double).unwrap();
         assert_eq!(
             expr.eval(&mut env.cx()),
@@ -327,10 +313,7 @@ mod queries {
         let (expr, _) = compile("q.life_time('a', 'b') == 'ok'", &options)
             .into_result()
             .unwrap();
-        let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(&catalog)),
-            ..NoHostEnv::new()
-        };
+        let mut env = NoHostEnv::new().with_queries(QueryTable::new(&catalog));
         table(&mut env)
             .set(query::LIFE_TIME, |cx| {
                 Ok(Value::Hash(HashedStr::new(if cx.arg_count() == 2 {
@@ -466,7 +449,7 @@ mod runtime_messages {
                 ..Subjects::actor(1)
             },
         ));
-        (value, env.sink.take())
+        (value, env.sink_mut().take())
     }
 
     /// `->` switches the subjects (actor, item, block, `this`) for its right side and back
@@ -501,7 +484,7 @@ mod runtime_messages {
         let mut reference = Xorshift128::new();
         let first = reference.sample();
         assert_eq!(
-            env.variables
+            env.variables()
                 .actor(1)
                 .and_then(|m| m.get(VariableName::new("r"))),
             Some(&Value::Float(first))
@@ -630,7 +613,7 @@ mod runtime_messages {
     #[test]
     fn wrong_kinds_and_arrow_shapes_log_only_the_variable_texts() {
         let (mut env, mut world) = farm();
-        env.context = ContextMap::from([
+        *env.context_mut() = ContextMap::from([
             (ContextName::new("other"), Value::Actor(2)),
             (ContextName::new("dead"), Value::Actor(9)),
             (ContextName::new("s"), Value::string("moo")),
@@ -750,10 +733,8 @@ mod query_misuse {
     }
 
     fn env() -> NoHostEnv {
-        let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
-            ..NoHostEnv::new()
-        };
+        let mut env =
+            NoHostEnv::new().with_queries(QueryTable::new(molang::stdlib::queries(Side::Server)));
         table(&mut env)
             .set(query::HEAD_X_ROTATION, head_x_rotation)
             .unwrap();
@@ -921,7 +902,7 @@ mod names_a_host_makes {
         let speed = StructValue::<NoHost>::from([("Speed", 2.0)]);
         assert_eq!(speed.get(h("speed")), Some(&Value::Float(2.0)));
         let mut env = NoHostEnv::new();
-        env.variables
+        env.variables_mut()
             .set(VariableName::new("S"), Value::structure(speed));
         let read = |source: &str, env: &mut NoHostEnv| {
             compile(source, &CompileOptions::server(MolangVersion::LATEST))
@@ -1117,16 +1098,16 @@ mod variable_store {
     #[test]
     fn assignment_keeps_access() {
         let mut env = NoHostEnv::new();
-        env.variables
+        env.variables_mut()
             .set_access(VariableName::new("x"), Access::Public);
         server_expr("v.x = 4;").eval(&mut env.cx());
         assert_eq!(
-            env.variables.access(VariableName::new("x")),
+            env.variables().access(VariableName::new("x")),
             Some(Access::Public)
         );
         server_expr("v.y = 4;").eval(&mut env.cx());
         assert_eq!(
-            env.variables.access(VariableName::new("y")),
+            env.variables().access(VariableName::new("y")),
             Some(Access::Private)
         );
     }
@@ -1265,7 +1246,10 @@ mod world_generation_rng {
         let mut env = HostEnv::<NoHost>::default().with_rng(move || unit_32(mt.next_u32()));
         let got = expr.eval_f32(&mut env.cx(&mut NoHost, Subjects::none()));
         assert_eq!(got.to_bits(), unit_32(1_791_095_845).to_bits());
-        assert_eq!((env.rng)().to_bits(), unit_32(4_282_876_139).to_bits());
+        assert_eq!(
+            (env.rng_mut())().to_bits(),
+            unit_32(4_282_876_139).to_bits()
+        );
     }
 }
 
@@ -1291,10 +1275,8 @@ mod query_defaults {
 
     #[test]
     fn a_failing_query_falls_back_to_its_own_default() {
-        let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
-            ..NoHostEnv::new()
-        };
+        let mut env =
+            NoHostEnv::new().with_queries(QueryTable::new(molang::stdlib::queries(Side::Server)));
         let cases: [(&str, &str, Value<NoHost>); 4] = [
             (query::IS_BABY, "q.is_baby", Value::Float(0.0)),
             (
@@ -1316,16 +1298,14 @@ mod query_defaults {
         for (name, source, default) in cases {
             table(&mut env).set(name, failing).unwrap();
             assert_eq!(run(&mut env, source), default, "{source}");
-            assert_eq!(env.sink.take(), ["host failure"], "{source}");
+            assert_eq!(env.sink_mut().take(), ["host failure"], "{source}");
         }
     }
 
     #[test]
     fn the_expression_goes_on_after_a_failing_query() {
-        let mut env = NoHostEnv {
-            queries: Some(QueryTable::new(molang::stdlib::queries(Side::Server))),
-            ..NoHostEnv::new()
-        };
+        let mut env =
+            NoHostEnv::new().with_queries(QueryTable::new(molang::stdlib::queries(Side::Server)));
         table(&mut env)
             .set(query::ARMOR_COLOR_SLOT, failing)
             .unwrap();
@@ -1337,7 +1317,7 @@ mod query_defaults {
             ),
             Value::Float(15.0)
         );
-        assert_eq!(env.sink.take(), ["host failure", "host failure"]);
+        assert_eq!(env.sink_mut().take(), ["host failure", "host failure"]);
     }
 }
 
@@ -1377,11 +1357,11 @@ mod public_variables {
         other: u32,
         source: &str,
     ) -> (Value<Farm>, Vec<String>) {
-        env.context
+        env.context_mut()
             .set(ContextName::new("other"), Value::Actor(other));
         let expr = server_expr(source);
         let value = expr.eval(&mut env.cx(&mut World, Subjects::actor(actor)));
-        (value, env.sink.take())
+        (value, env.sink_mut().take())
     }
 
     fn hp(env: &mut FarmEnv, actor: u32) -> f32 {
@@ -1410,7 +1390,7 @@ mod public_variables {
             (Value::ZERO, vec![])
         );
 
-        env.variables.refresh_snapshots();
+        env.variables_mut().refresh_snapshots();
         assert_eq!(
             eval_as(&mut env, 1, 2, "c.other->v.hp"),
             (Value::Float(20.0), vec![])
@@ -1438,7 +1418,7 @@ mod public_variables {
         assert_eq!(hp(&mut env, 1), 10.0);
 
         // The host takes the snapshots of tick 2.
-        env.variables.refresh_snapshots();
+        env.variables_mut().refresh_snapshots();
         assert_eq!(
             eval_as(&mut env, 1, 2, "c.other->v.hp"),
             (Value::Float(25.0), vec![])
@@ -1467,12 +1447,12 @@ mod public_variables {
             Value::Float(3.0)
         );
         assert_eq!(
-            env.variables
+            env.variables()
                 .actor(2)
                 .and_then(|m| m.get(VariableName::new("score"))),
             Some(&Value::Float(9.0))
         );
-        assert!(env.variables.actor(3).is_none());
+        assert!(env.variables().actor(3).is_none());
     }
 }
 
@@ -1486,17 +1466,14 @@ mod temps {
     fn run(env: &mut HostEnv<NoHost>, source: &str) -> (Value<NoHost>, Vec<String>) {
         let expr = server_expr(source);
         let value = expr.eval(&mut env.cx(&mut NoHost, Subjects::none()));
-        (value, env.sink.take())
+        (value, env.sink_mut().take())
     }
 
     #[test]
     fn a_temp_lives_within_one_evaluation() {
         for mut env in [
             HostEnv::<NoHost>::default(),
-            HostEnv {
-                temps: Temps::Kept(TempMap::new()),
-                ..HostEnv::default()
-            },
+            HostEnv::default().with_temps(Temps::Kept(TempMap::new())),
         ] {
             assert_eq!(
                 run(&mut env, "t.k = 5; return t.k * 2;"),
@@ -1516,23 +1493,20 @@ mod temps {
                 vec!["Error: unhandled request for unknown variable 'temp.k'".to_owned()]
             )
         );
-        assert!(matches!(env.temps, Temps::PerEvaluation));
+        assert!(matches!(env.temps(), Temps::PerEvaluation));
     }
 
     /// The host can read the one map, which is never cleared.
     #[test]
     fn persistent_temps_carry_over_across_evaluations() {
-        let mut env = HostEnv::<NoHost> {
-            temps: Temps::Kept(TempMap::new()),
-            ..HostEnv::default()
-        };
+        let mut env = HostEnv::default().with_temps(Temps::Kept(TempMap::new()));
         assert_eq!(run(&mut env, "t.k = 5;").1, Vec::<String>::new());
         assert_eq!(
             run(&mut env, "t.k = t.k + 1; return t.k;"),
             (Value::Float(6.0), vec![])
         );
         assert_eq!(
-            env.temps.kept().and_then(|t| t.get(TempName::new("k"))),
+            env.temps().kept().and_then(|t| t.get(TempName::new("k"))),
             Some(&Value::Float(6.0))
         );
     }
@@ -2444,13 +2418,12 @@ mod variable_maps {
 
     #[test]
     fn no_host_environment() {
-        let mut env = NoHostEnv {
-            this: 2.34,
-            ..NoHostEnv::new()
-        }
-        .with_rng(Xorshift128::new());
-        env.variables.set(VariableName::new("x"), Value::Float(3.0));
-        env.context
+        let mut env = NoHostEnv::new()
+            .with_this(2.34)
+            .with_rng(Xorshift128::new());
+        env.variables_mut()
+            .set(VariableName::new("x"), Value::Float(3.0));
+        env.context_mut()
             .set(ContextName::new("moo"), Value::string("moo"));
         {
             let mut cx = env.cx();
@@ -2477,10 +2450,10 @@ mod variable_maps {
             assert!(cx.queries.is_none());
         }
         assert_eq!(
-            env.variables.get(VariableName::new("y")),
+            env.variables().get(VariableName::new("y")),
             Some(&Value::Float(4.0))
         );
-        assert!(env.sink.is_empty());
+        assert!(env.sink().is_empty());
     }
 }
 
@@ -3184,7 +3157,7 @@ mod render_controller_arrays {
             (-3.0, "texture.default"),
             (5.0, "texture.blue"),
         ] {
-            env.variables
+            env.variables_mut()
                 .set(molang::vm::VariableName::new("i"), Value::Float(i));
             assert_eq!(
                 expr.eval(&mut env.cx(&mut World, Subjects::none())),
@@ -3192,7 +3165,7 @@ mod render_controller_arrays {
                 "{i}"
             );
         }
-        assert!(env.sink.is_empty());
+        assert!(env.sink().is_empty());
     }
 
     /// A host's own provider: every name has the same two elements.
@@ -3227,7 +3200,7 @@ mod render_controller_arrays {
     #[test]
     fn unknown_and_empty_arrays_read_zero_and_log() {
         let mut env = HostEnv::<Skins>::default();
-        env.arrays.set(ArrayName::new("empty"), []);
+        env.arrays_mut().set(ArrayName::new("empty"), []);
         let expr = client("array.missing[0]", Platform::default());
         assert_eq!(
             expr.eval(&mut env.cx(&mut World, Subjects::none())),
@@ -3239,7 +3212,7 @@ mod render_controller_arrays {
             Value::ZERO
         );
         assert_eq!(
-            env.sink.take(),
+            env.sink_mut().take(),
             [
                 "molang: unknown array 'array.missing'",
                 "molang: array 'array.empty' has no elements",

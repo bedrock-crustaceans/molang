@@ -22,14 +22,14 @@ fn main() -> Result<(), CompileError> {
     );
 
     // Variables persist in the environment between evaluations; temps do not.
-    env.variables
+    env.variables_mut()
         .set(VariableName::new("speed"), Value::Float(2.5));
     let source = "t.d = 0; loop(4, {t.d = t.d + v.speed;}); v.distance = t.d; return v.distance;";
     let (expr, _) = compile(source, &options).into_result()?;
     println!("{source} = {}", expr.eval_f32(&mut env.cx()));
     println!(
         "variable.distance is now {:?}",
-        env.variables.get(VariableName::new("distance"))
+        env.variables().get(VariableName::new("distance"))
     );
 
     // Reading a variable nobody set ends the expression with 0 and logs a message.
@@ -38,7 +38,7 @@ fn main() -> Result<(), CompileError> {
         "v.a = 1; return v.never_set + 1; = {}",
         expr.eval_f32(&mut env.cx())
     );
-    for message in env.sink.take() {
+    for message in env.sink_mut().take() {
         println!("  logged: {message}");
     }
 

@@ -33,7 +33,7 @@ mod math_functions {
         let expr = compiled.expr().cloned().expect("an expression");
         let mut env = NoHostEnv::new();
         for (name, value) in vars {
-            env.variables
+            env.variables_mut()
                 .set(VariableName::new(name), Value::Float(*value));
         }
         let mut rng = Samples::new(samples);
@@ -42,7 +42,7 @@ mod math_functions {
             cx.rng = &mut rng;
             expr.eval_f32(&mut cx)
         };
-        assert!(env.sink.is_empty(), "{source:?}: {:?}", env.sink);
+        assert!(env.sink().is_empty(), "{source:?}: {:?}", env.sink());
         (value, rng.draws)
     }
 
@@ -1475,11 +1475,11 @@ mod platforms {
         let expr = compiled.expr().cloned().expect("an expression");
         let mut env = NoHostEnv::new();
         for (name, value) in vars {
-            env.variables
+            env.variables_mut()
                 .set(VariableName::new(name), Value::Float(*value));
         }
         let value = expr.eval_f32(&mut env.cx());
-        (value, env.sink.take())
+        (value, env.sink_mut().take())
     }
 
     /// [`run_on`] on every platform, which must give the same bits and messages.
@@ -2100,11 +2100,12 @@ mod platforms {
             let compiled = compile("math.die_roll(v.n, 1, 2)", &on(platform, server_at(13)));
             let expr = compiled.expr().cloned().expect("an expression");
             let mut env = NoHostEnv::new();
-            env.variables.set(VariableName::new("n"), Value::Float(3e9));
+            env.variables_mut()
+                .set(VariableName::new("n"), Value::Float(3e9));
             let mut cx = env.cx();
             cx.limits = EvalLimits::NONE.with_total_steps(Some(1_000));
             assert_eq!(expr.eval_f32(&mut cx), 0.0, "{platform:?}");
-            let stopped = env.sink.take().len() == 1;
+            let stopped = env.sink_mut().take().len() == 1;
             assert_eq!(stopped, platform == Platform::AndroidArm64, "{platform:?}");
         }
     }
@@ -2368,8 +2369,10 @@ mod division_per_version {
     fn divide(version: i16, a: f32, d: f32) -> f32 {
         let expr = server_expr_at("v.a / v.d", version);
         let mut env = NoHostEnv::new();
-        env.variables.set(VariableName::new("a"), Value::Float(a));
-        env.variables.set(VariableName::new("d"), Value::Float(d));
+        env.variables_mut()
+            .set(VariableName::new("a"), Value::Float(a));
+        env.variables_mut()
+            .set(VariableName::new("d"), Value::Float(d));
         expr.eval_f32(&mut env.cx())
     }
 
@@ -3350,7 +3353,7 @@ mod nan_signs {
             ("h", 0.5),
             ("one", 1.0),
         ] {
-            env.variables
+            env.variables_mut()
                 .set(VariableName::new(name), Value::Float(value));
         }
         compiled

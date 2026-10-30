@@ -219,7 +219,7 @@ mod tests {
     use crate::vm::eval::{Base, Stop};
     use crate::vm::host::Subjects;
     use crate::vm::test_support::TestHost;
-    use crate::vm::{EvalLimits, HostEnv, NoHost, NoHostEnv, StructValue};
+    use crate::vm::{EvalLimits, HostEnv, NoHost, StructValue};
 
     #[test]
     fn a_count_is_spent_at_zero_or_below_and_a_nan_count_never_is() {
@@ -694,10 +694,7 @@ mod tests {
     fn the_operand_stack_cap_ends_a_runaway_loop() {
         let source = "v.zero = 0; v.i = 0; v.j = 0; loop(2, { v.i = v.i + 1; loop(3, { v.j = v.j + 1; v.t = v.zero * (v.j > 0 ? {continue;} : 0); }); }); return 1;";
         let expr = compile_ok(source);
-        let mut env = NoHostEnv {
-            limits: EvalLimits::NONE,
-            ..test_env()
-        };
+        let mut env = test_env().with_limits(EvalLimits::NONE);
         assert_eq!(expr.eval_f32(&mut env.cx()), 0.0);
         assert_eq!(
             env.sink.take(),
@@ -723,10 +720,7 @@ mod tests {
         let cap = EvalLimits::OPERAND_STACK_CAP as usize;
         let program = cap_program(Instr::LoopCheck { body: 0 });
         // Exactly the cap: no trip (the top is 0, so the loop is left).
-        let mut env = NoHostEnv {
-            limits: EvalLimits::NONE,
-            ..test_env()
-        };
+        let mut env = test_env().with_limits(EvalLimits::NONE);
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, None);
         vm.stack.extend((0..cap).map(|_| NV::Float(0.0)));

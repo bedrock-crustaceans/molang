@@ -295,10 +295,7 @@ pub(crate) mod test_support {
     /// Every query is a stub until a test installs a function.
     #[track_caller]
     pub(crate) fn server_env() -> TestEnv {
-        NoHostEnv {
-            queries: Some(QueryTable::new(crate::stdlib::queries(Side::Server))),
-            ..test_env()
-        }
+        test_env().with_queries(QueryTable::new(crate::stdlib::queries(Side::Server)))
     }
 
     /// The query table of a [`server_env`].
@@ -308,10 +305,7 @@ pub(crate) mod test_support {
 
     /// An environment that keeps `temp.*` across evaluations.
     pub(crate) fn kept_temps_env() -> TestEnv {
-        NoHostEnv {
-            temps: Temps::Kept(TempMap::new()),
-            ..test_env()
-        }
+        test_env().with_temps(Temps::Kept(TempMap::new()))
     }
 
     pub(crate) fn ran(src: &str, setup: impl FnOnce(&mut TestEnv)) -> Ran {
@@ -521,7 +515,7 @@ mod tests {
     use crate::stdlib::query;
     use crate::version::MolangVersion;
     use crate::vm::name::ContextName;
-    use crate::vm::{NoHostEnv, StructValue, value::ResourceRef};
+    use crate::vm::{StructValue, value::ResourceRef};
 
     #[test]
     fn eval_f32_reads_each_kind_of_value_as_arithmetic_does() {
@@ -774,10 +768,7 @@ mod tests {
     #[test]
     fn eval_does_not_touch_the_subjects_of_the_caller() {
         let expr = compile_ok("v.x * 2");
-        let mut env = NoHostEnv {
-            this: 2.0,
-            ..test_env()
-        };
+        let mut env = test_env().with_this(2.0);
         set(&mut env, &[("x", 1.0)]);
         let mut cx = env.cx();
         let before = cx.subjects;

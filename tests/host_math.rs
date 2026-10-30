@@ -436,7 +436,8 @@ mod evaluation {
 
     fn env_with_x(x: f32) -> NoHostEnv {
         let mut env = NoHostEnv::new();
-        env.variables.set(VariableName::new("x"), Value::Float(x));
+        env.variables_mut()
+            .set(VariableName::new("x"), Value::Float(x));
         env
     }
 
@@ -477,7 +478,7 @@ mod evaluation {
     fn run_time_arguments_arrive_in_source_order() {
         let math = catalog();
         let mut env = env_with_x(1.0);
-        env.variables.set(VariableName::new("y"), 3.0);
+        env.variables_mut().set(VariableName::new("y"), 3.0);
         for (src, value) in [
             ("math.weigh3(v.x, 2, v.y)", 9.0),
             ("math.weigh3(v.y, v.x * 2, v.x)", 3.0),
@@ -506,7 +507,7 @@ mod evaluation {
         let (first, second, third) = (samples.sample(), samples.sample(), samples.sample());
         assert_eq!(call.eval_f32(&mut env.cx()), 10.0 + second);
         let read = |name: &str| {
-            env.variables
+            env.variables()
                 .get(VariableName::new(name))
                 .map(Value::to_f32)
         };
@@ -607,10 +608,11 @@ mod evaluation {
         (0..100)
             .find(|&steps| {
                 let mut env = env_with_x(0.5);
-                env.variables.set(VariableName::new("y"), Value::Float(1.0));
-                env.limits = env.limits.with_total_steps(Some(steps));
+                env.variables_mut()
+                    .set(VariableName::new("y"), Value::Float(1.0));
+                *env.limits_mut() = env.limits().with_total_steps(Some(steps));
                 expr.eval(&mut env.cx());
-                env.sink.is_empty()
+                env.sink().is_empty()
             })
             .expect("completes within 100 steps")
     }

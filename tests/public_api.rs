@@ -542,7 +542,7 @@ mod vm {
             .expect("expr");
         assert_eq!(expr.eval_f32(&mut env.cx()), 7.0);
         assert_eq!(
-            env.variables.get(VariableName::new("y")),
+            env.variables().get(VariableName::new("y")),
             Some(&Value::Float(7.0))
         );
         assert_eq!(
@@ -553,7 +553,7 @@ mod vm {
                 .eval(&mut env.cx()),
             Value::Float(3.0)
         );
-        assert!(env.sink.is_empty());
+        assert!(env.sink().is_empty());
     }
 
     /// `==` takes the right operand's kind, so a string equals the float of its own low bits only
@@ -796,12 +796,12 @@ mod vm {
             .expect("expr");
         write.eval(&mut env.cx());
         let base = env
-            .variables
+            .variables()
             .get(VariableName::new("a"))
             .expect("the base variable `variable.a`");
         assert_eq!(base.member(HashedStr::new("b")), Some(&Value::Float(3.0)));
         assert_eq!(
-            env.variables.get(VariableName::new("c")),
+            env.variables().get(VariableName::new("c")),
             Some(&Value::Float(4.0))
         );
         let parsed: VariableName = "V.C".parse().expect("a variable name");
@@ -847,13 +847,11 @@ mod vm {
         let installed: Option<&Arc<dyn Query<NoHost>>> =
             queries.get(query::LIFE_TIME).expect("declared");
         assert!(installed.is_some());
-        let mut env = NoHostEnv {
-            queries: Some(queries),
-            limits: EvalLimits::DEFAULT.with_total_steps(Some(10_000)),
-            temps: Temps::Kept(TempMap::new()),
-            context: ContextMap::from([(ContextName::new("bonus"), 1.0)]),
-            ..NoHostEnv::new()
-        };
+        let mut env = NoHostEnv::new()
+            .with_queries(queries)
+            .with_limits(EvalLimits::DEFAULT.with_total_steps(Some(10_000)))
+            .with_temps(Temps::Kept(TempMap::new()))
+            .with_context(ContextMap::from([(ContextName::new("bonus"), 1.0)]));
         let expr = compile(
             "t.n = q.life_time + q.anger_level + q.anger_level + c.bonus; return t.n;",
             &CompileOptions::server(MolangVersion::LATEST),
@@ -864,7 +862,7 @@ mod vm {
         assert_eq!(expr.eval_f32(&mut env.cx()), 9.0);
         assert_eq!(calls.load(Ordering::Relaxed), 2);
         assert_eq!(
-            env.temps
+            env.temps()
                 .kept()
                 .and_then(|temps| temps.get(molang::vm::TempName::new("n"))),
             Some(&Value::Float(9.0))
@@ -914,10 +912,7 @@ mod vm {
         .cloned()
         .expect("expr");
         for queries in [first, second] {
-            let mut env = NoHostEnv {
-                queries: Some(queries),
-                ..NoHostEnv::new()
-            };
+            let mut env = NoHostEnv::new().with_queries(queries);
             assert_eq!(expr.eval_f32(&mut env.cx()), 6.0);
         }
     }
@@ -957,9 +952,9 @@ mod vm {
             }
         }
         assert!(
-            env.sink.is_empty(),
+            env.sink().is_empty(),
             "a stub logs nothing: {:?}",
-            env.sink.take()
+            env.sink_mut().take()
         );
         // Exactly the listed exceptions differ from the float 0.0.
         let mut names: Vec<&str> = non_zero.iter().map(|(name, _)| *name).collect();
@@ -1102,7 +1097,7 @@ mod rng {
             random_twice().eval_f32(&mut env.cx(&mut NoHost, Subjects::none())),
             2.0 + 4.0 * 100.0
         );
-        let dynamic: &mut dyn RandomSource = &mut env.rng;
+        let dynamic: &mut dyn RandomSource = env.rng_mut();
         assert_eq!(dynamic.sample(), 0.375);
         let mut env = HostEnv::<NoHost>::default().with_rng(Quarter);
         assert_eq!(
@@ -1121,8 +1116,8 @@ mod rng {
             [FixedRng::ZERO, FixedRng::HALF, FixedRng::ONE].map(|mut f| f.sample()),
             [0.0, 0.5, 1.0]
         );
-        let _: fn(&mut NoHostEnv) -> &mut ProcessRng = |env| &mut env.rng;
-        let _: fn(HostEnv<NoHost>) -> ProcessRng = |env| env.rng;
+        let _: fn(&mut NoHostEnv) -> &mut ProcessRng = |env| env.rng_mut();
+        let _: fn(HostEnv<NoHost>) -> ProcessRng = |env| *env.rng();
         let _: fn(&mut ProcessRng) -> &mut dyn RandomSource = |rng| rng;
         let _: fn() = ProcessRng::reset;
         let _: Box<dyn RandomSource> = Box::new(|| 0.5);

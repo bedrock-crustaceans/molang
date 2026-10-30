@@ -16,7 +16,7 @@ fn run(env: &mut NoHostEnv, source: &str) {
         .expect("compiles");
     let value = expr.eval_f32(&mut env.cx());
     println!("  {source:<56} = {value}");
-    for message in env.sink.take() {
+    for message in env.sink_mut().take() {
         println!("      logged: {message}");
     }
 }
@@ -29,7 +29,7 @@ fn main() {
     run(&mut env, "return v.speed * 2;");
     println!(
         "  the store now holds {:?}",
-        env.variables.get(VariableName::new("speed"))
+        env.variables().get(VariableName::new("speed"))
     );
     // Names are case-insensitive: the lexer lower-cases everything outside strings.
     run(&mut env, "return V.SPEED;");
@@ -39,16 +39,13 @@ fn main() {
     run(&mut env, "t.scratch = 3;");
     run(&mut env, "return t.scratch;");
     println!("temp. persists (NoHostEnv::temps):");
-    let mut persistent = NoHostEnv {
-        temps: Temps::Kept(TempMap::new()),
-        ..NoHostEnv::new()
-    };
+    let mut persistent = NoHostEnv::new().with_temps(Temps::Kept(TempMap::new()));
     run(&mut persistent, "t.scratch = 3;");
     run(&mut persistent, "return t.scratch;");
 
     println!();
     println!("context. is filled by the caller:");
-    env.context
+    env.context_mut()
         .set(ContextName::new("damage"), Value::Float(4.0));
     run(&mut env, "return c.damage * 0.5;");
 
@@ -69,9 +66,9 @@ fn main() {
     );
     println!(
         "  v.before = {:?}, v.after = {:?}, v.later = {:?}",
-        env.variables.get(VariableName::new("before")),
-        env.variables.get(VariableName::new("after")),
-        env.variables.get(VariableName::new("later"))
+        env.variables().get(VariableName::new("before")),
+        env.variables().get(VariableName::new("after")),
+        env.variables().get(VariableName::new("later"))
     );
 
     // Structs: member writes create the struct on the way.
@@ -107,7 +104,7 @@ impl HostAccess<Pair> for Pair {
 fn arrow() {
     // Variables in the ready-made per-entity `VariableStorage`.
     let mut env = HostEnv::<Pair>::default().with_variables(VariableStorage::new());
-    let store = &mut env.variables;
+    let store = env.variables_mut();
     store
         .actor_mut(2)
         .set_public(VariableName::new("hp"), Value::Float(8.0));
@@ -120,12 +117,12 @@ fn arrow() {
     // Other entities read a public variable's *snapshot*, which the host refreshes once per tick.
     println!("  before the first update, entity 1 reads entity 2's hp as:");
     eval_for_entity_1(&mut env, "v.buddy->v.hp");
-    env.variables.refresh_snapshots();
+    env.variables_mut().refresh_snapshots();
     println!("  after refresh_snapshots():");
     eval_for_entity_1(&mut env, "v.buddy->v.hp");
     // The owner always reads the latest value; a change is invisible through `->` until the next
     // update.
-    env.variables
+    env.variables_mut()
         .actor_mut(2)
         .set_public(VariableName::new("hp"), Value::Float(5.0));
     println!("  entity 2 lowers its hp to 5; entity 1 still sees the snapshot:");
@@ -141,6 +138,6 @@ fn eval_for_entity_1(env: &mut HostEnv<Pair, VariableStorage<Pair>>, source: &st
     let value = expr.eval(&mut env.cx(&mut Pair, Subjects::actor(1)));
     println!(
         "      {source:<24} = {value:?}   (logged: {:?})",
-        env.sink.take()
+        env.sink_mut().take()
     );
 }

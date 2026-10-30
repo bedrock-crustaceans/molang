@@ -103,14 +103,14 @@ use namespace::{Array, Context, Namespace, Temp, Variable};
 /// use molang::vm::{ContextName, NoHostEnv, Value};
 ///
 /// let mut env = NoHostEnv::new();
-/// env.variables.set(ContextName::new("x"), Value::Float(1.0));
+/// env.variables_mut().set(ContextName::new("x"), Value::Float(1.0));
 /// ```
 ///
 /// ```compile_fail,E0308
 /// use molang::vm::{NoHostEnv, Value, VariableName};
 ///
 /// let mut env = NoHostEnv::new();
-/// env.context.set(VariableName::new("z"), Value::Float(1.0));
+/// env.context_mut().set(VariableName::new("z"), Value::Float(1.0));
 /// ```
 pub struct Name<N: Namespace> {
     hash: HashedStr,

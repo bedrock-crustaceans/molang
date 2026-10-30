@@ -74,7 +74,7 @@
 //! assert!(diagnostics.is_empty());
 //!
 //! let mut env = NoHostEnv::new();
-//! env.variables.set(VariableName::new("speed"), Value::Float(1.5));
+//! env.variables_mut().set(VariableName::new("speed"), Value::Float(1.5));
 //! assert_eq!(expr.eval_f32(&mut env.cx()), 8.0);
 //! # }
 //! # Ok::<(), Box<dyn std::error::Error>>(())

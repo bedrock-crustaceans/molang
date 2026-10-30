@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (expr, _) =
         compile("math.smooth_max(v.speed, 1) + math.gauss(0, 0.1)", &options).into_result()?;
     let mut env = NoHostEnv::new();
-    env.variables
+    env.variables_mut()
         .set(VariableName::new("speed"), Value::Float(4.0));
     for _ in 0..3 {
         println!("with v.speed = 4: {}", expr.eval_f32(&mut env.cx()));
