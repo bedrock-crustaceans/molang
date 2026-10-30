@@ -8,6 +8,8 @@ Fork the repository, branch from `main`, keep a branch to one change, and discus
 cargo fmt --all
 cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo test --locked --all-features
+cargo test --locked
+cargo test --locked --features strict-math
 RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
 ```
 
@@ -24,22 +26,9 @@ cargo test --no-default-features --features compiler --test engine_only
 cargo test --no-default-features --features vm --test engine_only
 ```
 
-and clippy with each feature alone (`--no-default-features --features <feature>`) and with `compiler,vm` without `stdlib`. The unit tests need `stdlib`. CI pins one Rust release (`RUST_TOOLCHAIN` in `.github/workflows/ci.yml`), since clippy's lints change between releases; use it locally when clippy disagrees with CI. The minimum supported version is `rust-version` in `Cargo.toml`.
+and clippy with each feature alone (`--no-default-features --features <feature>`), with `compiler,vm` without `stdlib`, and with `stdlib,strict-math`. `--all-features` includes `strict-math`; `cargo test --locked` and `cargo test --locked --features vm` run the suite on the host's C library. The unit tests need `stdlib`. CI pins one Rust release (`RUST_TOOLCHAIN` in `.github/workflows/ci.yml`), since clippy's lints change between releases; use it locally when clippy disagrees with CI. The minimum supported version is `rust-version` in `Cargo.toml`.
 
 Hostile-input tests can allocate a lot; run them under a memory cap, for example `systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0 cargo test …`.
-
-### The glibc oracle
-
-`src/stdlib/math/glibc/` reproduces glibc's single-precision functions bit for bit, as glibc 2.41 computes them on an x86-64 CPU with FMA. `sinf`, `cosf`, `expf`, `exp2f`, `logf`, `log2f` and `powf` are ports of the build glibc selects there, whose fused multiply-adds each port mirrors with `mul_add`; `atan2f` is a port of its correctly rounded code. `asinf`, `acosf` and `atanf` are correctly rounded too, so they take the `f64` functions rounded once, with a table of the four arguments where that rounding is off. The unit tests pin reference results on every host, among them arguments that glibc's build without FMA rounds the other way.
-
-`tests/glibc_oracle.rs` (features `fuzz` and `compiler`) compares them with the host's own glibc. It detects drift against one glibc build and is not a regression test: the file is gated on x86-64 Linux with glibc, and its tests skip, saying why, unless the host runs glibc 2.41 on a CPU with FMA. glibc 2.40 and earlier compute the inverse trigonometric functions differently, and glibc's build without FMA rounds 12 `sinf` and 22 `cosf` arguments the other way.
-
-An ignored test sweeps every `f32` through each one-argument function and 2³² random pairs through `powf` and `atan2f`; `MOLANG_EXHAUSTIVE` limits it to a comma-separated list of names:
-
-```bash
-cargo test --release --features fuzz,compiler --test glibc_oracle -- --ignored
-MOLANG_EXHAUSTIVE=sinf,powf cargo test --release --features fuzz,compiler --test glibc_oracle -- --ignored
-```
 
 ### The fuzz crate
 
@@ -48,6 +37,7 @@ MOLANG_EXHAUSTIVE=sinf,powf cargo test --release --features fuzz,compiler --test
 ```bash
 cargo fmt --manifest-path fuzz/Cargo.toml --all
 cargo test --locked --manifest-path fuzz/Cargo.toml
+cargo test --locked --manifest-path fuzz/Cargo.toml --features strict-math
 cargo clippy --locked --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
 cargo +nightly fuzz run compile_eval -- -max_total_time=600 -timeout=10
 ```
@@ -56,14 +46,14 @@ The targets (`fuzz/fuzz_targets/`) are `lex_parse` (arbitrary text through the f
 
 ## Platforms
 
-The float behaviour is a run-time `numeric::Platform` in the compile options, the same on every host. The primitives with the processor's NaN rules and float → int conversion are in `src/numeric/fpu.rs`, the C-library seam (which body and which invalid NaN) in `src/stdlib/math/cmath.rs`, and the formula shapes in `src/stdlib/math/formula/`; each takes the platform as its first argument. Unit tests check every platform through `numeric::test_support::PLATFORMS`, integration tests through `tests/common/mod.rs`'s `PLATFORMS`. No row and no `#[test]` is behind a `cfg`, and every host runs the same checks:
+The float behaviour is a run-time `numeric::Platform` in the compile options, the same on every host. The primitives with the processor's NaN rules and float → int conversion are in `src/numeric/fpu.rs`, the transcendental functions (`std` or, under `strict-math`, `libm`, and their NaNs) in `src/stdlib/math/transcendental.rs`, and the formula shapes in `src/stdlib/math/formula/`; each takes the platform as its first argument. Unit tests check every platform through `numeric::test_support::PLATFORMS`, integration tests through `tests/common/mod.rs`'s `PLATFORMS`. Every host runs the same checks. The transcendental results in the data are the `libm` crate's: under `strict-math` they hold to the bit, otherwise within two ulps (`HOST_ULPS` in `tests/data_bits.rs`), NaNs to the bit either way, and `tests/common/library.rs` gives a test the function the crate calls in either mode.
 
-- `tests/data_bits.rs`: BDS Linux 1.26.36 reproduces the `X86_64` set of `tests/numeric_bits.json` to the bit, 1.26.52 too with the `ln` rows of negative numbers against `0x7fc00000`; the other platforms pin the functions where they differ from it.
-- Server runs replay each release on its own platform and every probe on the other platforms, which must log other lines exactly on the probes `ServerRun::differs_on` lists.
+- `tests/data_bits.rs`: BDS Linux reproduces the `X86_64` set of `tests/numeric_bits.json`; the other platforms pin the functions where they differ from it.
+- Server runs replay each release on BDS Linux and every probe on the other platforms, which must log other lines exactly on the probes `ServerRun::differs_on` lists. Two kinds of probe are expected failures: `math.ln` of a negative number on 1.26.52.3, which logs the positive NaN where the crate gives the platform's default NaN (`Release::logs_a_positive_ln_nan`), and under `strict-math` the angles the `libm` crate rounds one ulp low (`LIBM_ROUNDS_LOW` in `tests/data_sweeps.rs`). Without `strict-math` the evaluation is replayed only on the host the logs were reproduced on, Linux x86-64 with glibc 2.41 and FMA (`library::is_the_reference_host` in `tests/common/`); elsewhere the run prints why it skips it and checks the logs and compile messages alone, and the `strict-math` run replays it on any host. The pins of `library::pinned` follow the same split.
 - Run rows (`RunGroup`): the rows a platform lists in `RunGroup::differs_on` differ there and the rest hold.
 - `tests/data_parse.rs`: every row on every platform; the rows of `TREE_DIFFERS` check their outcome and messages only.
 
-CI runs the whole suite on an arm64 runner too, which must give the same bits as on x86-64. An x86-64 machine runs it under user-mode emulation, with a cross linker and `qemu-aarch64` (`gcc-aarch64-linux-gnu`, `qemu-user`):
+CI runs the whole suite on an arm64 runner too, which must give the same bits as on x86-64 under `strict-math` and the same within the tolerance otherwise. An x86-64 machine runs it under user-mode emulation, with a cross linker and `qemu-aarch64` (`gcc-aarch64-linux-gnu`, `qemu-user`):
 
 ```bash
 rustup target add aarch64-unknown-linux-gnu
