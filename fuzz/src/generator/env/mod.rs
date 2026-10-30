@@ -77,10 +77,7 @@ impl HostAccess<FuzzHost> for FuzzWorld {
     }
 
     fn subjects_of(&self, actor: FuzzActor) -> Subjects<FuzzHost> {
-        Subjects {
-            this: f32::from(actor.number()),
-            ..Subjects::actor(actor)
-        }
+        Subjects::actor(actor).with_this(f32::from(actor.number()))
     }
 
     fn stored_actor(&self, actor: FuzzActor) -> FuzzActor {
@@ -292,24 +289,21 @@ impl FuzzEnv {
             Some(actor) => Subjects::actor(actor),
             None => Subjects::none(),
         };
-        EvalCx {
-            subjects: Subjects {
-                this: self.this,
-                ..subjects
-            },
-            host: &mut self.world,
-            variables: &mut self.vars,
-            context: &self.context,
-            arrays: &molang::vm::NoArrays,
-            queries: Some(&self.queries),
-            rng: &mut self.rng,
-            sink: &mut self.sink,
-            limits: self.limits,
-            temps: match &mut self.temps {
-                Some(temps) => Temps::Kept(temps),
-                None => Temps::PerEvaluation,
-            },
-        }
+        EvalCx::new(
+            &mut self.world,
+            &mut self.vars,
+            &self.context,
+            &molang::vm::NoArrays,
+            &mut self.rng,
+            &mut self.sink,
+        )
+        .with_subjects(subjects.with_this(self.this))
+        .with_queries(&self.queries)
+        .with_limits(self.limits)
+        .with_temps(match &mut self.temps {
+            Some(temps) => Temps::Kept(temps),
+            None => Temps::PerEvaluation,
+        })
     }
 }
 
@@ -469,17 +463,11 @@ mod tests {
         let world = FuzzWorld::default();
         assert_eq!(
             world.subjects_of(FuzzActor::Handle(3)),
-            Subjects {
-                this: 3.0,
-                ..Subjects::actor(FuzzActor::Handle(3))
-            }
+            Subjects::actor(FuzzActor::Handle(3)).with_this(3.0)
         );
         assert_eq!(
             world.subjects_of(FuzzActor::Id(2)),
-            Subjects {
-                this: 2.0,
-                ..Subjects::actor(FuzzActor::Id(2))
-            }
+            Subjects::actor(FuzzActor::Id(2)).with_this(2.0)
         );
         assert_eq!(world.subjects_of(FuzzActor::Handle(0)).this, 0.0);
     }
@@ -813,10 +801,7 @@ mod tests {
         let cx = with_actor.cx();
         assert_eq!(
             cx.subjects,
-            Subjects {
-                this: 2.34,
-                ..Subjects::actor(FuzzActor::Handle(1))
-            }
+            Subjects::actor(FuzzActor::Handle(1)).with_this(2.34)
         );
         assert!(matches!(cx.temps, Temps::PerEvaluation));
         assert_eq!(cx.limits, EvalLimits::DEFAULT);
@@ -828,13 +813,7 @@ mod tests {
             FuzzRng::Fixed(FixedRng::HALF),
         );
         let cx = detached.cx();
-        assert_eq!(
-            cx.subjects,
-            Subjects {
-                this: 2.34,
-                ..Subjects::none()
-            }
-        );
+        assert_eq!(cx.subjects, Subjects::none().with_this(2.34));
         assert!(matches!(cx.temps, Temps::Kept(_)));
         assert_eq!(cx.limits.total_steps(), Some(9));
     }

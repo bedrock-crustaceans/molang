@@ -13,8 +13,8 @@ use molang::compile::{CompileOptions, ProgramFlags, compile};
 use molang::stdlib::query;
 use molang::version::MolangVersion;
 use molang::vm::{
-    ContextMap, ContextName, EvalCx, EvalLimits, NoContext, NoHost, NullSink, QueryCx, QueryResult,
-    QueryTable, Subjects, Temps, Value, VariableMap, VariableName,
+    ContextMap, ContextName, EvalCx, NoContext, NoHost, NullSink, QueryCx, QueryResult, QueryTable,
+    Subjects, Value, VariableMap, VariableName,
 };
 
 struct Counting;
@@ -82,21 +82,15 @@ fn float_only_evaluation_does_not_allocate() {
             .cloned()
             .expect("an expression");
         assert!(expr.flags().contains(ProgramFlags::FLOAT_ONLY), "{source}");
-        let mut cx = EvalCx {
-            subjects: Subjects {
-                this: 2.0,
-                ..Subjects::none()
-            },
-            host: &mut host,
-            variables: &mut vars,
-            context: &NoContext,
-            arrays: &molang::vm::NoArrays,
-            queries: None,
-            rng: &mut rng,
-            sink: &mut sink,
-            limits: EvalLimits::DEFAULT,
-            temps: Temps::PerEvaluation,
-        };
+        let mut cx = EvalCx::new(
+            &mut host,
+            &mut vars,
+            &NoContext,
+            &molang::vm::NoArrays,
+            &mut rng,
+            &mut sink,
+        )
+        .with_subjects(Subjects::none().with_this(2.0));
         // The first run may grow the variable map.
         let first = expr.eval_f32(&mut cx);
         let before = allocations();
@@ -129,18 +123,15 @@ fn float_only_evaluation_does_not_allocate() {
                 .expr()
                 .cloned()
                 .expect("an expression");
-            let mut cx = EvalCx {
-                subjects: Subjects::none(),
-                host: &mut host,
-                variables: &mut vars,
-                context: &NoContext,
-                arrays: &molang::vm::NoArrays,
-                queries,
-                rng: &mut rng,
-                sink: &mut sink,
-                limits: EvalLimits::DEFAULT,
-                temps: Temps::PerEvaluation,
-            };
+            let mut cx = EvalCx::new(
+                &mut host,
+                &mut vars,
+                &NoContext,
+                &molang::vm::NoArrays,
+                &mut rng,
+                &mut sink,
+            );
+            cx.queries = queries;
             let _ = expr.eval(&mut cx);
             let before = allocations();
             let value = expr.eval(&mut cx);
@@ -170,18 +161,15 @@ fn float_only_evaluation_does_not_allocate() {
             .expr()
             .cloned()
             .expect("an expression");
-        let mut cx = EvalCx {
-            subjects: Subjects::none(),
-            host: &mut host,
-            variables: &mut vars,
-            context: &NoContext,
-            arrays: &molang::vm::NoArrays,
-            queries: Some(&implemented),
-            rng: &mut rng,
-            sink: &mut sink,
-            limits: EvalLimits::DEFAULT,
-            temps: Temps::PerEvaluation,
-        };
+        let mut cx = EvalCx::new(
+            &mut host,
+            &mut vars,
+            &NoContext,
+            &molang::vm::NoArrays,
+            &mut rng,
+            &mut sink,
+        )
+        .with_queries(&implemented);
         let _ = expr.eval(&mut cx);
         let before = allocations();
         let value = expr.eval(&mut cx);
@@ -209,18 +197,14 @@ fn float_only_evaluation_does_not_allocate() {
             .expr()
             .cloned()
             .expect("an expression");
-        let mut cx = EvalCx {
-            subjects: Subjects::none(),
-            host: &mut host,
-            variables: &mut vars,
-            context: &context,
-            arrays: &molang::vm::NoArrays,
-            queries: None,
-            rng: &mut rng,
-            sink: &mut sink,
-            limits: EvalLimits::DEFAULT,
-            temps: Temps::PerEvaluation,
-        };
+        let mut cx = EvalCx::new(
+            &mut host,
+            &mut vars,
+            &context,
+            &molang::vm::NoArrays,
+            &mut rng,
+            &mut sink,
+        );
         let _ = expr.eval(&mut cx);
         let before = allocations();
         let value = expr.eval(&mut cx);
@@ -235,18 +219,14 @@ fn float_only_evaluation_does_not_allocate() {
         .expr()
         .cloned()
         .expect("an expression");
-    let mut cx = EvalCx {
-        subjects: Subjects::none(),
-        host: &mut host,
-        variables: &mut vars,
-        context: &NoContext,
-        arrays: &molang::vm::NoArrays,
-        queries: None,
-        rng: &mut rng,
-        sink: &mut sink,
-        limits: EvalLimits::DEFAULT,
-        temps: Temps::PerEvaluation,
-    };
+    let mut cx = EvalCx::new(
+        &mut host,
+        &mut vars,
+        &NoContext,
+        &molang::vm::NoArrays,
+        &mut rng,
+        &mut sink,
+    );
     let before = allocations();
     expr.eval(&mut cx);
     assert!(allocations() > before);
@@ -280,18 +260,14 @@ fn a_host_math_call_does_not_allocate() {
             .cloned()
             .expect("an expression");
         assert!(expr.flags().contains(ProgramFlags::FLOAT_ONLY), "{source}");
-        let mut cx = EvalCx {
-            subjects: Subjects::none(),
-            host: &mut host,
-            variables: &mut vars,
-            context: &NoContext,
-            arrays: &molang::vm::NoArrays,
-            queries: None,
-            rng: &mut rng,
-            sink: &mut sink,
-            limits: EvalLimits::DEFAULT,
-            temps: Temps::PerEvaluation,
-        };
+        let mut cx = EvalCx::new(
+            &mut host,
+            &mut vars,
+            &NoContext,
+            &molang::vm::NoArrays,
+            &mut rng,
+            &mut sink,
+        );
         let _ = expr.eval_f32(&mut cx);
         let before = allocations();
         let float = expr.eval_f32(&mut cx);

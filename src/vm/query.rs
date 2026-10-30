@@ -1078,25 +1078,12 @@ mod tests {
     fn the_context_forwards_every_call_to_the_backend() {
         let babies = [4];
         let mut world = World { babies: &babies };
-        let mut vm = MockVm::new(
-            &mut world,
-            Subjects {
-                this: 2.5,
-                ..Subjects::actor(4)
-            },
-            vec![],
-        );
+        let mut vm = MockVm::new(&mut world, Subjects::actor(4).with_this(2.5), vec![]);
         {
             let mut cx =
                 QueryCx::new(client(), query::IS_BABY, MolangVersion::LATEST, &mut vm).unwrap();
             assert_eq!(cx.arg_count(), 0);
-            assert_eq!(
-                cx.subjects(),
-                Subjects {
-                    this: 2.5,
-                    ..Subjects::actor(4)
-                }
-            );
+            assert_eq!(cx.subjects(), Subjects::actor(4).with_this(2.5));
             assert_eq!(cx.host().babies, [4]);
             assert_eq!(cx.rng().sample(), 0.5);
             cx.sink().runtime(RuntimeMsg::PublicAccessUnderflow);

@@ -185,10 +185,7 @@ pub(crate) mod test_support {
         }
 
         fn subjects_of(&self, actor: u32) -> Subjects<World> {
-            Subjects {
-                this: 10.0 + actor as f32,
-                ..Subjects::actor(actor)
-            }
+            Subjects::actor(actor).with_this(10.0 + actor as f32)
         }
     }
 
@@ -298,24 +295,21 @@ pub(crate) mod test_support {
                 Some(actor) => Subjects::actor(actor),
                 None => Subjects::none(),
             };
-            EvalCx {
-                subjects: Subjects {
-                    this: 2.5,
-                    ..subjects
-                },
-                host: &mut self.host,
-                variables: &mut self.vars,
-                context: &self.context,
-                arrays: &self.arrays,
-                queries: Some(&self.queries),
-                rng: &mut self.rng,
-                sink: &mut self.sink,
-                limits: self.limits,
-                temps: match &mut self.temps {
-                    Some(temps) => Temps::Kept(temps),
-                    None => Temps::PerEvaluation,
-                },
-            }
+            EvalCx::new(
+                &mut self.host,
+                &mut self.vars,
+                &self.context,
+                &self.arrays,
+                &mut self.rng,
+                &mut self.sink,
+            )
+            .with_subjects(subjects.with_this(2.5))
+            .with_queries(&self.queries)
+            .with_limits(self.limits)
+            .with_temps(match &mut self.temps {
+                Some(temps) => Temps::Kept(temps),
+                None => Temps::PerEvaluation,
+            })
         }
 
         pub(crate) fn float(&self, name: &str) -> f32 {

@@ -392,10 +392,7 @@ mod tests {
     }
 
     fn caller() -> Subjects<NoHost> {
-        Subjects {
-            this: 1.0,
-            ..Subjects::none()
-        }
+        Subjects::none().with_this(1.0)
     }
 
     #[test]
@@ -409,10 +406,7 @@ mod tests {
         vm.acc = NV::Float(9.0);
         vm.handlers.push(handler(7, 1, 0));
         vm.arrows.push(caller());
-        cx.subjects = Subjects {
-            this: 2.0,
-            ..Subjects::none()
-        };
+        cx.subjects = Subjects::none().with_this(2.0);
         assert_eq!(vm.missing(&mut cx, Base::ROOT, "variable.x").ok(), Some(7));
         assert_eq!(vm.stack.as_slice(), [NV::Float(1.0)]);
         assert!(vm.handlers.is_empty());
@@ -486,14 +480,8 @@ mod tests {
         vm.stack.extend([NV::Float(2.0), NV::Float(3.0)]);
         vm.loops.push(Frame::Count { iterations: 1 });
         vm.handlers.push(handler(0, 0, 0));
-        vm.arrows.push(Subjects {
-            this: 5.0,
-            ..Subjects::none()
-        });
-        cx.subjects = Subjects {
-            this: 6.0,
-            ..Subjects::none()
-        };
+        vm.arrows.push(Subjects::none().with_this(5.0));
+        cx.subjects = Subjects::none().with_this(6.0);
         vm.unwind(&mut cx, base);
         assert_eq!(
             (
@@ -504,13 +492,7 @@ mod tests {
             ),
             (1, 1, 1, 1)
         );
-        assert_eq!(
-            cx.subjects,
-            Subjects {
-                this: 5.0,
-                ..Subjects::none()
-            }
-        );
+        assert_eq!(cx.subjects, Subjects::none().with_this(5.0));
         vm.unwind(&mut cx, Base::ROOT);
         assert_eq!(
             (
@@ -606,13 +588,7 @@ mod tests {
             let mut env = arrow_world();
             env.limits = env.limits.with_total_steps(Some(steps));
             let mut world = TestHost;
-            let mut cx = env.cx(
-                &mut world,
-                Subjects {
-                    this: 4.0,
-                    ..Subjects::actor(1)
-                },
-            );
+            let mut cx = env.cx(&mut world, Subjects::actor(1).with_this(4.0));
             let before = cx.subjects;
             expr.eval(&mut cx);
             assert_eq!(cx.subjects, before, "budget {steps}");

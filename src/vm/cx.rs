@@ -15,7 +15,9 @@ use crate::rng::RandomSource;
 
 /// The context of one evaluation: its subjects and the host-owned state around it.
 ///
-/// `'a` borrows the parts; `'w` is the world borrow of [`Host::Access`].
+/// `'a` borrows the parts; `'w` is the world borrow of [`Host::Access`]. Built by an environment
+/// ([`NoHostEnv::cx`], [`HostEnv::cx`]) or by [`EvalCx::new`] and the `with_*` setters.
+#[non_exhaustive]
 pub struct EvalCx<'a, 'w, H: Host> {
     /// What the expression is evaluated for; `->` switches it for its right side.
     pub subjects: Subjects<H>,
@@ -86,6 +88,59 @@ impl<H: Host> Debug for EvalCx<'_, '_, H> {
             .field("limits", &self.limits)
             .field("persistent_temps", &matches!(self.temps, Temps::Kept(_)))
             .finish_non_exhaustive()
+    }
+}
+
+impl<'a, 'w, H: Host> EvalCx<'a, 'w, H> {
+    /// The context over these parts with no subject, no query implemented, the default budgets
+    /// and per-evaluation temps.
+    pub fn new(
+        host: &'a mut H::Access<'w>,
+        variables: &'a mut dyn VariableStore<H>,
+        context: &'a dyn ContextProvider<H>,
+        arrays: &'a dyn ArrayProvider,
+        rng: &'a mut dyn RandomSource,
+        sink: &'a mut dyn RuntimeSink,
+    ) -> Self {
+        Self {
+            subjects: Subjects::none(),
+            host,
+            variables,
+            context,
+            arrays,
+            queries: None,
+            rng,
+            sink,
+            limits: EvalLimits::DEFAULT,
+            temps: Temps::PerEvaluation,
+        }
+    }
+
+    /// This context for other [`subjects`](Self::subjects).
+    #[must_use]
+    pub fn with_subjects(self, subjects: Subjects<H>) -> Self {
+        Self { subjects, ..self }
+    }
+
+    /// This context with query implementations.
+    #[must_use]
+    pub fn with_queries(self, queries: &'a QueryTable<H>) -> Self {
+        Self {
+            queries: Some(queries),
+            ..self
+        }
+    }
+
+    /// This context with other budgets.
+    #[must_use]
+    pub fn with_limits(self, limits: EvalLimits) -> Self {
+        Self { limits, ..self }
+    }
+
+    /// This context with another home for `temp.*`.
+    #[must_use]
+    pub fn with_temps(self, temps: Temps<&'a mut TempMap<H>>) -> Self {
+        Self { temps, ..self }
     }
 }
 
@@ -384,10 +439,7 @@ impl<R: RandomSource> NoHostEnv<R> {
     /// The evaluation context over this environment.
     pub fn cx(&mut self) -> EvalCx<'_, 'static, NoHost> {
         EvalCx {
-            subjects: Subjects {
-                this: self.this,
-                ..Subjects::none()
-            },
+            subjects: Subjects::none().with_this(self.this),
             host: &mut self.host,
             variables: &mut self.variables,
             context: &self.context,
@@ -772,10 +824,7 @@ mod tests {
         }
 
         fn subjects_of(&self, actor: Actor) -> Subjects<TestHost> {
-            Subjects {
-                this: 9.0,
-                ..Subjects::actor(actor)
-            }
+            Subjects::actor(actor).with_this(9.0)
         }
 
         fn stored_actor(&self, actor: Actor) -> Actor {
@@ -928,17 +977,11 @@ mod tests {
             |cx| {
                 assert_eq!(
                     cx.arrow_target(&V::Actor(Actor::Handle(2))),
-                    Some(Subjects {
-                        this: 9.0,
-                        ..Subjects::actor(Actor::Handle(2))
-                    })
+                    Some(Subjects::actor(Actor::Handle(2)).with_this(9.0))
                 );
                 assert_eq!(
                     cx.arrow_target(&V::Actor(Actor::Id(3))),
-                    Some(Subjects {
-                        this: 9.0,
-                        ..Subjects::actor(Actor::Handle(3))
-                    })
+                    Some(Subjects::actor(Actor::Handle(3)).with_this(9.0))
                 );
                 assert_eq!(cx.arrow_target(&V::Actor(Actor::Handle(0))), None);
                 assert_eq!(cx.arrow_target(&V::Actor(Actor::Id(77))), None);
@@ -953,10 +996,7 @@ mod tests {
             assert_eq!(cx.arrow_target(&V::Actor(Actor::Id(3))), None);
             assert_eq!(
                 cx.arrow_target(&V::Actor(Actor::Handle(3))),
-                Some(Subjects {
-                    this: 9.0,
-                    ..Subjects::actor(Actor::Handle(3))
-                })
+                Some(Subjects::actor(Actor::Handle(3)).with_this(9.0))
             );
         });
     }
@@ -994,19 +1034,8 @@ mod tests {
 
         let mut env: HostEnv<Shop> = HostEnv::default();
         let mut shelf = Shelf;
-        let cx = env.cx(
-            &mut shelf,
-            Subjects {
-                this: 1.5,
-                ..Subjects::actor(5)
-            },
-        );
-        let held = Subjects {
-            actor: Some(5),
-            item: Some(4),
-            this: 3.0,
-            ..Subjects::none()
-        };
+        let cx = env.cx(&mut shelf, Subjects::actor(5).with_this(1.5));
+        let held = Subjects::none().with_actor(5).with_item(4).with_this(3.0);
         assert_eq!(cx.arrow_target(&Value::Item(4)), Some(held));
         // An actor target does not go through `subjects_of_item`, and a number has no subjects.
         assert_eq!(cx.arrow_target(&Value::Actor(7)), Some(Subjects::actor(7)));
@@ -1206,13 +1235,7 @@ mod tests {
             .set(ContextName::new("moo"), Value::string("moo"));
         {
             let mut cx = env.cx();
-            assert_eq!(
-                cx.subjects,
-                Subjects::<NoHost> {
-                    this: 2.34,
-                    ..Subjects::<NoHost>::none()
-                }
-            );
+            assert_eq!(cx.subjects, Subjects::<NoHost>::none().with_this(2.34));
             assert_eq!(
                 cx.variable(VariableName::new("x")),
                 Some(&Value::Float(3.0))
@@ -1281,13 +1304,7 @@ mod tests {
         env.context.set(ContextName::new("moo"), Value::Float(2.0));
         {
             let cx = env.cx();
-            assert_eq!(
-                cx.subjects,
-                Subjects {
-                    this: -1.5,
-                    ..Subjects::none()
-                }
-            );
+            assert_eq!(cx.subjects, Subjects::none().with_this(-1.5));
             assert_eq!(cx.limits, EvalLimits::NONE);
             assert_eq!(cx.variable(BAA), Some(&Value::Float(1.0)));
             assert_eq!(cx.context(ContextName::new("moo")), Some(Value::Float(2.0)));
@@ -1428,13 +1445,7 @@ mod tests {
         env.context.set(ContextName::new("moo"), V::Float(2.0));
         let mut world = World { alive: &[1] };
         {
-            let mut cx = env.cx(
-                &mut world,
-                Subjects {
-                    this: 3.0,
-                    ..Subjects::actor(Actor::Id(1))
-                },
-            );
+            let mut cx = env.cx(&mut world, Subjects::actor(Actor::Id(1)).with_this(3.0));
             assert_eq!(cx.subjects.this, 3.0);
             assert_eq!(cx.subjects.actor, Some(Actor::Id(1)));
             assert_eq!(cx.limits, limits);

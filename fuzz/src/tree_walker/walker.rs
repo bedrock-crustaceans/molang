@@ -365,18 +365,9 @@ mod tests {
         let mut walker = walker_for("v.x");
         let mut env = Env::new();
         let mut cx = env.cx();
-        let outer = Subjects {
-            this: 1.0,
-            ..Subjects::actor(1)
-        };
-        let middle = Subjects {
-            this: 2.0,
-            ..Subjects::actor(2)
-        };
-        let inner = Subjects {
-            this: 3.0,
-            ..Subjects::actor(3)
-        };
+        let outer = Subjects::actor(1).with_this(1.0);
+        let middle = Subjects::actor(2).with_this(2.0);
+        let inner = Subjects::actor(3).with_this(3.0);
         walker.arrows = vec![outer, middle];
         cx.subjects = inner;
         walker.leave_arrows(&mut cx, 0);

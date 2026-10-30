@@ -78,12 +78,14 @@ impl WorldGenPos {
 }
 
 /// What an expression is evaluated for: the actor, item, block or placement it is about, and
-/// the value `this` reads.
+/// the value `this` reads. Built from [`Subjects::none`] or one subject's constructor with the
+/// `with_*` setters.
 ///
 /// A query whose subject is absent returns its no-subject default
 /// ([`DefaultReturn`](crate::catalog::DefaultReturn)). With `actor = None`, `variable.*` is the
 /// store's detached map ([`VariableStore::get_local`](super::VariableStore::get_local)); without
 /// one, writes are dropped and reads are missing.
+#[non_exhaustive]
 pub struct Subjects<H: Host> {
     /// The actor the expression runs for; its variable map is `variable.*`.
     pub actor: Option<H::ActorRef>,
@@ -139,6 +141,48 @@ impl<H: Host> Subjects<H> {
             world_gen: Some(pos),
             ..Self::none()
         }
+    }
+
+    /// These subjects with `actor` as the actor.
+    #[must_use]
+    pub const fn with_actor(self, actor: H::ActorRef) -> Self {
+        Self {
+            actor: Some(actor),
+            ..self
+        }
+    }
+
+    /// These subjects with `item` as the item stack.
+    #[must_use]
+    pub const fn with_item(self, item: H::ItemRef) -> Self {
+        Self {
+            item: Some(item),
+            ..self
+        }
+    }
+
+    /// These subjects with `block` as the block.
+    #[must_use]
+    pub const fn with_block(self, block: H::BlockRef) -> Self {
+        Self {
+            block: Some(block),
+            ..self
+        }
+    }
+
+    /// These subjects at the world-generation position `pos`.
+    #[must_use]
+    pub const fn with_world_gen(self, pos: WorldGenPos) -> Self {
+        Self {
+            world_gen: Some(pos),
+            ..self
+        }
+    }
+
+    /// These subjects with another `this`.
+    #[must_use]
+    pub const fn with_this(self, this: f32) -> Self {
+        Self { this, ..self }
     }
 }
 
@@ -423,6 +467,23 @@ mod tests {
             format!("{:?}", S::world_gen(WorldGenPos { x: 1, y: 2, z: 3 })),
             "Subjects { actor: None, item: None, block: None, world_gen: Some(WorldGenPos { x: 1, y: 2, z: 3 }), this: 0.0 }"
         );
+    }
+
+    #[test]
+    fn each_setter_sets_its_subject_and_keeps_the_rest() {
+        let pos = WorldGenPos::new(1, 2, 3);
+        let all = S::none()
+            .with_actor(1)
+            .with_item(2)
+            .with_block((3, 0, 0))
+            .with_world_gen(pos)
+            .with_this(4.0);
+        assert_eq!(
+            (all.actor, all.item, all.block, all.world_gen, all.this),
+            (Some(1), Some(2), Some((3, 0, 0)), Some(pos), 4.0)
+        );
+        assert_eq!(S::none().with_actor(7), S::actor(7));
+        assert_eq!(S::none().with_world_gen(pos), S::world_gen(pos));
     }
 
     #[test]

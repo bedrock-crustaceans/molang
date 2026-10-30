@@ -370,13 +370,10 @@ mod runtime_messages {
     }
 
     fn subjects_of(actor: u32) -> Subjects<Farm> {
-        Subjects {
-            actor: Some(actor),
-            item: Some(actor + 100),
-            block: Some(actor + 200),
-            world_gen: None,
-            this: actor as f32 * 10.0,
-        }
+        Subjects::actor(actor)
+            .with_item(actor + 100)
+            .with_block(actor + 200)
+            .with_this(actor as f32 * 10.0)
     }
 
     /// `query.health`: records its subjects and draws a sample from the evaluation's random source;
@@ -442,13 +439,7 @@ mod runtime_messages {
             .expr()
             .cloned()
             .unwrap_or_else(|| panic!("{source:?} compiles"));
-        let value = expr.eval(&mut env.cx(
-            world,
-            Subjects {
-                this: 1.5,
-                ..Subjects::actor(1)
-            },
-        ));
+        let value = expr.eval(&mut env.cx(world, Subjects::actor(1).with_this(1.5)));
         (value, env.sink_mut().take())
     }
 
@@ -477,10 +468,7 @@ mod runtime_messages {
             "v.r = math.random(0, 1); return q.health * 100 + (c.other->q.health) * 10 + q.health;",
         );
         assert_eq!((value, messages), (Value::Float(121.0), Vec::new()));
-        let caller = Subjects {
-            this: 1.5,
-            ..Subjects::actor(1)
-        };
+        let caller = Subjects::actor(1).with_this(1.5);
         let mut reference = Xorshift128::new();
         let first = reference.sample();
         assert_eq!(
@@ -955,8 +943,8 @@ mod variable_store {
     use crate::common::rng::Xorshift128;
 
     use molang::vm::{
-        Access, CollectSink, ContextName, EvalCx, EvalLimits, NoContext, NoHost, NoHostEnv,
-        NoVariables, NullSink, Subjects, Temps, Value, VariableMap, VariableName,
+        Access, CollectSink, ContextName, EvalCx, NoContext, NoHost, NoHostEnv, NoVariables,
+        NullSink, Subjects, Value, VariableMap, VariableName,
     };
 
     fn run(env: &mut Env, source: &str) -> (Value<TestHost>, Vec<String>) {
@@ -1076,18 +1064,14 @@ mod variable_store {
         let mut rng = Xorshift128::new();
         let mut sink = CollectSink::new();
         let mut vars = NoVariables;
-        let mut cx: EvalCx<'_, '_, NoHost> = EvalCx {
-            subjects: Subjects::none(),
-            host: &mut host,
-            variables: &mut vars,
-            context: &NoContext,
-            arrays: &molang::vm::NoArrays,
-            queries: None,
-            rng: &mut rng,
-            sink: &mut sink,
-            limits: EvalLimits::DEFAULT,
-            temps: Temps::PerEvaluation,
-        };
+        let mut cx: EvalCx<'_, '_, NoHost> = EvalCx::new(
+            &mut host,
+            &mut vars,
+            &NoContext,
+            &molang::vm::NoArrays,
+            &mut rng,
+            &mut sink,
+        );
         assert_eq!(expr.eval(&mut cx), Value::ZERO);
         assert_eq!(
             sink.messages,
@@ -1958,8 +1942,7 @@ mod variable_maps {
     use molang::vm::{
         Access, AnyName, ContextMap, ContextName, ContextProvider, EvalCx, EvalLimits, Host,
         HostAccess, NoContext, NoHost, NoHostEnv, NoVariables, NullSink, StructValue, Subjects,
-        TempName, Temps, Value, VariableMap, VariableName, VariableStorage, VariableStore,
-        WorldGenPos,
+        TempName, Value, VariableMap, VariableName, VariableStorage, VariableStore, WorldGenPos,
     };
 
     /// A host that tells a direct actor reference from an actor id.
@@ -1998,10 +1981,7 @@ mod variable_maps {
         }
 
         fn subjects_of(&self, actor: Actor) -> Subjects<TestHost> {
-            Subjects {
-                this: 9.0,
-                ..Subjects::actor(actor)
-            }
+            Subjects::actor(actor).with_this(9.0)
         }
 
         fn stored_actor(&self, actor: Actor) -> Actor {
@@ -2024,18 +2004,16 @@ mod variable_maps {
         let mut world = World { alive: &[1, 2, 3] };
         let mut rng = FixedRng::HALF;
         let mut sink = NullSink;
-        let mut cx = EvalCx {
-            subjects,
-            host: &mut world,
-            variables: vars,
-            context: ctx,
-            arrays: &molang::vm::NoArrays,
-            queries: None,
-            rng: &mut rng,
-            sink: &mut sink,
-            limits: EvalLimits::default(),
-            temps: Temps::PerEvaluation,
-        };
+        let mut cx = EvalCx::new(
+            &mut world,
+            vars,
+            ctx,
+            &molang::vm::NoArrays,
+            &mut rng,
+            &mut sink,
+        )
+        .with_subjects(subjects)
+        .with_limits(EvalLimits::default());
         f(&mut cx)
     }
 
@@ -2390,7 +2368,7 @@ mod variable_maps {
             Some(WorldGenPos::new(1, 2, 3))
         );
         // `this` is the caller-supplied current value.
-        let with_this = Subjects { this: 2.34, ..none };
+        let with_this = none.with_this(2.34);
         assert_eq!(with_this.this, 2.34);
         let copy = with_this;
         assert_eq!(copy, with_this);
@@ -2427,13 +2405,7 @@ mod variable_maps {
             .set(ContextName::new("moo"), Value::string("moo"));
         {
             let mut cx = env.cx();
-            assert_eq!(
-                cx.subjects,
-                Subjects::<NoHost> {
-                    this: 2.34,
-                    ..Subjects::<NoHost>::none()
-                }
-            );
+            assert_eq!(cx.subjects, Subjects::<NoHost>::none().with_this(2.34));
             assert_eq!(
                 cx.variable(VariableName::new("x")),
                 Some(&Value::Float(3.0))

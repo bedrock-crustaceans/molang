@@ -691,18 +691,18 @@ mod vm {
         queries.set(query::IS_BABY, actor_number).unwrap();
         let mut rng = FixedRng::HALF;
         let mut sink = CollectSink::new();
-        let mut cx = EvalCx {
-            subjects: Subjects::actor(3),
-            host: &mut world,
-            variables: &mut store as &mut dyn VariableStore<Farm>,
-            context: &context as &dyn ContextProvider<Farm>,
-            arrays: &molang::vm::NoArrays,
-            queries: Some(&queries),
-            rng: &mut rng as &mut dyn RandomSource,
-            sink: &mut sink,
-            limits: EvalLimits::DEFAULT.with_loop_iterations(Some(4)),
-            temps: Temps::Kept(&mut temps),
-        };
+        let mut cx = EvalCx::new(
+            &mut world,
+            &mut store as &mut dyn VariableStore<Farm>,
+            &context as &dyn ContextProvider<Farm>,
+            &molang::vm::NoArrays,
+            &mut rng as &mut dyn RandomSource,
+            &mut sink,
+        )
+        .with_subjects(Subjects::actor(3))
+        .with_queries(&queries)
+        .with_limits(EvalLimits::DEFAULT.with_loop_iterations(Some(4)))
+        .with_temps(Temps::Kept(&mut temps));
         let expr = compile(
             "t.n = 0; loop(100, { t.n = t.n + 1; }); return t.n * 10 + q.is_baby;",
             &CompileOptions::server(MolangVersion::LATEST),

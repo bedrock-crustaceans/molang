@@ -225,24 +225,21 @@ impl Env {
         sink: &mut dyn RuntimeSink,
         f: impl FnOnce(&mut EvalCx<'_, '_, TestHost>) -> R,
     ) -> R {
-        let mut cx = EvalCx {
-            subjects: Subjects {
-                this: self.this,
-                ..Subjects::none()
-            },
-            host: &mut self.world,
-            variables: &mut self.vars,
-            context: &self.context,
-            arrays: &molang::vm::NoArrays,
-            queries: Some(&self.queries),
+        let mut cx = EvalCx::new(
+            &mut self.world,
+            &mut self.vars,
+            &self.context,
+            &molang::vm::NoArrays,
             rng,
             sink,
-            limits: self.limits,
-            temps: match &mut self.temps {
-                Some(temps) => Temps::Kept(temps),
-                None => Temps::PerEvaluation,
-            },
-        };
+        )
+        .with_subjects(Subjects::none().with_this(self.this))
+        .with_queries(&self.queries)
+        .with_limits(self.limits)
+        .with_temps(match &mut self.temps {
+            Some(temps) => Temps::Kept(temps),
+            None => Temps::PerEvaluation,
+        });
         f(&mut cx)
     }
 
