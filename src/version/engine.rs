@@ -18,7 +18,7 @@ use semver::Version;
 /// let beta: EngineVersion = "1.21.100-beta".parse()?;
 /// assert!(beta.is_less_than(&"1.21.100".parse()?));
 /// assert_eq!(EngineVersion::Any.to_string(), "*");
-/// # Ok::<(), molang::version::semver::Error>(())
+/// # Ok::<(), semver::Error>(())
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum EngineVersion {
@@ -34,7 +34,8 @@ impl EngineVersion {
     /// numbers in `0..2⁶⁴`.
     ///
     /// ```
-    /// use molang::version::{EngineVersion, semver::Version};
+    /// use molang::version::EngineVersion;
+    /// use semver::Version;
     ///
     /// assert_eq!(
     ///     EngineVersion::from_json_array(&[1.0, 20.0, 0.0]),

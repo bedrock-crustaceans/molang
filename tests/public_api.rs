@@ -12,13 +12,13 @@ use molang::stdlib::query;
 use molang::version::{EngineVersion, ExperimentMask, MolangVersion, VERSION_THRESHOLDS};
 
 fn ev(major: u64, minor: u64, patch: u64) -> EngineVersion {
-    EngineVersion::Version(molang::version::semver::Version::new(major, minor, patch))
+    EngineVersion::Version(semver::Version::new(major, minor, patch))
 }
 
 fn ev_pre(major: u64, minor: u64, patch: u64) -> EngineVersion {
-    EngineVersion::Version(molang::version::semver::Version {
-        pre: molang::version::semver::Prerelease::new("pre").unwrap(),
-        ..molang::version::semver::Version::new(major, minor, patch)
+    EngineVersion::Version(semver::Version {
+        pre: semver::Prerelease::new("pre").unwrap(),
+        ..semver::Version::new(major, minor, patch)
     })
 }
 
@@ -1066,7 +1066,7 @@ mod cache {
 mod stdlib {
     use molang::catalog::{QueryCatalog, Side};
     use molang::stdlib::{self, MATH_META, MathFn, MathMeta, query};
-    use molang::version::semver::Version;
+    use semver::Version;
 
     #[test]
     fn the_standard_library_paths() {
@@ -1744,7 +1744,8 @@ mod catalog_and_tables {
     };
     use molang::ops::{ExpressionOp, OpFlags, OpSet};
     use molang::stdlib::{MATH_META, MathFn, query};
-    use molang::version::{Experiment, ExperimentMask, semver::Version};
+    use molang::version::{Experiment, ExperimentMask};
+    use semver::Version;
 
     use molang::version::MolangVersion;
 

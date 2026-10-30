@@ -19,7 +19,7 @@
 //!   `QueryShape`, `Side`, and host `math.*` functions in a `MathCatalog` (`compiler`).
 //! - `ops`: the operator table and the sets of operations a compilation allows (`OpSet`).
 //! - `version`: what content targets: `MolangVersion`, `RawVersion`, `EngineVersion`, the game
-//!   release (a re-exported `semver::Version`) and experiments (`ExperimentMask`).
+//!   release (a `semver::Version`) and experiments (`ExperimentMask`).
 //! - `json`: Molang fields of JSON documents: `MolangSource`, `MolangValueRepr` and their readers.
 //! - `hash`: the string hash a Molang string value is (`HashedStr`).
 //! - `stdlib` (`stdlib`): the standard `math.*` functions and queries (`queries`, `query`).

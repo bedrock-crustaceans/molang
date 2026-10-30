@@ -82,7 +82,7 @@ assert_eq!(value.to_property_int(0..=10, Platform::AndroidArm64), Some(10));
 
 A `MolangSource` is text plus version. `compile_source(&source, &options)` compiles it at its own version, and `CompileCache::compile_source` does the same through the cache; `compile(text, &options)` uses the options' version instead.
 
-`CompileOptions::server` and `CompileOptions::client` compile against `stdlib::queries(Side::Server)` and `stdlib::queries(Side::Client)`; there is no default side. For the catalogue of an older release, `stdlib::queries_at(side, &release)` takes a `semver::Version` (`semver` is re-exported as `molang::version::semver`; a new major version of it is a breaking change of this crate).
+`CompileOptions::server` and `CompileOptions::client` compile against `stdlib::queries(Side::Server)` and `stdlib::queries(Side::Client)`; there is no default side. For the catalogue of an older release, `stdlib::queries_at(side, &release)` takes a `semver::Version` from the `semver` crate, which this crate does not re-export.
 
 ## Queries of your own
 
@@ -199,7 +199,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | Feature | Contents | Implies |
 | --- | --- | --- |
-| (always) | `version`: `MolangVersion`, `RawVersion`, `EngineVersion` and the engine-version map, experiments, the re-exported `semver`; `json`: `MolangSource`, `MolangValueRepr` and its readers; `hash`: `HashedStr`; `catalog`: the query catalogue and declaration types; `ops`: the operator table and `OpSet` | |
+| (always) | `version`: `MolangVersion`, `RawVersion`, `EngineVersion` and the engine-version map, experiments; `json`: `MolangSource`, `MolangValueRepr` and its readers; `hash`: `HashedStr`; `catalog`: the query catalogue and declaration types; `ops`: the operator table and `OpSet` | |
 | `stdlib` | `stdlib`: the queries (`stdlib::queries`, `stdlib::query`), the `math.*` table (`MathFn`) and, with `compiler`, the math library (`stdlib::math`) and `CompileOptions::server` / `client` | |
 | `compiler` | `compile`: `compile`, `CompileOptions`, `Compiled`, `Expr`, `ProgramFlags` and the limits (`MAX_DEPTH`, `MAX_SOURCE_LEN`, `MAX_DIAGNOSTICS`); `diag`: `Diagnostic` and `LanguageMessage`; `numeric`: the float semantics; `rng`: the random sources and the mappings of a generator word; `catalog::MathCatalog`: host math functions | |
 | `vm` | `vm`: `Value`, the `Host` traits, variable storage and `EvalLimits`; `Expr::eval` | `compiler` |

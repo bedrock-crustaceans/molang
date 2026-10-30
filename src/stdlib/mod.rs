@@ -6,7 +6,7 @@
 use std::sync::LazyLock;
 
 use crate::catalog::{QueryCatalog, Side};
-use crate::version::semver::Version;
+use semver::Version;
 
 #[cfg(feature = "compiler")]
 #[cfg_attr(docsrs, doc(cfg(feature = "compiler")))]

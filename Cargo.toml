@@ -30,7 +30,6 @@ fuzz = ["stdlib"]
 [dependencies]
 thiserror = "2.0"
 bitflags = "2.13"
-# Engine versions and game releases; re-exported as `version::semver`.
 semver = "1.0.28"
 libm = { version = "0.2.16", optional = true }
 smallvec = { version = "1.13", optional = true }

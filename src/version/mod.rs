@@ -25,10 +25,6 @@ use std::fmt;
 
 use thiserror::Error;
 
-/// The `semver` crate, whose `Version` is a game release and an engine version. A new major
-/// version of it is a breaking change of this crate.
-pub use semver;
-
 pub use engine::EngineVersion;
 pub use experiment::{Experiment, ExperimentMask};
 

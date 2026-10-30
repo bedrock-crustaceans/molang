@@ -8,7 +8,8 @@ use thiserror::Error;
 
 use super::{QuerySetMask, Reads, ReturnType};
 use crate::catalog::{Arity, is_canonical_name};
-use crate::version::{ExperimentMask, MolangVersion, RawVersion, semver::Version};
+use crate::version::{ExperimentMask, MolangVersion, RawVersion};
+use semver::Version;
 
 /// Which side a query is meaningful on, and whether a [`Side::Server`](super::Side::Server)
 /// catalogue resolves it; [`Side`](super::Side) is the side a catalogue is for.

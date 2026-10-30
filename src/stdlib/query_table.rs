@@ -13,7 +13,8 @@ use crate::catalog::{
     Arity, DefaultReturn, QueryCatalog, QueryDecl, QuerySetMask, QueryShape, QuerySide, Reads,
     ReturnType, Side, VersionRange, VersionRanges,
 };
-use crate::version::{MolangVersion, semver::Version};
+use crate::version::MolangVersion;
+use semver::Version;
 
 /// One row of the table while its modifiers apply; [`Row::shape`] makes it a [`QueryShape`].
 #[derive(Copy, Clone, Debug)]
