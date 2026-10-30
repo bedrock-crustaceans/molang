@@ -1145,7 +1145,7 @@ mod rng {
     #[test]
     fn the_sources_and_their_samples() {
         let mut fixed: FixedRng = FixedRng::from_sample(0.25).expect("a word's sample");
-        assert_eq!((fixed.0, fixed.sample()), (1 << 29, 0.25));
+        assert_eq!((fixed.word(), fixed.sample()), (1 << 29, 0.25));
         assert_eq!(
             [FixedRng::ZERO, FixedRng::HALF, FixedRng::ONE].map(|mut f| f.sample()),
             [0.0, 0.5, 1.0]

@@ -134,7 +134,7 @@ fn forced_random(u: &mut Unstructured<'_>) -> Result<Option<FixedRng>> {
         0 => Some(FixedRng::ZERO),
         1 => Some(FixedRng::HALF),
         2 => Some(FixedRng::ONE),
-        3 => Some(FixedRng(u.arbitrary()?)),
+        3 => Some(FixedRng::from_word(u.arbitrary()?)),
         _ => None,
     })
 }

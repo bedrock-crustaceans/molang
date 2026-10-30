@@ -215,12 +215,12 @@ mod tests {
                 (
                     TempLifetime::Persistent,
                     Subject::Actor,
-                    Some(FixedRng(u32::MAX)),
+                    Some(FixedRng::from_word(u32::MAX)),
                 ),
                 (
                     TempLifetime::Persistent,
                     Subject::Actor,
-                    Some(FixedRng(0x8000_0000)),
+                    Some(FixedRng::from_word(0x8000_0000)),
                 ),
             ] {
                 let case = FuzzCase {

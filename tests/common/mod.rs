@@ -123,7 +123,7 @@ impl Drop for CheckGuard {
 pub fn word(sample: f32) -> u32 {
     molang::rng::FixedRng::from_sample(sample)
         .unwrap_or_else(|| panic!("{sample} is no word's sample"))
-        .0
+        .word()
 }
 
 /// Plays back `samples` in order, then `rest`, and counts the draws.

@@ -2260,9 +2260,9 @@ mod operators {
         let mut env = NoHostEnv::new();
         for (mut rng, expected) in [
             (FixedRng::ONE, 20.0),
-            (FixedRng(u32::MAX), 20.0),
+            (FixedRng::from_word(u32::MAX), 20.0),
             (FixedRng::ZERO, 10.0),
-            (FixedRng(0x8000_0000), 10.0),
+            (FixedRng::from_word(0x8000_0000), 10.0),
             (FixedRng::HALF, 15.0),
         ] {
             let mut cx = env.cx();
@@ -3270,7 +3270,7 @@ mod primitives {
             Some(-1.0)
         );
         // One roll of a die is one such draw.
-        let mut rng = molang::rng::FixedRng(crate::common::word(third()));
+        let mut rng = molang::rng::FixedRng::from_word(crate::common::word(third()));
         assert_eq!(
             math::die_roll(P, 1.0, 1.1, 7.3, 1, &mut rng, ID),
             Some(0.0 + (third() * 7.0 + (1.0 - third()) * 1.0))

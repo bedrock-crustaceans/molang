@@ -321,7 +321,7 @@ pub(crate) mod test_support {
     use molang::vm::{EvalLimits, Value, VariableName};
 
     /// Always the sample 0.25.
-    pub(crate) const QUARTER: FixedRng = FixedRng(1 << 29);
+    pub(crate) const QUARTER: FixedRng = FixedRng::from_word(1 << 29);
 
     pub(crate) type V = Value<FuzzHost>;
 
@@ -581,10 +581,10 @@ mod tests {
 
     #[test]
     fn sources_compare_by_state_and_a_fixed_source_by_its_word() {
-        assert_ne!(
-            FuzzRng::Fixed(FixedRng(1)),
-            FuzzRng::Fixed(FixedRng(0x8000_0001)),
-            "the same sample, another word"
+        assert_eq!(
+            FuzzRng::Fixed(FixedRng::from_word(1)),
+            FuzzRng::Fixed(FixedRng::from_word(0x8000_0001)),
+            "the top bit is cleared"
         );
         assert_eq!(
             FuzzRng::Fixed(FixedRng::HALF),
@@ -671,10 +671,10 @@ mod tests {
             Subject::Detached,
             TempLifetime::PerEvaluation,
             limits,
-            FuzzRng::Fixed(FixedRng(1 << 28)),
+            FuzzRng::Fixed(FixedRng::from_word(1 << 28)),
         );
         assert_eq!(env.limits, limits);
-        assert_eq!(env.rng, FuzzRng::Fixed(FixedRng(1 << 28)));
+        assert_eq!(env.rng, FuzzRng::Fixed(FixedRng::from_word(1 << 28)));
     }
 
     #[test]

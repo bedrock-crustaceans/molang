@@ -126,16 +126,18 @@ pub const fn unit_32(word: u32) -> f32 {
     (word as f64 * (1.0 / 4_294_967_296.0)) as f32
 }
 
-/// A source whose every sample is the same word under the 31-bit mapping ([`unit_31`]).
+/// A source whose every sample is the same 31-bit word under the 31-bit mapping ([`unit_31`]).
 ///
 /// ```
 /// use molang::rng::{FixedRng, RandomSource};
 ///
-/// assert_eq!(FixedRng::from_sample(0.25).unwrap().sample(), 0.25);
+/// assert_eq!(FixedRng::from_sample(0.25).ok_or("no word")?.sample(), 0.25);
 /// assert_eq!(FixedRng::from_sample(1e-10), None, "not k · 2^-31");
+/// assert_eq!(FixedRng::from_word(0x8000_0000), FixedRng::ZERO);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct FixedRng(pub u32);
+pub struct FixedRng(u32);
 
 impl FixedRng {
     /// Always the sample 0: every random operator returns its lower bound.
@@ -144,6 +146,18 @@ impl FixedRng {
     pub const HALF: Self = Self(1 << 30);
     /// Always the sample 1: every random operator returns its upper bound.
     pub const ONE: Self = Self(0x7fff_ffff);
+
+    /// The source of `word`; the top bit, which the 31-bit mapping ignores, is cleared.
+    #[must_use]
+    pub const fn from_word(word: u32) -> Self {
+        Self(word & 0x7fff_ffff)
+    }
+
+    /// The 31-bit word every sample maps.
+    #[must_use]
+    pub const fn word(self) -> u32 {
+        self.0
+    }
 
     /// The source whose sample is `sample`; `None` when no word maps to it: NaN, -0, outside
     /// `[0, 1]`, or not a multiple of 2^-31.
@@ -270,10 +284,17 @@ mod tests {
             assert_eq!(source.sample(), expected);
             assert_eq!(FixedRng::from_sample(expected), Some(source));
         }
-        let mut fixed = FixedRng(0x1234_5678);
+        let mut fixed = FixedRng::from_word(0x1234_5678);
         assert_eq!(fixed.sample(), unit_31(0x1234_5678));
         assert_eq!(fixed.sample(), unit_31(0x1234_5678));
-        assert_eq!(fixed, FixedRng(0x1234_5678), "drawing leaves it as it was");
+        assert_eq!(
+            fixed,
+            FixedRng::from_word(0x1234_5678),
+            "drawing leaves it as it was"
+        );
+        assert_eq!(fixed.word(), 0x1234_5678);
+        assert_eq!(FixedRng::from_word(u32::MAX), FixedRng::ONE);
+        assert_eq!(FixedRng::from_word(0x8000_0000).word(), 0);
     }
 
     #[test]
@@ -311,7 +332,7 @@ mod tests {
     #[test]
     fn every_word_round_trips_through_from_sample() {
         for word in words(10_000) {
-            let value = FixedRng(word).sample();
+            let value = FixedRng::from_word(word).sample();
             assert_eq!(
                 FixedRng::from_sample(value).map(|mut f| f.sample().to_bits()),
                 Some(value.to_bits())

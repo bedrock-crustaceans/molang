@@ -490,7 +490,7 @@ mod tests {
             offset in -4.0_f32..4.0,
         ) {
             let post = PostOp::new(scale, offset);
-            let samples: Vec<f32> = words.into_iter().map(|word| FixedRng(word).sample()).collect();
+            let samples: Vec<f32> = words.into_iter().map(|word| FixedRng::from_word(word).sample()).collect();
             let mut rng = scripted(&samples);
             let whole = if integer {
                 die_roll_integer(P, n, a, b, NO_LIMIT, &mut rng, post)
@@ -518,7 +518,7 @@ mod tests {
         ) {
             let (lo, hi) = (a.min(b).floor(), a.max(b).floor());
             let count = n.trunc();
-            let mut rng = FixedRng(word);
+            let mut rng = FixedRng::from_word(word);
             let sum = die_roll_integer(P, n, a, b, NO_LIMIT, &mut rng, ID).unwrap();
             prop_assert!(sum >= lo * count && sum <= hi * count, "{} not in [{}, {}]", sum, lo * count, hi * count);
         }
