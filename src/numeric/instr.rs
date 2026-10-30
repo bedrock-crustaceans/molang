@@ -658,7 +658,7 @@ mod tests {
 
     #[test]
     fn array_index_beyond_the_i32_range_is_zero_on_the_servers_and_saturates_on_android() {
-        for p in [LINUX, LINUX_1_26_36, WINDOWS] {
+        for p in [LINUX, WINDOWS] {
             assert_eq!(array_index(p, 3.0e9, 7), Some(0));
             assert_eq!(array_index(p, f32::MAX, 10), Some(0));
         }

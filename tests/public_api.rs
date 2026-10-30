@@ -2990,23 +2990,17 @@ mod api_compiler {
     /// first, the comparisons, `max` and `min` do not.
     #[test]
     fn the_numeric_paths() {
-        use molang::numeric::{self, LinuxRelease, Platform, PostOp, arith};
+        use molang::numeric::{self, Platform, PostOp, arith};
         let platforms = [
-            Platform::BdsLinux(LinuxRelease::V1_26_36),
-            Platform::BdsLinux(LinuxRelease::V1_26_52),
+            Platform::BdsLinux,
             Platform::BdsWindows,
             Platform::AndroidArm64,
         ];
-        assert_eq!(
-            Platform::default(),
-            Platform::BdsLinux(LinuxRelease::LATEST)
-        );
-        assert_eq!(LinuxRelease::LATEST, LinuxRelease::V1_26_52);
+        assert_eq!(Platform::default(), Platform::BdsLinux);
         const fn assert_value<T: Copy + Eq + std::hash::Hash + Send + Sync + 'static>() {}
         assert_value::<Platform>();
-        assert_value::<LinuxRelease>();
         assert!(platforms.iter().all(|&p| arith::to_int(p, 2.9) == 2));
-        let p = platforms[1];
+        let p = platforms[0];
         let binary: [fn(Platform, f32, f32) -> f32; 4] =
             [arith::add, arith::sub, arith::mul, arith::div];
         let select: [fn(f32, f32) -> f32; 2] = [arith::max, arith::min];

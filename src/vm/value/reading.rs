@@ -111,16 +111,11 @@ impl<H: Host> Value<H> {
 mod tests {
     use super::*;
     use crate::hash::HashedStr;
-    use crate::numeric::LinuxRelease;
     use crate::vm::host::NoHost;
 
     type V = Value<NoHost>;
 
-    const SERVERS: [Platform; 3] = [
-        Platform::BdsLinux(LinuxRelease::V1_26_36),
-        Platform::BdsLinux(LinuxRelease::V1_26_52),
-        Platform::BdsWindows,
-    ];
+    const SERVERS: [Platform; 2] = [Platform::BdsLinux, Platform::BdsWindows];
     const ANDROID: Platform = Platform::AndroidArm64;
     const NAN: f32 = f32::NAN;
     const INF: f32 = f32::INFINITY;

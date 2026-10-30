@@ -218,9 +218,8 @@ pub fn latin1_to_utf8(text: &str) -> String {
 
 /// Every platform, the default first.
 #[cfg(feature = "compiler")]
-pub const PLATFORMS: [molang::numeric::Platform; 4] = [
-    molang::numeric::Platform::BdsLinux(molang::numeric::LinuxRelease::V1_26_52),
-    molang::numeric::Platform::BdsLinux(molang::numeric::LinuxRelease::V1_26_36),
+pub const PLATFORMS: [molang::numeric::Platform; 3] = [
+    molang::numeric::Platform::BdsLinux,
     molang::numeric::Platform::BdsWindows,
     molang::numeric::Platform::AndroidArm64,
 ];

@@ -1452,7 +1452,7 @@ mod platforms {
         PLATFORMS, assert_bits, compile_support::server_at, on, servers_or_android,
     };
     use molang::compile::compile;
-    use molang::numeric::{LinuxRelease, Platform};
+    use molang::numeric::Platform;
     use molang::vm::{EvalLimits, NoHostEnv, Value, VariableName};
 
     const NAN: f32 = f32::NAN;
@@ -2034,12 +2034,11 @@ mod platforms {
         f32::from_bits(servers_or_android(platform, 0xffc0_0000, 0x7fc0_0000))
     }
 
-    const LINUX: Platform = Platform::BdsLinux(LinuxRelease::V1_26_52);
-    const LINUX_1_26_36: Platform = Platform::BdsLinux(LinuxRelease::V1_26_36);
+    const LINUX: Platform = Platform::BdsLinux;
 
     /// `value` on each platform, in the order of [`PLATFORMS`].
     #[track_caller]
-    fn each(f: impl Fn(Platform) -> f32) -> [u32; 4] {
+    fn each(f: impl Fn(Platform) -> f32) -> [u32; 3] {
         PLATFORMS.map(|platform| f(platform).to_bits())
     }
 
@@ -2048,23 +2047,23 @@ mod platforms {
     fn the_nan_of_an_invalid_operation_is_the_platforms() {
         const POS: u32 = 0x7fc0_0000;
         const NEG: u32 = 0xffc0_0000;
-        assert_eq!(PLATFORMS[..2], [LINUX, LINUX_1_26_36]);
+        assert_eq!(PLATFORMS[0], LINUX);
         for (call, x, expected) in [
-            ("math.ln", -1.0, [POS, NEG, NEG, POS]),
-            ("math.sqrt", -1.0, [NEG, NEG, NEG, POS]),
-            ("math.asin", 1.001, [POS, POS, NEG, POS]),
-            ("math.acos", -1.001, [POS, POS, NEG, POS]),
-            ("math.sin", f32::INFINITY, [NEG, NEG, NEG, POS]),
-            ("math.cos", f32::INFINITY, [NEG, NEG, NEG, POS]),
+            ("math.ln", -1.0, [NEG, NEG, POS]),
+            ("math.sqrt", -1.0, [NEG, NEG, POS]),
+            ("math.asin", 1.001, [POS, POS, POS]),
+            ("math.acos", -1.001, [POS, POS, POS]),
+            ("math.sin", f32::INFINITY, [NEG, NEG, POS]),
+            ("math.cos", f32::INFINITY, [NEG, NEG, POS]),
         ] {
             let run = format!("{call}(v.x)");
             assert_eq!(each(|p| eval_on(p, &run, &[("x", x)])), expected, "{run}");
         }
         for (source, expected) in [
-            ("math.ln(-1)", [POS, NEG, NEG, POS]),
-            ("math.sqrt(-1)", [NEG, NEG, NEG, POS]),
-            ("math.pow(-8, 1/3)", [NEG, NEG, NEG, POS]),
-            ("math.mod(3, 0)", [NEG, NEG, NEG, POS]),
+            ("math.ln(-1)", [NEG, NEG, POS]),
+            ("math.sqrt(-1)", [NEG, NEG, POS]),
+            ("math.pow(-8, 1/3)", [NEG, NEG, POS]),
+            ("math.mod(3, 0)", [NEG, NEG, POS]),
         ] {
             assert_eq!(each(|p| folded_on(p, source)), expected, "{source}");
         }
@@ -2073,7 +2072,7 @@ mod platforms {
         for source in ["v.i + v.j", "v.z * v.i"] {
             assert_eq!(
                 each(|p| eval_on(p, source, &vars)),
-                [NEG, NEG, NEG, POS],
+                [NEG, NEG, POS],
                 "{source}"
             );
         }
@@ -2087,9 +2086,9 @@ mod platforms {
         let vars = [("q", quiet), ("s", signalling)];
         assert_eq!(
             each(|p| eval_on(p, "v.q * v.s", &vars)),
-            [0x7fc0_0001, 0x7fc0_0001, 0x7fc0_0001, 0xffc0_0002]
+            [0x7fc0_0001, 0x7fc0_0001, 0xffc0_0002]
         );
-        assert_eq!(each(|p| eval_on(p, "v.s * v.q", &vars)), [0xffc0_0002; 4]);
+        assert_eq!(each(|p| eval_on(p, "v.s * v.q", &vars)), [0xffc0_0002; 3]);
     }
 
     /// A count of 2^31 or more is no rolls on the servers and 2^31 − 1 on Android, which the step
@@ -3327,7 +3326,7 @@ mod nan_signs {
     //! `math.copy_sign` shows of a NaN.
     use crate::common::{PLATFORMS, on, servers_or_android};
     use molang::compile::{CompileOptions, compile};
-    use molang::numeric::{LinuxRelease, Platform};
+    use molang::numeric::Platform;
     use molang::version::MolangVersion;
     use molang::vm::{NoHostEnv, Value, VariableName};
 
@@ -3440,8 +3439,7 @@ mod nan_signs {
     #[test]
     fn the_logarithm_of_a_negative_number_has_the_platforms_nan() {
         for (platform, expected) in [
-            (Platform::BdsLinux(LinuxRelease::V1_26_52), POS),
-            (Platform::BdsLinux(LinuxRelease::V1_26_36), NEG),
+            (Platform::BdsLinux, NEG),
             (Platform::BdsWindows, NEG),
             (Platform::AndroidArm64, POS),
         ] {

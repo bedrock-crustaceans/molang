@@ -20,7 +20,7 @@ use arbitrary::{Arbitrary, Result, Unstructured};
 use env::{FuzzRng, Subject, TempLifetime};
 use molang::internals::Xorshift128;
 use molang::json::{JsonScalar, MolangSource, MolangValueRepr, OtherJson, ReaderKind, SourceForm};
-use molang::numeric::{LinuxRelease, Platform};
+use molang::numeric::Platform;
 use molang::rng::FixedRng;
 use molang::version::RawVersion;
 use molang::vm::EvalLimits;
@@ -88,12 +88,11 @@ impl<'a> Arbitrary<'a> for FuzzCase {
     }
 }
 
-/// One byte, as the flag it replaces, so a recorded input keeps giving the same program.
+/// One byte.
 fn platform(u: &mut Unstructured<'_>) -> Result<Platform> {
-    Ok(match u.int_in_range(0..=3u8)? {
-        0 => Platform::BdsLinux(LinuxRelease::V1_26_52),
-        1 => Platform::BdsLinux(LinuxRelease::V1_26_36),
-        2 => Platform::BdsWindows,
+    Ok(match u.int_in_range(0..=2u8)? {
+        0 => Platform::BdsLinux,
+        1 => Platform::BdsWindows,
         _ => Platform::AndroidArm64,
     })
 }

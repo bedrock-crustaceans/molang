@@ -226,7 +226,7 @@ mod tests {
 
     #[test]
     fn x86_64_returns_the_left_nan_operand_quietened() {
-        for p in [LINUX, LINUX_1_26_36, WINDOWS] {
+        for p in [LINUX, WINDOWS] {
             for op in [add, sub, mul, div] {
                 assert_eq!(bits(op(p, NEGATIVE_QUIET, QUIET)), 0xffc0_0002);
                 assert_eq!(bits(op(p, QUIET, NEGATIVE_QUIET)), 0x7fc0_0001);

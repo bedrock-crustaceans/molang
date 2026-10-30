@@ -140,12 +140,11 @@ pub(crate) mod test_support {
     use molang::compile::{Expr, compile};
     use molang::internals::reference_catalog;
     pub(crate) use molang::internals::reference_catalog::options;
-    use molang::numeric::{LinuxRelease, Platform};
+    use molang::numeric::Platform;
 
     /// Every platform.
-    pub(crate) const PLATFORMS: [Platform; 4] = [
-        Platform::BdsLinux(LinuxRelease::V1_26_52),
-        Platform::BdsLinux(LinuxRelease::V1_26_36),
+    pub(crate) const PLATFORMS: [Platform; 3] = [
+        Platform::BdsLinux,
         Platform::BdsWindows,
         Platform::AndroidArm64,
     ];

@@ -484,7 +484,7 @@ mod tests {
 
     #[test]
     fn table_sin_beyond_the_int_range_is_entry_zero_on_the_servers_and_saturates_on_android() {
-        for p in [LINUX, LINUX_1_26_36, WINDOWS] {
+        for p in [LINUX, WINDOWS] {
             assert_bits(table_sin(p, 1.0e6), sin_table_entry(p, 0));
             assert_bits(table_sin(p, INF), sin_table_entry(p, 0));
             assert_bits(table_cos(p, INF), sin_table_entry(p, 0));

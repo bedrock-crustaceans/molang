@@ -1046,7 +1046,7 @@ mod tests {
 
     type F3 = fn(Platform, f32, f32, f32, PostOp) -> f32;
 
-    const P: Platform = Platform::BdsLinux(crate::numeric::LinuxRelease::LATEST);
+    const P: Platform = Platform::BdsLinux;
 
     const POSTS: [PostOp; 2] = [PostOp::IDENTITY, PostOp::new(2.0, 1.0)];
 

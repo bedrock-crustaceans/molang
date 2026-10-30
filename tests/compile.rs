@@ -3129,10 +3129,9 @@ mod fields {
 
     #[test]
     fn the_folding_arithmetic_is_the_platforms() {
-        use molang::numeric::{LinuxRelease, Platform};
+        use molang::numeric::Platform;
         for (platform, sign) in [
-            (Platform::BdsLinux(LinuxRelease::V1_26_52), 1.0),
-            (Platform::BdsLinux(LinuxRelease::V1_26_36), -1.0),
+            (Platform::BdsLinux, -1.0),
             (Platform::BdsWindows, -1.0),
             (Platform::AndroidArm64, 1.0),
         ] {

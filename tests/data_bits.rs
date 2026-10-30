@@ -26,7 +26,7 @@ mod common;
 use common::{Samples, hex_f32};
 
 use common::PLATFORMS;
-use molang::numeric::{self, LinuxRelease, Platform, PostOp};
+use molang::numeric::{self, Platform, PostOp};
 use molang::rng::FixedRng;
 use molang::stdlib::math;
 use serde_json::Value;
@@ -180,8 +180,7 @@ const LN_NAN_SIGN_ROWS: [(usize, usize); 7] =
 /// The bits `platform` gives for row `r` of group `g` of the `X86_64` set, where they are not the
 /// row's own.
 fn x86_64_override(platform: Platform, g: usize, r: usize) -> Option<u32> {
-    (platform == Platform::BdsLinux(LinuxRelease::V1_26_52) && LN_NAN_SIGN_ROWS.contains(&(g, r)))
-        .then_some(0x7fc0_0000)
+    (platform == Platform::BdsLinux && LN_NAN_SIGN_ROWS.contains(&(g, r))).then_some(0x7fc0_0000)
 }
 
 /// The bits are equal, NaN payload and sign included.
@@ -263,8 +262,7 @@ fn differing_functions(
 #[test]
 fn bds_linux_matches_the_x86_64_rows_bit_for_bit() {
     let file = common::data_json("numeric_bits.json");
-    for (release, overrides) in [(LinuxRelease::V1_26_36, 0), (LinuxRelease::V1_26_52, 7)] {
-        let platform = Platform::BdsLinux(release);
+    for (platform, overrides) in [(Platform::BdsLinux, 7)] {
         let (differing, overridden) = differing_functions(&file, "X86_64", platform);
         assert!(
             differing.is_empty(),
@@ -432,7 +430,7 @@ fn every_transcendental_sample_is_the_crates_function() {
         .into_iter()
         .flat_map(|p| ["X86_64", "Arm64"].map(|set| (p, set)))
     {
-        let exact = set == "X86_64" && matches!(platform, Platform::BdsLinux(_));
+        let exact = set == "X86_64" && platform == Platform::BdsLinux;
         for (g, group) in file["profiles"][set].as_array().unwrap().iter().enumerate() {
             let rows = group["rows"].as_array().unwrap().iter().enumerate();
             for (r, sample) in rows

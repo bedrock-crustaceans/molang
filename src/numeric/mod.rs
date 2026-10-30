@@ -58,7 +58,7 @@ pub use instr::{
     add, array_index, div, div_guard, eq, fold_const_div, fold_const_divisor, ge, gt, le, lt, mul,
     ne, negate, not, truthy,
 };
-pub use platform::{LinuxRelease, Platform};
+pub use platform::Platform;
 pub use post_op::PostOp;
 
 #[cfg(test)]
@@ -69,14 +69,12 @@ pub(crate) mod test_support {
     pub(crate) const NAN: f32 = f32::NAN;
     pub(crate) const INF: f32 = f32::INFINITY;
 
-    /// The newest Linux server, the default platform.
-    pub(crate) const LINUX: Platform = Platform::BdsLinux(LinuxRelease::V1_26_52);
-    /// The older Linux server.
-    pub(crate) const LINUX_1_26_36: Platform = Platform::BdsLinux(LinuxRelease::V1_26_36);
+    /// The Linux server, the default platform.
+    pub(crate) const LINUX: Platform = Platform::BdsLinux;
     pub(crate) const WINDOWS: Platform = Platform::BdsWindows;
     pub(crate) const ANDROID: Platform = Platform::AndroidArm64;
     /// Every platform, for a test that runs once with each.
-    pub(crate) const PLATFORMS: [Platform; 4] = [LINUX, LINUX_1_26_36, WINDOWS, ANDROID];
+    pub(crate) const PLATFORMS: [Platform; 3] = [LINUX, WINDOWS, ANDROID];
 
     /// `servers` on [`Platform::BdsLinux`] and [`Platform::BdsWindows`], `android` on
     /// [`Platform::AndroidArm64`].

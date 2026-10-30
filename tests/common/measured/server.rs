@@ -14,7 +14,7 @@ use crate::common::host::{Env, LevelSink};
 #[cfg(feature = "vm")]
 use crate::common::rng::Xorshift128;
 use molang::compile::{CompileFailure, CompileOptions, Deviations, compile};
-use molang::numeric::{LinuxRelease, Platform};
+use molang::numeric::Platform;
 use molang::version::MolangVersion;
 #[cfg(feature = "vm")]
 use molang::vm::{LogLevel, Value};
@@ -50,8 +50,7 @@ impl Release {
     /// The platform of this release's server, which the logs come from.
     pub const fn platform(self) -> Platform {
         match self {
-            Self::V1_26_36_1 => Platform::BdsLinux(LinuxRelease::V1_26_36),
-            Self::V1_26_52_3 => Platform::BdsLinux(LinuxRelease::V1_26_52),
+            Self::V1_26_36_1 | Self::V1_26_52_3 => Platform::BdsLinux,
         }
     }
 }
