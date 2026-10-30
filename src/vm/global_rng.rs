@@ -25,7 +25,7 @@ static PROCESS_XORSHIFT: Mutex<Xorshift128> = Mutex::new(Xorshift128::new());
 /// assert_eq!(ProcessRng.sample(), unit_31(3_701_687_786));
 /// assert_eq!(ProcessRng.sample(), unit_31(458_299_110));
 /// ```
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ProcessRng;
 
 impl ProcessRng {

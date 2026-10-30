@@ -99,6 +99,31 @@ impl FloatBits {
     pub const fn to_f32(self) -> f32 {
         f32::from_bits(self.0)
     }
+
+    /// The bit pattern.
+    #[must_use]
+    pub const fn to_bits(self) -> u32 {
+        self.0
+    }
+}
+
+impl Default for FloatBits {
+    /// The bits of +0.0.
+    fn default() -> Self {
+        Self::new(0.0)
+    }
+}
+
+impl From<f32> for FloatBits {
+    fn from(value: f32) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<FloatBits> for f32 {
+    fn from(bits: FloatBits) -> Self {
+        bits.to_f32()
+    }
 }
 
 impl fmt::Debug for FloatBits {
@@ -584,6 +609,15 @@ mod tests {
         assert_eq!(nan, nan);
         assert_ne!(DefaultReturn::float(-0.0), DefaultReturn::ZERO);
         assert_eq!(QuerySide::default(), QuerySide::BOTH);
+    }
+
+    #[test]
+    fn float_bits_convert_both_ways_and_default_to_positive_zero() {
+        let bits = FloatBits::from(-0.0_f32);
+        assert_eq!(bits.to_bits(), 0x8000_0000);
+        assert_eq!(f32::from(bits).to_bits(), (-0.0_f32).to_bits());
+        assert_eq!(FloatBits::default(), FloatBits::new(0.0));
+        assert_eq!(FloatBits::default().to_bits(), 0);
     }
 
     #[test]

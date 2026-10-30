@@ -107,6 +107,13 @@ impl LinuxRelease {
     pub const LATEST: Self = Self::V1_26_52;
 }
 
+impl Default for LinuxRelease {
+    /// [`LinuxRelease::LATEST`].
+    fn default() -> Self {
+        Self::LATEST
+    }
+}
+
 /// Whose rules choose the NaN of an arithmetic operation and convert a float to an int.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Fpu {
@@ -150,6 +157,7 @@ mod tests {
             Platform::BdsLinux(LinuxRelease::V1_26_52)
         );
         assert_eq!(LinuxRelease::LATEST, LinuxRelease::V1_26_52);
+        assert_eq!(LinuxRelease::default(), LinuxRelease::LATEST);
         assert!(LinuxRelease::V1_26_36 < LinuxRelease::V1_26_52);
     }
 

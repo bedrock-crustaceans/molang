@@ -26,7 +26,7 @@ pub trait ArrayProvider {
 }
 
 /// An [`ArrayProvider`] with no array at all.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct NoArrays;
 
 impl ArrayProvider for NoArrays {
