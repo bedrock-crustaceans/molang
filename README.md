@@ -201,6 +201,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `vm` | `vm`: `Value`, the `Host` traits, variable storage and `EvalLimits`; `Expr::eval` | `compiler` |
 | `cache` | `cache::CompileCache`, a concurrent compile cache keyed by version, options and source | `compiler` |
 | `facet` | `Facet` impls for `json::MolangSource` and `json::MolangValueRepr` | |
+| `strict-math` | the transcendental `math.*` functions from the `libm` crate, the same bits on every host ([Math modes](#math-modes)) | |
 | `fuzz` | test support, **no SemVer guarantee**: a hidden `internals` module read by the repository's fuzz crate | `stdlib` |
 
 ## Compile options
@@ -242,7 +243,7 @@ assert_eq!(options.version(), MolangVersion::LATEST);
 
 ## Float behaviour
 
-The host chooses whose float behaviour an expression reproduces with `CompileOptions::with_platform`, a `numeric::Platform`: `BdsLinux` (by release), `BdsWindows` or `AndroidArm64`. The default is `BdsLinux` at its latest release. The compiled expression records it, constant folding and evaluation both follow it, and the same expression gives the same bits on every host.
+The host chooses whose float behaviour an expression reproduces with `CompileOptions::with_platform`, a `numeric::Platform`: `BdsLinux`, `BdsWindows` or `AndroidArm64`. The default is `BdsLinux`. The compiled expression records it, and constant folding and evaluation both follow it. A platform is the processor's rules only: the NaN an operation returns and float → int conversion.
 
 ```rust
 use molang::compile::{CompileOptions, compile};
@@ -250,17 +251,23 @@ use molang::numeric::Platform;
 use molang::version::MolangVersion;
 
 fn main() -> Result<(), molang::compile::CompileError> {
-    let options = CompileOptions::server(MolangVersion::LATEST).with_platform(Platform::BdsWindows);
+    let options = CompileOptions::server(MolangVersion::LATEST).with_platform(Platform::AndroidArm64);
     let (expr, _) = compile("math.copy_sign(1, math.ln(-1))", &options).into_result()?;
-    assert_eq!(expr.platform(), Platform::BdsWindows);
-    assert_eq!(expr.as_constant(), Some(-1.0));
+    assert_eq!(expr.platform(), Platform::AndroidArm64);
+    assert_eq!(expr.as_constant(), Some(1.0));
     Ok(())
 }
 ```
 
-Every platform rounds each multiply, add and divide on its own in formula order, makes every comparison with a NaN false and returns the second operand from `math.min` / `math.max` when either is NaN. The servers return the left NaN operand of an arithmetic operation quietened and `0xffc00000` for an invalid one; Android returns the first signalling NaN operand quietened, else the first quiet one, `0x7fc00000` for an invalid one, and saturates a float → int conversion (`loop` and die counts, array indices) with NaN as 0 where the servers give `i32::MIN`. The NaN of an invalid standard function differs too: `math.ln` of a negative number changed sign between Linux releases. The transcendental functions are glibc's single-precision ones on Linux. Android takes glibc's algorithms for `sin`, `cos`, `exp`, `exp2`, `ln` and `pow`, which its C library shares, and FreeBSD's for `asin`, `acos`, `atan` and `atan2`, which its C library builds from: a best effort, not checked against a device. On Windows they are evaluated in `f64` and rounded once. `numeric::Platform` lists every difference.
+Every platform rounds each multiply, add and divide on its own in formula order, makes every comparison with a NaN false and returns the second operand from `math.min` / `math.max` when either is NaN. The servers return the left NaN operand of an arithmetic operation quietened and `0xffc00000` for an invalid one; Android returns the first signalling NaN operand quietened, else the first quiet one, `0x7fc00000` for an invalid one, and saturates a float → int conversion (`loop` and die counts, array indices) with NaN as 0 where the servers give `i32::MIN`. `numeric::Platform` lists every difference.
 
-The arithmetic and the standard functions choose the sign and payload of the NaNs they return, so those are the same on every host too. On 32-bit x86 a value returned through the x87 register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
+The arithmetic and the standard functions choose the sign and payload of the NaNs they return, so those are the same on every host. On 32-bit x86 a value returned through the x87 register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
+
+### Math modes
+
+The game calls the C library of the system it runs on for `math.sin`, `math.cos`, `math.asin`, `math.acos`, `math.atan`, `math.atan2`, `math.exp`, `math.ln`, `math.pow` and the easings' `exp2` and sine table, and so does this crate by default, through `std`'s `f32` methods. Since that is the host's C library, the last bits can differ between hosts: the recorded BDS Linux data is reproduced bit for bit on a Linux x86-64 host with glibc 2.41 and FMA, and on other hosts within two ulps.
+
+With the `strict-math` feature the crate calls the `libm` crate instead, and every host gives the same bits. Either way the NaN a function returns follows the platform, except that `math.asin` and `math.acos` beyond ±1 give `0x7fc00000` and `math.pow` of a NaN to an odd integer clears its sign on every platform. Both rules are measured on BDS Linux only; that BDS Windows and Android follow them is assumed. `math.ln` of a negative number is the platform's invalid NaN, which BDS Linux 1.26.36 logs; 1.26.52 logs `0x7fc00000`.
 
 ## Evaluation
 
