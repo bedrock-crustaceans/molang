@@ -398,10 +398,7 @@ mod compiler {
         let block = CompileOptions {
             admission: QueryAdmission::Only(list),
             allowed_ops: OpSet::all().without_assignments_or_random(),
-            deviations: Deviations {
-                validate_nested: false,
-                ..Deviations::DEFAULT
-            },
+            deviations: Deviations::DEFAULT.difference(Deviations::VALIDATE_NESTED),
             ..CompileOptions::server(MolangVersion::LATEST)
         };
         assert_eq!(

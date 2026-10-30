@@ -111,7 +111,7 @@ impl Compiled {
     }
 
     /// Everything the compile logged, in order. With the deviation
-    /// [`diagnostic_limit`](super::Deviations::diagnostic_limit) at most
+    /// [`DIAGNOSTIC_LIMIT`](super::Deviations::DIAGNOSTIC_LIMIT) at most
     /// [`MAX_DIAGNOSTICS`](crate::compile::MAX_DIAGNOSTICS) are kept, followed by one
     /// [`DiagCode::DiagnosticLimit`](crate::diag::DiagCode::DiagnosticLimit) note counting the
     /// rest.

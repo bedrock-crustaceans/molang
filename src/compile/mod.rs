@@ -38,13 +38,13 @@ pub use result::{CompileError, CompileFailure, CompileOutcome, Compiled, Expr};
 pub const MAX_DEPTH: u32 = 255;
 
 /// Maximum length, in bytes, of a source text `compile` accepts
-/// (`Deviations::source_length_limit`).
+/// (`Deviations::SOURCE_LENGTH_LIMIT`).
 ///
 /// Every compile stage is linear in the source, so this bounds one compile's work and memory. With
 /// `Deviations::NONE` no length is rejected.
 pub const MAX_SOURCE_LEN: usize = 65_536;
 
-/// Maximum number of diagnostics one compile keeps (`Deviations::diagnostic_limit`); past it, one
+/// Maximum number of diagnostics one compile keeps (`Deviations::DIAGNOSTIC_LIMIT`); past it, one
 /// informational note counts the diagnostics left out.
 pub const MAX_DIAGNOSTICS: usize = 256;
 
@@ -138,7 +138,7 @@ pub fn compile_source(src: &MolangSource, field_opts: &CompileOptions) -> Compil
 
 /// The optimised and validated tree of `src`, or `None` once a rejection is logged.
 fn parse_source(cx: &mut Cx<'_>, src: &str) -> Option<Node> {
-    if cx.opts.deviations.source_length_limit && src.len() > MAX_SOURCE_LEN {
+    if cx.opts.deviations.contains(Deviations::SOURCE_LENGTH_LIMIT) && src.len() > MAX_SOURCE_LEN {
         let text = format!(
             "expression is {} bytes long; the limit is {MAX_SOURCE_LEN}",
             src.len()
@@ -495,10 +495,7 @@ mod tests {
 
     #[test]
     fn the_version_warning_can_be_switched_off() {
-        let off = Deviations {
-            object_version_warning: false,
-            ..Deviations::ALL
-        };
+        let off = Deviations::ALL.difference(Deviations::OBJECT_VERSION_WARNING);
         for raw in [-2, -1, 14] {
             let compiled = compile(
                 "1",
@@ -599,10 +596,7 @@ mod tests {
     fn with_the_length_deviation_off_a_long_source_compiles() {
         let src = format!("1{}", " ".repeat(MAX_SOURCE_LEN));
         let off = CompileOptions {
-            deviations: Deviations {
-                source_length_limit: false,
-                ..Deviations::ALL
-            },
+            deviations: Deviations::ALL.difference(Deviations::SOURCE_LENGTH_LIMIT),
             ..opts()
         };
         let compiled = compile(&src, &off);

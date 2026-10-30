@@ -222,17 +222,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `keep_source` | Whether the compiled expression keeps the source text. | `false` |
 | `deviations` | The compile switches below. | `Deviations::DEFAULT` |
 
-`Deviations::NONE` turns every switch off.
+`Deviations` is a bit set; `Deviations::NONE` turns every flag off.
 
-| Switch | On | Off | Default |
+| Flag | On | Off | Default |
 | --- | --- | --- | --- |
-| `source_length_limit` | A source longer than `MAX_SOURCE_LEN` (65,536 bytes) is rejected with `DiagCode::SourceTooLong`. | No length limit. | on |
-| `validate_nested` | Validation findings below the root are warnings. | They are errors. Either way the expression compiles. | on |
-| `true_false_prefix_advance` | A prefix of `true` / `false` (`t`, `tr`, `fals`) is a boolean token and the lexer advances by its length. | The lexer advances four bytes for `true`, five for `false`. | on |
-| `query_arity_lint` | A warning for a query call with an argument count outside its declared range. | No warning. | on |
-| `query_client_only` | An informational note for a client-only query compiled against a server catalogue. | No note. | on |
-| `object_version_warning` | A warning for an object-form version outside -1..=13, a note for `Invalid`. | No diagnostic. | on |
-| `diagnostic_limit` | At most `MAX_DIAGNOSTICS` (256) diagnostics, then one `DiagCode::DiagnosticLimit` note counting the rest. | Every diagnostic is kept. | on |
+| `SOURCE_LENGTH_LIMIT` | A source longer than `MAX_SOURCE_LEN` (65,536 bytes) is rejected with `DiagCode::SourceTooLong`. | No length limit. | on |
+| `VALIDATE_NESTED` | Validation findings below the root are warnings. | They are errors. Either way the expression compiles. | on |
+| `TRUE_FALSE_PREFIX_ADVANCE` | A prefix of `true` / `false` (`t`, `tr`, `fals`) is a boolean token and the lexer advances by its length. | The lexer advances four bytes for `true`, five for `false`. | on |
+| `QUERY_ARITY_LINT` | A warning for a query call with an argument count outside its declared range. | No warning. | on |
+| `QUERY_CLIENT_ONLY` | An informational note for a client-only query compiled against a server catalogue. | No note. | on |
+| `OBJECT_VERSION_WARNING` | A warning for an object-form version outside -1..=13, a note for `Invalid`. | No diagnostic. | on |
+| `DIAGNOSTIC_LIMIT` | At most `MAX_DIAGNOSTICS` (256) diagnostics, then one `DiagCode::DiagnosticLimit` note counting the rest. | Every diagnostic is kept. | on |
 
 ```rust
 use molang::compile::{CompileOptions, Deviations};
@@ -240,7 +240,7 @@ use molang::version::MolangVersion;
 
 let options = CompileOptions {
     keep_source: true,
-    deviations: Deviations { validate_nested: false, ..Deviations::DEFAULT },
+    deviations: Deviations::DEFAULT.difference(Deviations::VALIDATE_NESTED),
     ..CompileOptions::server(MolangVersion::LATEST)
 };
 assert_eq!(options.version(), MolangVersion::LATEST);

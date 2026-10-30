@@ -1,6 +1,7 @@
 //! Number and `true` / `false` literals, and the unknown-token failure.
 
 use super::{Lexeme, Lexer, NameChars, TokenFailed};
+use crate::compile::Deviations;
 use crate::compile::ast::Payload;
 use crate::diag::LanguageMessage as Msg;
 use crate::numeric::Platform;
@@ -69,7 +70,12 @@ impl Lexer<'_, '_> {
         };
         // With the deviation off a prefix advances as far as the full word (`t;` loses its `;`),
         // capped at the end of the input.
-        let end = if self.cx.opts.deviations.true_false_prefix_advance {
+        let end = if self
+            .cx
+            .opts
+            .deviations
+            .contains(Deviations::TRUE_FALSE_PREFIX_ADVANCE)
+        {
             word_end
         } else {
             (start + word_len).min(self.text.len())
@@ -482,10 +488,7 @@ mod tests {
     #[test]
     fn without_the_deviation_a_boolean_prefix_takes_the_length_of_the_full_word() {
         let opts = CompileOptions {
-            deviations: Deviations {
-                true_false_prefix_advance: false,
-                ..Deviations::ALL
-            },
+            deviations: Deviations::ALL.difference(Deviations::TRUE_FALSE_PREFIX_ADVANCE),
             ..client()
         };
         let r = run_with("tr*5", &opts);
@@ -519,10 +522,7 @@ mod tests {
     #[test]
     fn the_full_words_take_their_own_length() {
         let opts = CompileOptions {
-            deviations: Deviations {
-                true_false_prefix_advance: false,
-                ..Deviations::ALL
-            },
+            deviations: Deviations::ALL.difference(Deviations::TRUE_FALSE_PREFIX_ADVANCE),
             ..client()
         };
         for (src, end) in [("true", 4), ("false", 5), ("true;", 4), ("false;", 5)] {

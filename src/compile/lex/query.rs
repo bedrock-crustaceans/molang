@@ -148,10 +148,7 @@ mod tests {
     #[test]
     fn the_miss_lint_is_off_with_the_deviation() {
         let opts = CompileOptions {
-            deviations: Deviations {
-                query_client_only: false,
-                ..Deviations::ALL
-            },
+            deviations: Deviations::ALL.difference(Deviations::QUERY_CLIENT_ONLY),
             ..CompileOptions::from_raw_version(
                 crate::stdlib::queries(Side::Client).clone(),
                 RawVersion(14),

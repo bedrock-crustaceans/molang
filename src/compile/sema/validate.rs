@@ -1,7 +1,7 @@
 //! The validator: the checks that run over the optimised tree.
 
 use crate::compile::{
-    Cx, Failed, Pass,
+    Cx, Deviations, Failed, Pass,
     ast::{Node, Payload},
 };
 use crate::diag::{LanguageMessage as Msg, Severity};
@@ -21,7 +21,7 @@ fn finding(
     node: &Node,
     args: &[&dyn std::fmt::Display],
 ) -> Pass {
-    let severity = if is_root || !cx.opts.deviations.validate_nested {
+    let severity = if is_root || !cx.opts.deviations.contains(Deviations::VALIDATE_NESTED) {
         Severity::Error
     } else {
         Severity::Warning
@@ -755,10 +755,7 @@ mod tests {
         assert!(!failed);
         assert_eq!(log, [("E41", Severity::Error, (0, 1))]);
         let only = CompileOptions {
-            deviations: Deviations {
-                validate_nested: false,
-                ..Deviations::ALL
-            },
+            deviations: Deviations::ALL.difference(Deviations::VALIDATE_NESTED),
             ..client(13)
         };
         assert_eq!(

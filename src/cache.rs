@@ -467,34 +467,13 @@ mod tests {
     fn each_deviation_switch_is_part_of_the_key() {
         let all = Deviations::ALL;
         for changed in [
-            Deviations {
-                true_false_prefix_advance: false,
-                ..all
-            },
-            Deviations {
-                source_length_limit: false,
-                ..all
-            },
-            Deviations {
-                validate_nested: false,
-                ..all
-            },
-            Deviations {
-                query_arity_lint: false,
-                ..all
-            },
-            Deviations {
-                query_client_only: false,
-                ..all
-            },
-            Deviations {
-                object_version_warning: false,
-                ..all
-            },
-            Deviations {
-                diagnostic_limit: false,
-                ..all
-            },
+            all.difference(Deviations::TRUE_FALSE_PREFIX_ADVANCE),
+            all.difference(Deviations::SOURCE_LENGTH_LIMIT),
+            all.difference(Deviations::VALIDATE_NESTED),
+            all.difference(Deviations::QUERY_ARITY_LINT),
+            all.difference(Deviations::QUERY_CLIENT_ONLY),
+            all.difference(Deviations::OBJECT_VERSION_WARNING),
+            all.difference(Deviations::DIAGNOSTIC_LIMIT),
         ] {
             assert_keys_differ(
                 &base(),

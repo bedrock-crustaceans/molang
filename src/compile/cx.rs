@@ -189,11 +189,13 @@ impl Cx<'_> {
         self.push(Diagnostic::lint(code, severity, span.into(), text));
     }
 
-    /// Past [`MAX_DIAGNOSTICS`] a diagnostic is only counted (with `Deviations::diagnostic_limit`
+    /// Past [`MAX_DIAGNOSTICS`] a diagnostic is only counted (with `Deviations::DIAGNOSTIC_LIMIT`
     /// on); `logged` is set either way.
     fn push(&mut self, diagnostic: Diagnostic) {
         self.logged |= diagnostic.language_message().is_some();
-        if self.opts.deviations.diagnostic_limit && self.diagnostics.len() >= MAX_DIAGNOSTICS {
+        if self.opts.deviations.contains(Deviations::DIAGNOSTIC_LIMIT)
+            && self.diagnostics.len() >= MAX_DIAGNOSTICS
+        {
             self.suppressed += 1;
         } else {
             self.diagnostics.push(diagnostic);
@@ -223,7 +225,7 @@ impl Cx<'_> {
     }
 
     /// Lints the compile's version: a missing one always, one outside −1..=13 or `Invalid` with
-    /// `Deviations::object_version_warning` on.
+    /// `Deviations::OBJECT_VERSION_WARNING` on.
     pub(super) fn lint_version(&mut self) {
         let span = self.whole();
         let Some(raw) = self.query_version else {
@@ -238,7 +240,11 @@ impl Cx<'_> {
             );
             return;
         };
-        if !self.opts.deviations.object_version_warning {
+        if !self
+            .opts
+            .deviations
+            .contains(Deviations::OBJECT_VERSION_WARNING)
+        {
             return;
         }
         match MolangVersion::from_i16(raw.0) {
@@ -274,7 +280,7 @@ impl Cx<'_> {
     }
 
     pub(super) fn lint_query_side(&mut self, decl: &QueryDecl, span: Span) {
-        if self.opts.deviations.query_client_only
+        if self.opts.deviations.contains(Deviations::QUERY_CLIENT_ONLY)
             && self.opts.catalog.side() == Side::Server
             && decl.shape().side.is_client_only()
         {
@@ -294,7 +300,7 @@ impl Cx<'_> {
     /// A query missing from a server catalogue (`query.is_on_screen`): explains the
     /// `Failed to resolve query` that follows.
     pub(super) fn lint_query_not_on_server(&mut self, decl: &QueryDecl, span: Span) {
-        if self.opts.deviations.query_client_only {
+        if self.opts.deviations.contains(Deviations::QUERY_CLIENT_ONLY) {
             self.lint(
                 DiagCode::QueryClientOnly,
                 Severity::Info,
@@ -310,7 +316,7 @@ impl Cx<'_> {
 
     /// Why a known query name did not resolve.
     pub(super) fn lint_query_miss(&mut self, decl: &QueryDecl, span: Span) {
-        if !self.opts.deviations.query_client_only {
+        if !self.opts.deviations.contains(Deviations::QUERY_CLIENT_ONLY) {
             return;
         }
         let name = decl.name();
@@ -333,7 +339,7 @@ impl Cx<'_> {
     }
 
     pub(super) fn lint_query_arity(&mut self, query: QueryIndex, call: &Node) {
-        if !self.opts.deviations.query_arity_lint {
+        if !self.opts.deviations.contains(Deviations::QUERY_ARITY_LINT) {
             return;
         }
         let decl = self.opts.catalog.decl(query);
@@ -713,10 +719,7 @@ mod tests {
     #[test]
     fn only_the_cap_deviation_switches_the_cap_off() {
         let options = CompileOptions {
-            deviations: Deviations {
-                diagnostic_limit: false,
-                ..Deviations::ALL
-            },
+            deviations: Deviations::ALL.difference(Deviations::DIAGNOSTIC_LIMIT),
             ..opts()
         };
         let mut cx = Cx::for_test("source", &options);
@@ -786,10 +789,7 @@ mod tests {
     #[test]
     fn the_arity_lint_can_be_switched_off() {
         let off = CompileOptions {
-            deviations: Deviations {
-                query_arity_lint: false,
-                ..Deviations::ALL
-            },
+            deviations: Deviations::ALL.difference(Deviations::QUERY_ARITY_LINT),
             ..client()
         };
         assert!(
@@ -881,10 +881,7 @@ mod tests {
                 .is_empty()
         );
         let off = CompileOptions {
-            deviations: Deviations {
-                query_client_only: false,
-                ..Deviations::ALL
-            },
+            deviations: Deviations::ALL.difference(Deviations::QUERY_CLIENT_ONLY),
             ..opts()
         };
         assert!(compile("q.is_first_person", &off).diagnostics().is_empty());
@@ -953,10 +950,7 @@ mod tests {
     #[test]
     fn the_not_on_server_info_can_be_switched_off() {
         let off = CompileOptions {
-            deviations: Deviations {
-                query_client_only: false,
-                ..Deviations::ALL
-            },
+            deviations: Deviations::ALL.difference(Deviations::QUERY_CLIENT_ONLY),
             ..opts()
         };
         let compiled = compile("q.is_on_screen", &off);
@@ -987,10 +981,7 @@ mod tests {
 
     #[test]
     fn a_query_that_does_not_exist_at_the_version_is_explained() {
-        let quiet = Deviations {
-            object_version_warning: false,
-            ..Deviations::ALL
-        };
+        let quiet = Deviations::ALL.difference(Deviations::OBJECT_VERSION_WARNING);
         let compiled = compile(
             "q.is_first_person",
             &CompileOptions {
@@ -1016,11 +1007,8 @@ mod tests {
         assert_eq!(compiled.failure(), Some(CompileFailure::Rejected));
         let off = CompileOptions {
             raw_version: RawVersion(14),
-            deviations: Deviations {
-                query_client_only: false,
-                object_version_warning: false,
-                ..Deviations::ALL
-            },
+            deviations: Deviations::ALL
+                .difference(Deviations::QUERY_CLIENT_ONLY | Deviations::OBJECT_VERSION_WARNING),
             ..client()
         };
         assert_eq!(

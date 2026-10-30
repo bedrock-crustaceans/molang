@@ -343,10 +343,13 @@ fn check(
     if rejected && !severities.contains(&Severity::Error) {
         return Err(format!("rejected without an Error: {severities:?}"));
     }
-    if !rejected && deviations.validate_nested && severities.contains(&Severity::Error) {
+    if !rejected
+        && deviations.contains(Deviations::VALIDATE_NESTED)
+        && severities.contains(&Severity::Error)
+    {
         return Err(format!("kept, but an Error under ALL: {severities:?}"));
     }
-    if !rejected && !deviations.validate_nested {
+    if !rejected && !deviations.contains(Deviations::VALIDATE_NESTED) {
         for d in compiled
             .diagnostics()
             .iter()

@@ -1264,10 +1264,7 @@ mod own_lints {
     #[test]
     fn the_arity_lint_can_be_switched_off() {
         let off = CompileOptions {
-            deviations: Deviations {
-                query_arity_lint: false,
-                ..Deviations::ALL
-            },
+            deviations: Deviations::ALL.difference(Deviations::QUERY_ARITY_LINT),
             ..client_at(13)
         };
         assert!(
@@ -1362,10 +1359,7 @@ mod own_lints {
     fn with_the_length_deviation_off_a_long_source_compiles() {
         let src = format!("1{}", " ".repeat(MAX_SOURCE_LEN));
         let off = CompileOptions {
-            deviations: Deviations {
-                source_length_limit: false,
-                ..Deviations::ALL
-            },
+            deviations: Deviations::ALL.difference(Deviations::SOURCE_LENGTH_LIMIT),
             ..client_at(13)
         };
         let compiled = compile(&src, &off);
@@ -1429,10 +1423,7 @@ mod own_lints {
 
     #[test]
     fn the_version_warning_can_be_switched_off() {
-        let off = Deviations {
-            object_version_warning: false,
-            ..Deviations::ALL
-        };
+        let off = Deviations::ALL.difference(Deviations::OBJECT_VERSION_WARNING);
         for raw in [-2, -1, 14] {
             let compiled = compile(
                 "1",

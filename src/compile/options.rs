@@ -8,61 +8,46 @@ use crate::numeric::Platform;
 use crate::ops::OpSet;
 use crate::version::{ExperimentMask, MolangVersion, RawVersion};
 
-/// Behaviour switches: `true` turns one on, `false` off.
-#[allow(
-    clippy::struct_excessive_bools,
-    reason = "one independent switch per deviation: flags, not a state"
-)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Deviations {
-    /// A prefix of `true` / `false` is a complete boolean token and the lexer advances by its
-    /// length. Off, it advances four bytes for `true` and five for `false` (`t;` loses its `;`).
-    pub true_false_prefix_advance: bool,
-    /// Reject a source longer than [`MAX_SOURCE_LEN`](super::MAX_SOURCE_LEN) with
-    /// [`DiagCode::SourceTooLong`](crate::diag::DiagCode::SourceTooLong).
-    pub source_length_limit: bool,
-    /// Report the validation messages of sub-expressions below the root as warnings; off, they are
-    /// [`Severity::Error`](crate::diag::Severity::Error). The expression compiles either way.
-    pub validate_nested: bool,
-    /// Warn ([`DiagCode::QueryArity`](crate::diag::DiagCode::QueryArity)) when a query is called
-    /// with an argument count outside its declared range. Such a call still compiles and runs.
-    pub query_arity_lint: bool,
-    /// Inform ([`DiagCode::QueryClientOnly`](crate::diag::DiagCode::QueryClientOnly)) when a
-    /// client-only query is compiled against a [`Side::Server`](crate::catalog::Side::Server)
-    /// catalogue, where it still resolves.
-    pub query_client_only: bool,
-    /// Warn ([`DiagCode::InvalidVersion`](crate::diag::DiagCode::InvalidVersion)) when the raw
-    /// version is outside −1..=13, and inform when it is `Invalid` (−1).
-    pub object_version_warning: bool,
-    /// Keep at most [`MAX_DIAGNOSTICS`](super::MAX_DIAGNOSTICS) diagnostics per compile, then one
-    /// [`DiagCode::DiagnosticLimit`](crate::diag::DiagCode::DiagnosticLimit) note with the number
-    /// left out. Off, every message is kept. The compile itself is unchanged.
-    pub diagnostic_limit: bool,
+bitflags::bitflags! {
+    /// Behaviour switches, as a set: a flag in the set turns its behaviour on.
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+    pub struct Deviations: u8 {
+        /// A prefix of `true` / `false` is a complete boolean token and the lexer advances by its
+        /// length. Off, it advances four bytes for `true` and five for `false` (`t;` loses its
+        /// `;`).
+        const TRUE_FALSE_PREFIX_ADVANCE = 1 << 0;
+        /// Reject a source longer than [`MAX_SOURCE_LEN`](super::MAX_SOURCE_LEN) with
+        /// [`DiagCode::SourceTooLong`](crate::diag::DiagCode::SourceTooLong).
+        const SOURCE_LENGTH_LIMIT = 1 << 1;
+        /// Report the validation messages of sub-expressions below the root as warnings; off,
+        /// they are [`Severity::Error`](crate::diag::Severity::Error). The expression compiles
+        /// either way.
+        const VALIDATE_NESTED = 1 << 2;
+        /// Warn ([`DiagCode::QueryArity`](crate::diag::DiagCode::QueryArity)) when a query is
+        /// called with an argument count outside its declared range. Such a call still compiles
+        /// and runs.
+        const QUERY_ARITY_LINT = 1 << 3;
+        /// Inform ([`DiagCode::QueryClientOnly`](crate::diag::DiagCode::QueryClientOnly)) when a
+        /// client-only query is compiled against a
+        /// [`Side::Server`](crate::catalog::Side::Server) catalogue, where it still resolves.
+        const QUERY_CLIENT_ONLY = 1 << 4;
+        /// Warn ([`DiagCode::InvalidVersion`](crate::diag::DiagCode::InvalidVersion)) when the
+        /// raw version is outside −1..=13, and inform when it is `Invalid` (−1).
+        const OBJECT_VERSION_WARNING = 1 << 5;
+        /// Keep at most [`MAX_DIAGNOSTICS`](super::MAX_DIAGNOSTICS) diagnostics per compile, then
+        /// one [`DiagCode::DiagnosticLimit`](crate::diag::DiagCode::DiagnosticLimit) note with the
+        /// number left out. Off, every message is kept. The compile itself is unchanged.
+        const DIAGNOSTIC_LIMIT = 1 << 6;
+    }
 }
 
 impl Deviations {
     /// The default: [`Deviations::ALL`].
     pub const DEFAULT: Self = Self::ALL;
     /// Every deviation on.
-    pub const ALL: Self = Self {
-        true_false_prefix_advance: true,
-        source_length_limit: true,
-        validate_nested: true,
-        query_arity_lint: true,
-        query_client_only: true,
-        object_version_warning: true,
-        diagnostic_limit: true,
-    };
+    pub const ALL: Self = Self::all();
     /// Every deviation off.
-    pub const NONE: Self = Self {
-        true_false_prefix_advance: false,
-        source_length_limit: false,
-        validate_nested: false,
-        query_arity_lint: false,
-        query_client_only: false,
-        object_version_warning: false,
-        diagnostic_limit: false,
-    };
+    pub const NONE: Self = Self::empty();
 }
 
 impl Default for Deviations {
@@ -237,46 +222,15 @@ mod tests {
         crate::stdlib::queries(Side::Client)
     }
 
-    /// The destructuring names every field, so a new deviation fails to compile here.
     #[test]
-    fn all_has_every_deviation_on() {
-        let Deviations {
-            true_false_prefix_advance,
-            source_length_limit,
-            validate_nested,
-            query_arity_lint,
-            query_client_only,
-            object_version_warning,
-            diagnostic_limit,
-        } = Deviations::ALL;
-        assert!(true_false_prefix_advance);
-        assert!(source_length_limit);
-        assert!(validate_nested);
-        assert!(query_arity_lint);
-        assert!(query_client_only);
-        assert!(object_version_warning);
-        assert!(diagnostic_limit);
-    }
-
-    #[test]
-    fn none_has_every_deviation_off() {
-        let Deviations {
-            true_false_prefix_advance,
-            source_length_limit,
-            validate_nested,
-            query_arity_lint,
-            query_client_only,
-            object_version_warning,
-            diagnostic_limit,
-        } = Deviations::NONE;
-        assert!(!true_false_prefix_advance);
-        assert!(!source_length_limit);
-        assert!(!validate_nested);
-        assert!(!query_arity_lint);
-        assert!(!query_client_only);
-        assert!(!object_version_warning);
-        assert!(!diagnostic_limit);
+    fn all_has_every_deviation_on_and_none_has_none() {
+        for flag in Deviations::all().iter() {
+            assert!(Deviations::ALL.contains(flag), "{flag:?}");
+            assert!(!Deviations::NONE.intersects(flag), "{flag:?}");
+        }
+        assert_eq!(Deviations::all().iter().count(), 7);
         assert_ne!(Deviations::ALL, Deviations::NONE);
+        assert!(Deviations::NONE.is_empty());
     }
 
     #[test]
@@ -490,10 +444,10 @@ mod tests {
             (o.raw_version, o.admission, o.allowed_ops),
             (opts().raw_version, opts().admission, opts().allowed_ops)
         );
-        let deviations = Deviations {
-            validate_nested: false,
-            ..Deviations::ALL
-        };
-        assert!(!deviations.validate_nested && deviations.query_arity_lint);
+        let deviations = Deviations::ALL.difference(Deviations::VALIDATE_NESTED);
+        assert!(
+            !deviations.contains(Deviations::VALIDATE_NESTED)
+                && deviations.contains(Deviations::QUERY_ARITY_LINT)
+        );
     }
 }

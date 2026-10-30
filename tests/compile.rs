@@ -2645,18 +2645,12 @@ mod deviations {
         let constant = |compiled: &Compiled| compiled.expr().and_then(Expr::as_constant);
 
         // `true_false_prefix_advance`: on, the identifier's length; off, the full word's.
-        let off = Deviations {
-            true_false_prefix_advance: false,
-            ..Deviations::ALL
-        };
+        let off = Deviations::ALL.difference(Deviations::TRUE_FALSE_PREFIX_ADVANCE);
         assert_eq!(constant(&run("tr*5", 13, Deviations::ALL)), Some(5.0));
         assert_eq!(constant(&run("tr*5", 13, off)), Some(1.0));
 
         // `source_length_limit`: on, a source longer than `MAX_SOURCE_LEN` is rejected.
-        let off = Deviations {
-            source_length_limit: false,
-            ..Deviations::ALL
-        };
+        let off = Deviations::ALL.difference(Deviations::SOURCE_LENGTH_LIMIT);
         let long = format!("{}1", " ".repeat(MAX_SOURCE_LEN));
         let ours = run(&long, 13, Deviations::ALL);
         assert_eq!(ours.failure(), Some(CompileFailure::Rejected));
@@ -2665,10 +2659,7 @@ mod deviations {
         assert_eq!((lenient.failure(), constant(&lenient)), (None, Some(1.0)));
 
         // `validate_nested`: a nested finding is a Warning on, an Error off.
-        let off = Deviations {
-            validate_nested: false,
-            ..Deviations::ALL
-        };
+        let off = Deviations::ALL.difference(Deviations::VALIDATE_NESTED);
         assert_eq!(
             codes(&run("break;", 13, Deviations::ALL)),
             [(DiagCode::StatementForm, Severity::Warning)]
@@ -2679,10 +2670,7 @@ mod deviations {
         );
 
         // `query_arity_lint`: on, a call outside the declared argument counts warns.
-        let off = Deviations {
-            query_arity_lint: false,
-            ..Deviations::ALL
-        };
+        let off = Deviations::ALL.difference(Deviations::QUERY_ARITY_LINT);
         assert_eq!(
             codes(&run("q.log(7, 8)", 13, Deviations::ALL)),
             [(DiagCode::QueryArity, Severity::Warning)]
@@ -2690,10 +2678,7 @@ mod deviations {
         assert_eq!(codes(&run("q.log(7, 8)", 13, off)), []);
 
         // `query_client_only`: on, a client-only query compiled for the server gets an Info.
-        let off = Deviations {
-            query_client_only: false,
-            ..Deviations::ALL
-        };
+        let off = Deviations::ALL.difference(Deviations::QUERY_CLIENT_ONLY);
         assert_eq!(
             codes(&run("q.is_first_person;", 13, Deviations::ALL)),
             [(DiagCode::QueryClientOnly, Severity::Info)]
@@ -2701,10 +2686,7 @@ mod deviations {
         assert_eq!(codes(&run("q.is_first_person;", 13, off)), []);
 
         // `object_version_warning`: on, a raw version outside -1..=13 warns.
-        let off = Deviations {
-            object_version_warning: false,
-            ..Deviations::ALL
-        };
+        let off = Deviations::ALL.difference(Deviations::OBJECT_VERSION_WARNING);
         assert_eq!(
             codes(&run("1", 14, Deviations::ALL)),
             [(DiagCode::InvalidVersion, Severity::Warning)]
@@ -2713,10 +2695,7 @@ mod deviations {
 
         // `diagnostic_limit`: on, the first `MAX_DIAGNOSTICS` and one note are kept; off, all of
         // them.
-        let off = Deviations {
-            diagnostic_limit: false,
-            ..Deviations::ALL
-        };
+        let off = Deviations::ALL.difference(Deviations::DIAGNOSTIC_LIMIT);
         let many = "1e;".repeat(MAX_DIAGNOSTICS + 5);
         assert_eq!(
             run(&many, 13, Deviations::ALL).diagnostics().len(),
@@ -4754,49 +4733,20 @@ mod deviation_switches {
 
     #[test]
     fn every_compiler_deviation_switches_off() {
-        let Deviations {
-            true_false_prefix_advance,
-            source_length_limit,
-            validate_nested,
-            query_arity_lint,
-            query_client_only,
-            object_version_warning,
-            diagnostic_limit,
-            ..
-        } = Deviations::NONE;
-        assert!(
-            ![
-                true_false_prefix_advance,
-                source_length_limit,
-                validate_nested,
-                query_arity_lint,
-                query_client_only,
-                object_version_warning,
-                diagnostic_limit
-            ]
-            .contains(&true)
-        );
-        let Deviations {
-            true_false_prefix_advance,
-            source_length_limit,
-            validate_nested,
-            query_arity_lint,
-            query_client_only,
-            object_version_warning,
-            diagnostic_limit,
-        } = Deviations::ALL;
-        assert!(
-            [
-                true_false_prefix_advance,
-                source_length_limit,
-                validate_nested,
-                query_arity_lint,
-                query_client_only,
-                object_version_warning,
-                diagnostic_limit
-            ]
-            .iter()
-            .all(|&on| on)
+        let flags = [
+            Deviations::TRUE_FALSE_PREFIX_ADVANCE,
+            Deviations::SOURCE_LENGTH_LIMIT,
+            Deviations::VALIDATE_NESTED,
+            Deviations::QUERY_ARITY_LINT,
+            Deviations::QUERY_CLIENT_ONLY,
+            Deviations::OBJECT_VERSION_WARNING,
+            Deviations::DIAGNOSTIC_LIMIT,
+        ];
+        assert!(flags.iter().all(|&flag| !Deviations::NONE.intersects(flag)));
+        assert!(flags.iter().all(|&flag| Deviations::ALL.contains(flag)));
+        assert_eq!(
+            flags.iter().fold(Deviations::NONE, |set, &flag| set | flag),
+            Deviations::ALL
         );
     }
 
@@ -4817,41 +4767,8 @@ mod deviation_switches {
 mod public_fields {
     //! These tests name every field, so a field becoming private, or a new one, fails to compile.
 
-    use molang::compile::Deviations;
     #[cfg(feature = "vm")]
     use molang::vm::EvalLimits;
-
-    #[test]
-    fn deviations_are_a_struct_of_public_switches() {
-        let Deviations {
-            true_false_prefix_advance,
-            source_length_limit,
-            validate_nested,
-            query_arity_lint,
-            query_client_only,
-            object_version_warning,
-            diagnostic_limit,
-        } = Deviations::ALL;
-        assert!(
-            true_false_prefix_advance
-                && source_length_limit
-                && validate_nested
-                && query_arity_lint
-                && query_client_only
-                && object_version_warning
-                && diagnostic_limit
-        );
-        let all_off = Deviations {
-            true_false_prefix_advance: false,
-            source_length_limit: false,
-            validate_nested: false,
-            query_arity_lint: false,
-            query_client_only: false,
-            object_version_warning: false,
-            diagnostic_limit: false,
-        };
-        assert_eq!(all_off, Deviations::NONE);
-    }
 
     #[cfg(feature = "vm")]
     #[test]
