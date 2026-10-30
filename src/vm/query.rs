@@ -127,12 +127,11 @@ impl UnknownQuery {
 ///     "query.health",
 ///     &CompileOptions::new(catalog.clone(), MolangVersion::LATEST),
 /// )
-/// .into_result()
-/// .unwrap();
+/// .into_result()?;
 /// let mut view = WorldView(&world);
 /// assert_eq!(expr.eval_f32(&mut env.cx(&mut view, Subjects::actor(7))), 5.0);
 /// # }
-/// # Ok::<(), molang::vm::UnknownQuery>(())
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub struct QueryTable<H: Host> {
     catalog: QueryCatalog,

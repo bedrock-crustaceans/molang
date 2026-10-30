@@ -263,14 +263,14 @@ impl VersionRange {
 /// use molang::catalog::{DeclError, QuerySetMask, VersionRange, VersionRanges};
 /// use molang::version::MolangVersion;
 ///
-/// let early =
-///     VersionRange::new(MolangVersion::V0, MolangVersion::V7, QuerySetMask::DEFAULT).unwrap();
+/// let early = VersionRange::new(MolangVersion::V0, MolangVersion::V7, QuerySetMask::DEFAULT)
+///     .ok_or("an empty window")?;
 /// let late = VersionRange::new(
 ///     MolangVersion::V8,
 ///     MolangVersion::LATEST,
 ///     QuerySetMask::DEFAULT,
 /// )
-/// .unwrap();
+/// .ok_or("an empty window")?;
 /// let ranges = VersionRanges::new([early, late])?.in_sets(QuerySetMask::TAGS);
 /// assert_eq!(
 ///     ranges.as_slice(),
@@ -280,7 +280,7 @@ impl VersionRange {
 ///     ]
 /// );
 /// assert_eq!(VersionRanges::new([late, early]), Err(DeclError::OverlappingRanges));
-/// # Ok::<(), DeclError>(())
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Copy, Clone)]
 pub struct VersionRanges {

@@ -15,10 +15,10 @@
 //!     "math.clamp(1 + 2 * 3, 0, 5)",
 //!     &CompileOptions::server(MolangVersion::LATEST),
 //! )
-//! .into_result()
-//! .unwrap();
+//! .into_result()?;
 //! assert_eq!(expr.eval_f32(&mut NoHostEnv::new().cx()), 5.0);
 //! # }
+//! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
 //! # Reading a result

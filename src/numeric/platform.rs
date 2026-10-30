@@ -57,14 +57,15 @@
 /// use molang::numeric::Platform;
 /// use molang::version::MolangVersion;
 ///
-/// let sign_of_nan = |platform| {
+/// let sign_of_nan = |platform| -> Result<Option<f32>, Box<dyn std::error::Error>> {
 ///     let options = CompileOptions::server(MolangVersion::LATEST).with_platform(platform);
-///     let expr = compile("math.copy_sign(1, math.ln(-1))", &options).into_result().unwrap().0;
-///     expr.as_constant()
+///     let (expr, _) = compile("math.copy_sign(1, math.ln(-1))", &options).into_result()?;
+///     Ok(expr.as_constant())
 /// };
-/// assert_eq!(sign_of_nan(Platform::default()), Some(1.0));
-/// assert_eq!(sign_of_nan(Platform::BdsWindows), Some(-1.0));
+/// assert_eq!(sign_of_nan(Platform::default())?, Some(1.0));
+/// assert_eq!(sign_of_nan(Platform::BdsWindows)?, Some(-1.0));
 /// # }
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]

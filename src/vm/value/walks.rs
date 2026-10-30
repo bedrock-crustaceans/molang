@@ -175,15 +175,15 @@ impl<H: Host> Debug for Value<H> {
 ///     "v.a.z = 1; loop(31, { v.b = v.a; v.a.x = v.b; v.a.y = v.b; });",
 ///     &CompileOptions::server(MolangVersion::LATEST),
 /// )
-/// .into_result()
-/// .unwrap();
+/// .into_result()?;
 /// let mut env = NoHostEnv::new();
 /// expr.eval(&mut env.cx());
-/// let a = env.variables().get(VariableName::new("a")).unwrap();
+/// let a = env.variables().get(VariableName::new("a")).ok_or("v.a is set")?;
 /// assert_eq!(a.distinct_structs().count(), 32);
 /// // 31 structs of {z, x, y} and the innermost {z}.
 /// assert_eq!(a.distinct_structs().map(StructValue::len).sum::<usize>(), 31 * 3 + 1);
 /// # }
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub struct DistinctStructs<'a, H: Host> {
     pending: Vec<&'a Value<H>>,

@@ -226,11 +226,11 @@ impl<H: Host> EvalCx<'_, '_, H> {
 ///     "math.clamp(1 + 2 * 3, 0, 5)",
 ///     &CompileOptions::server(MolangVersion::LATEST),
 /// )
-/// .into_result()
-/// .unwrap();
+/// .into_result()?;
 /// let mut env = NoHostEnv::new();
 /// assert_eq!(expr.eval_f32(&mut env.cx()), 5.0);
 /// # }
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 ///
 /// ```
@@ -239,8 +239,10 @@ impl<H: Host> EvalCx<'_, '_, H> {
 /// let mut env = NoHostEnv::new().with_this(2.34);
 /// env.variables_mut().set(VariableName::new("x"), Value::Float(3.0));
 /// let cx = env.cx();
-/// assert_eq!(cx.variable(VariableName::parse("v.x").unwrap()), Some(&Value::Float(3.0)));
+/// let x = VariableName::parse("v.x").ok_or("a variable name")?;
+/// assert_eq!(cx.variable(x), Some(&Value::Float(3.0)));
 /// assert_eq!(cx.subjects.this, 2.34);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Debug)]
 pub struct NoHostEnv<R = ProcessRng> {
@@ -507,11 +509,10 @@ impl Default for NoHostEnv {
 ///     "query.health - context.damage",
 ///     &CompileOptions::server(MolangVersion::LATEST),
 /// )
-/// .into_result()
-/// .unwrap();
+/// .into_result()?;
 /// assert_eq!(expr.eval_f32(&mut env.cx(&mut world, Subjects::actor(1))), 1.0);
 /// # }
-/// # Ok::<(), molang::vm::UnknownQuery>(())
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub struct HostEnv<
     H: Host,

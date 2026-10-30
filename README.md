@@ -64,16 +64,19 @@ use molang::numeric::Platform;
 use molang::version::MolangVersion;
 use molang::vm::NoHostEnv;
 
-let options = CompileOptions::server(MolangVersion::LATEST);
-let (expr, _) = compile("0.4", &options).into_result().unwrap();
-let value = expr.eval(&mut NoHostEnv::new().cx());
-assert!(value.is_nonzero());
-assert!(!value.rounds_to_nonzero(expr.platform()));
+fn main() -> Result<(), molang::compile::CompileError> {
+    let options = CompileOptions::server(MolangVersion::LATEST);
+    let (expr, _) = compile("0.4", &options).into_result()?;
+    let value = expr.eval(&mut NoHostEnv::new().cx());
+    assert!(value.is_nonzero());
+    assert!(!value.rounds_to_nonzero(expr.platform()));
 
-let (expr, _) = compile("1e10", &options).into_result().unwrap();
-let value = expr.eval(&mut NoHostEnv::new().cx());
-assert_eq!(value.to_property_int(0..=10, Platform::default()), Some(0));
-assert_eq!(value.to_property_int(0..=10, Platform::AndroidArm64), Some(10));
+    let (expr, _) = compile("1e10", &options).into_result()?;
+    let value = expr.eval(&mut NoHostEnv::new().cx());
+    assert_eq!(value.to_property_int(0..=10, Platform::default()), Some(0));
+    assert_eq!(value.to_property_int(0..=10, Platform::AndroidArm64), Some(10));
+    Ok(())
+}
 ```
 
 ## Versions and sides
@@ -246,10 +249,13 @@ use molang::compile::{CompileOptions, compile};
 use molang::numeric::Platform;
 use molang::version::MolangVersion;
 
-let options = CompileOptions::server(MolangVersion::LATEST).with_platform(Platform::BdsWindows);
-let expr = compile("math.copy_sign(1, math.ln(-1))", &options).into_result().unwrap().0;
-assert_eq!(expr.platform(), Platform::BdsWindows);
-assert_eq!(expr.as_constant(), Some(-1.0));
+fn main() -> Result<(), molang::compile::CompileError> {
+    let options = CompileOptions::server(MolangVersion::LATEST).with_platform(Platform::BdsWindows);
+    let (expr, _) = compile("math.copy_sign(1, math.ln(-1))", &options).into_result()?;
+    assert_eq!(expr.platform(), Platform::BdsWindows);
+    assert_eq!(expr.as_constant(), Some(-1.0));
+    Ok(())
+}
 ```
 
 Every platform rounds each multiply, add and divide on its own in formula order, makes every comparison with a NaN false and returns the second operand from `math.min` / `math.max` when either is NaN. The servers return the left NaN operand of an arithmetic operation quietened and `0xffc00000` for an invalid one; Android returns the first signalling NaN operand quietened, else the first quiet one, `0x7fc00000` for an invalid one, and saturates a float → int conversion (`loop` and die counts, array indices) with NaN as 0 where the servers give `i32::MIN`. The NaN of an invalid standard function differs too: `math.ln` of a negative number changed sign between Linux releases. The transcendental functions are glibc's single-precision ones on Linux. Android takes glibc's algorithms for `sin`, `cos`, `exp`, `exp2`, `ln` and `pow`, which its C library shares, and FreeBSD's for `asin`, `acos`, `atan` and `atan2`, which its C library builds from: a best effort, not checked against a device. On Windows they are evaluated in `f64` and rounded once. `numeric::Platform` lists every difference.
@@ -320,19 +326,21 @@ fn rule_seed(chunk_seed: u32, hash: u32) -> u32 {
     ((s << 6).wrapping_add(s >> 2).wrapping_add(hash).wrapping_add(0x9e37_79b9)) ^ s
 }
 
-let seed = chunk_seed(12_345, 3, -7);
-assert_eq!((seed, rule_seed(seed, 0xf7a7_6dfd)), (1_197_795_863, 3_348_516_332));
+fn main() -> Result<(), molang::compile::CompileError> {
+    let seed = chunk_seed(12_345, 3, -7);
+    assert_eq!((seed, rule_seed(seed, 0xf7a7_6dfd)), (1_197_795_863, 3_348_516_332));
 
-let (expr, _) = compile("math.random(0, 10)", &CompileOptions::server(MolangVersion::LATEST))
-    .into_result()
-    .unwrap();
-let mut chunk = Mt::new(seed);
-let mut source = || unit_32(chunk.next_u32());
-let mut env = NoHostEnv::new();
-let mut cx = env.cx();
-cx.rng = &mut source;
-let value = expr.eval_f32(&mut cx);
-assert!((0.0..=10.0).contains(&value));
+    let options = CompileOptions::server(MolangVersion::LATEST);
+    let (expr, _) = compile("math.random(0, 10)", &options).into_result()?;
+    let mut chunk = Mt::new(seed);
+    let mut source = || unit_32(chunk.next_u32());
+    let mut env = NoHostEnv::new();
+    let mut cx = env.cx();
+    cx.rng = &mut source;
+    let value = expr.eval_f32(&mut cx);
+    assert!((0.0..=10.0).contains(&value));
+    Ok(())
+}
 ```
 
 The default message sink, `BoundedSink`, keeps the last 64 messages, each cut to 1 KiB; `LogOnce` drops repeats.
