@@ -55,31 +55,31 @@ fn two(src: &str, a: &CompileOptions, b: &CompileOptions) -> (Arc<Compiled>, Arc
     (x, y)
 }
 
-/// The platform is part of the key: the same text folds to each platform's NaN.
+/// The platform is part of the key, even where two platforms fold a text alike.
 #[test]
 fn the_platform_is_part_of_the_key() {
     use molang::numeric::Platform;
-    let windows = server_at(13).with_platform(Platform::BdsWindows);
-    let (linux, windows) = two("math.copy_sign(1, math.ln(-1))", &server_at(13), &windows);
+    let android = server_at(13).with_platform(Platform::AndroidArm64);
+    let (linux, android) = two("math.copy_sign(1, math.ln(-1))", &server_at(13), &android);
     assert_eq!(
-        (constant(&linux), constant(&windows)),
-        (Some(1.0), Some(-1.0))
+        (constant(&linux), constant(&android)),
+        (Some(-1.0), Some(1.0))
     );
     assert_eq!(
-        windows.expr().map(Expr::platform),
-        Some(Platform::BdsWindows)
+        android.expr().map(Expr::platform),
+        Some(Platform::AndroidArm64)
     );
     let source = MolangSource::string_without_context("math.copy_sign(1, math.sqrt(-1))");
-    let android = server_at(13).with_platform(Platform::AndroidArm64);
+    let windows = server_at(13).with_platform(Platform::BdsWindows);
     let cache = CompileCache::new();
-    let (servers, android) = (
+    let (linux, windows) = (
         cache.compile_source(&source, &server_at(13)),
-        cache.compile_source(&source, &android),
+        cache.compile_source(&source, &windows),
     );
-    assert_two_entries(&cache, &servers, &android);
+    assert_two_entries(&cache, &linux, &windows);
     assert_eq!(
-        (constant(&servers), constant(&android)),
-        (Some(-1.0), Some(1.0))
+        (constant(&linux), constant(&windows)),
+        (Some(-1.0), Some(-1.0))
     );
 }
 

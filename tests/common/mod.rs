@@ -18,6 +18,7 @@ pub mod compile_support;
 pub mod declared;
 #[cfg(feature = "vm")]
 pub mod host;
+pub mod library;
 #[cfg(feature = "compiler")]
 pub mod measured;
 #[cfg(feature = "compiler")]

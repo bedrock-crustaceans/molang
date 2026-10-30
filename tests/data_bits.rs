@@ -1,10 +1,11 @@
 //! Single operations from `numeric_bits.json`, compared to the bit on every platform.
 //!
-//! The `X86_64` set holds the results of the servers' arithmetic with glibc's functions: BDS Linux
-//! 1.26.36 gives every row, 1.26.52 every row but `ln` of a negative number. The `Arm64` set holds
-//! results with fused multiply-adds, which no platform gives; only its transcendental samples are
-//! checked. For BDS Windows and Android this file checks only which functions differ from the
-//! `X86_64` set; their bits are pinned in `tests/numerics.rs` (`platforms`).
+//! The `X86_64` set holds the results of the servers' arithmetic, its transcendental rows those of
+//! the `libm` crate (`strict-math`): BDS Linux gives every row, and without `strict-math` every
+//! transcendental row within [`HOST_ULPS`]. The `Arm64` set holds results with fused multiply-adds,
+//! which no platform gives; only its transcendental samples are checked. For BDS Windows and
+//! Android this file checks only which functions differ from the `X86_64` set; their bits are
+//! pinned in `tests/numerics.rs` (`platforms`).
 //!
 //! ```text
 //! {schema, counts{<set>: {rows, transcendental_rows, families{}}}, profiles{X86_64[], Arm64[]}}
@@ -24,6 +25,8 @@
 mod common;
 
 use common::{Samples, hex_f32};
+
+use std::collections::{BTreeMap, BTreeSet};
 
 use common::PLATFORMS;
 use molang::numeric::{self, Platform, PostOp};
@@ -172,20 +175,37 @@ fn evaluate_row(
     Some(value)
 }
 
-/// `math.ln` of a negative number is `0x7fc00000` from 1.26.52 on; the set holds 1.26.36's
-/// `0xffc00000`.
-const LN_NAN_SIGN_ROWS: [(usize, usize); 7] =
-    [(9, 3), (9, 5), (9, 7), (9, 13), (9, 15), (9, 22), (9, 23)];
+/// The ulps a transcendental row or sample may miss its bits by without `strict-math`, where the
+/// host's C library computes it; the set holds the `libm` crate's results.
+const HOST_ULPS: u32 = 2;
 
-/// The bits `platform` gives for row `r` of group `g` of the `X86_64` set, where they are not the
-/// row's own.
-fn x86_64_override(platform: Platform, g: usize, r: usize) -> Option<u32> {
-    (platform == Platform::BdsLinux && LN_NAN_SIGN_ROWS.contains(&(g, r))).then_some(0x7fc0_0000)
+/// `x`'s place in the order of the floats, −0 and +0 adjacent.
+fn ordinal(x: f32) -> i64 {
+    let bits = i64::from(x.to_bits());
+    if bits & 0x8000_0000 == 0 {
+        bits
+    } else {
+        0x8000_0000 - bits
+    }
 }
 
-/// The bits are equal, NaN payload and sign included.
-fn agrees(actual: Option<f32>, expected: Option<f32>) -> bool {
-    actual.map(f32::to_bits) == expected.map(f32::to_bits)
+/// The ulps between `a` and `b`; `None` unless both are numbers or both are the same NaN.
+fn ulps(a: f32, b: f32) -> Option<u32> {
+    if a.is_nan() || b.is_nan() {
+        return (a.to_bits() == b.to_bits()).then_some(0);
+    }
+    u32::try_from((ordinal(a) - ordinal(b)).unsigned_abs()).ok()
+}
+
+/// The bits are equal, NaN payload and sign included; without `strict-math` a transcendental
+/// result may miss them by [`HOST_ULPS`].
+fn agrees(actual: Option<f32>, expected: Option<f32>, transcendental: bool) -> bool {
+    match (actual, expected) {
+        (Some(a), Some(e)) if transcendental && !cfg!(feature = "strict-math") => {
+            ulps(a, e).is_some_and(|d| d <= HOST_ULPS)
+        }
+        _ => actual.map(f32::to_bits) == expected.map(f32::to_bits),
+    }
 }
 
 /// A row's post-op, or the identity.
@@ -221,63 +241,51 @@ fn row_values(row: &Value) -> (Vec<f32>, Vec<f32>, Option<f32>) {
     (args, samples, expected)
 }
 
-/// The functions of `set` whose rows `platform` does not reproduce, and the rows it was checked on
-/// in place of their own bits.
-fn differing_functions(
-    file: &Value,
-    set: &str,
-    platform: Platform,
-) -> (std::collections::BTreeSet<String>, usize) {
-    let (mut differing, mut overridden) = (std::collections::BTreeSet::new(), 0);
-    for (g, group) in file["profiles"][set].as_array().unwrap().iter().enumerate() {
+/// The functions of `set` whose rows `platform` does not reproduce.
+fn differing_functions(file: &Value, set: &str, platform: Platform) -> BTreeSet<String> {
+    let mut differing = BTreeSet::new();
+    for group in file["profiles"][set].as_array().unwrap() {
         let function = group["function"].as_str().unwrap();
-        for (r, row) in group["rows"].as_array().unwrap().iter().enumerate() {
-            let (args, samples, mut expected) = row_values(row);
+        for row in group["rows"].as_array().unwrap() {
+            let (args, samples, expected) = row_values(row);
             if function.starts_with("die_roll")
                 && samples.len() != math::die_roll_count(platform, args[0]) as usize
             {
                 differing.insert(function.to_owned());
                 continue;
             }
-            if let Some(bits) = (set == "X86_64")
-                .then(|| x86_64_override(platform, g, r))
-                .flatten()
-            {
-                assert!(
-                    !agrees(expected, Some(f32::from_bits(bits))),
-                    "g{g} r{r} gives its own bits"
-                );
-                expected = Some(f32::from_bits(bits));
-                overridden += 1;
-            }
             let actual = evaluate_row(platform, function, &args, &samples, post_of(row));
-            if !agrees(actual, expected) {
+            if !agrees(actual, expected, row["transcendental"].as_bool().unwrap()) {
                 differing.insert(function.to_owned());
             }
         }
     }
-    (differing, overridden)
+    differing
 }
 
 #[test]
-fn bds_linux_matches_the_x86_64_rows_bit_for_bit() {
+fn bds_linux_matches_the_x86_64_rows() {
     let file = common::data_json("numeric_bits.json");
-    for (platform, overrides) in [(Platform::BdsLinux, 7)] {
-        let (differing, overridden) = differing_functions(&file, "X86_64", platform);
-        assert!(
-            differing.is_empty(),
-            "{platform:?} differs in {differing:?}"
-        );
-        assert_eq!(overridden, overrides, "{platform:?}");
-    }
+    let differing = differing_functions(&file, "X86_64", Platform::BdsLinux);
+    assert!(differing.is_empty(), "BdsLinux differs in {differing:?}");
     let (mut rows, mut nan_rows) = (0_u64, 0_u64);
+    let mut most = BTreeMap::<String, u32>::new();
     for group in file["profiles"]["X86_64"].as_array().unwrap() {
+        let function = group["function"].as_str().unwrap();
         for row in group["rows"].as_array().unwrap() {
+            let (args, samples, expected) = row_values(row);
             rows += 1;
-            nan_rows += u64::from(row_values(row).2.is_some_and(f32::is_nan));
+            nan_rows += u64::from(expected.is_some_and(f32::is_nan));
+            let actual = evaluate_row(Platform::BdsLinux, function, &args, &samples, post_of(row));
+            if let (Some(a), Some(e)) = (actual, expected) {
+                let d = ulps(a, e).unwrap_or(u32::MAX);
+                let entry = most.entry(function.to_owned()).or_default();
+                *entry = (*entry).max(d);
+            }
         }
     }
-    println!("numeric_bits.json [X86_64]: {rows} rows, {nan_rows} NaN");
+    most.retain(|_, d| *d > 0);
+    println!("numeric_bits.json [X86_64]: {rows} rows, {nan_rows} NaN; ulps off {most:?}");
 }
 
 /// The functions of the `X86_64` set each other platform computes differently: the invalid
@@ -287,7 +295,7 @@ fn bds_linux_matches_the_x86_64_rows_bit_for_bit() {
 fn each_other_platform_differs_from_the_x86_64_set_in_its_functions() {
     let file = common::data_json("numeric_bits.json");
     let pinned: [(Platform, &[&str]); 2] = [
-        (Platform::BdsWindows, &["acos", "asin"]),
+        (Platform::BdsWindows, &[]),
         (
             Platform::AndroidArm64,
             &[
@@ -320,9 +328,8 @@ fn each_other_platform_differs_from_the_x86_64_set_in_its_functions() {
         ),
     ];
     for (platform, expected) in pinned {
-        let (differing, _) = differing_functions(&file, "X86_64", platform);
-        let expected: std::collections::BTreeSet<String> =
-            expected.iter().map(|&f| f.to_owned()).collect();
+        let differing = differing_functions(&file, "X86_64", platform);
+        let expected: BTreeSet<String> = expected.iter().map(|&f| f.to_owned()).collect();
         assert_eq!(differing, expected, "{platform:?}");
     }
 }
@@ -333,7 +340,7 @@ fn both_sets_hold_the_rows_they_count() {
     let file = common::data_json("numeric_bits.json");
     for name in ["X86_64", "Arm64"] {
         let (mut rows, mut transcendental_rows) = (0_u64, 0_u64);
-        let mut families = std::collections::BTreeMap::<String, u64>::new();
+        let mut families = BTreeMap::<String, u64>::new();
         for group in file["profiles"][name].as_array().unwrap() {
             for row in group["rows"].as_array().unwrap() {
                 rows += 1;
@@ -411,38 +418,34 @@ const EXP2_UNREACHED: [u32; 5] = [
     0xc08c_be3f,
 ];
 
-/// The samples Android's `atan2f`, FreeBSD's, rounds otherwise than glibc's correctly rounded one:
-/// `([y, x] bits, result bits)`.
-const ANDROID_ATAN2: [([u32; 2], u32); 1] = [([0xc114_e71c, 0x40cc_82f2], 0xbf78_128e)];
-
-/// Every `transcendental_samples` entry, `[function, [argument bits…], result bits]`, is to the bit
-/// what the crate's function gives: trigonometry through the degree conversion, `exp2` through
-/// `ease_in_expo`, on every platform but where [`ANDROID_ATAN2`] differs. The NaN of an invalid
-/// operation is compared to the bit only on BDS Linux against the `X86_64` set, with the
-/// [`x86_64_override`] rows as overridden.
+/// Every `transcendental_samples` entry, `[function, [argument bits…], result bits]`, is what the
+/// crate's function gives, to the bit under `strict-math` and else within [`HOST_ULPS`]:
+/// trigonometry through the degree conversion, `exp2` through `ease_in_expo`, on every platform.
+/// The NaN of an invalid operation is compared to the bit only on BDS Linux against the `X86_64`
+/// set.
 #[test]
 fn every_transcendental_sample_is_the_crates_function() {
     let file = common::data_json("numeric_bits.json");
-    let (mut checked, mut failures, mut unreached) =
-        (0_u32, Vec::new(), std::collections::BTreeSet::new());
+    let (mut checked, mut failures, mut unreached) = (0_u32, Vec::new(), BTreeSet::new());
+    let mut most = BTreeMap::<&str, u32>::new();
     let in_degrees = |radians: f32| radians * math::RAD_TO_DEG;
     for (platform, set) in PLATFORMS
         .into_iter()
         .flat_map(|p| ["X86_64", "Arm64"].map(|set| (p, set)))
     {
         let exact = set == "X86_64" && platform == Platform::BdsLinux;
-        for (g, group) in file["profiles"][set].as_array().unwrap().iter().enumerate() {
-            let rows = group["rows"].as_array().unwrap().iter().enumerate();
-            for (r, sample) in rows
-                .filter_map(|(r, row)| Some((r, row.get("transcendental_samples")?)))
-                .flat_map(|(r, s)| s.as_array().unwrap().iter().map(move |s| (r, s)))
+        for group in file["profiles"][set].as_array().unwrap() {
+            for sample in group["rows"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|row| row.get("transcendental_samples"))
+                .flat_map(|s| s.as_array().unwrap())
             {
                 let a: Vec<f32> = sample[1].as_array().unwrap().iter().map(hex_f32).collect();
-                let expected = exact
-                    .then(|| x86_64_override(platform, g, r))
-                    .flatten()
-                    .map_or_else(|| hex_f32(&sample[2]), f32::from_bits);
-                let (actual, expected) = match (sample[0].as_str().unwrap(), a.as_slice()) {
+                let expected = hex_f32(&sample[2]);
+                let function = sample[0].as_str().unwrap();
+                let (actual, expected) = match (function, a.as_slice()) {
                     ("sin", &[x]) => (
                         degrees_of(x)
                             .map(|d| math::sin(platform, d, ID))
@@ -454,11 +457,6 @@ fn every_transcendental_sample_is_the_crates_function() {
                     ("acos", &[x]) => (Some(math::acos(platform, x, ID)), in_degrees(expected)),
                     ("atan", &[x]) => (Some(math::atan(platform, x, ID)), in_degrees(expected)),
                     ("atan2", &[y, x]) => {
-                        let android = ANDROID_ATAN2
-                            .iter()
-                            .find(|(args, _)| *args == [y.to_bits(), x.to_bits()])
-                            .filter(|_| platform == Platform::AndroidArm64);
-                        let expected = android.map_or(expected, |&(_, bits)| f32::from_bits(bits));
                         (Some(math::atan2(platform, y, x, ID)), in_degrees(expected))
                     }
                     ("exp", &[x]) => (Some(math::exp(platform, x, ID)), expected),
@@ -470,7 +468,7 @@ fn every_transcendental_sample_is_the_crates_function() {
                     }
                 };
                 let Some(actual) = actual else {
-                    unreached.insert((sample[0].as_str().unwrap().to_owned(), a[0].to_bits()));
+                    unreached.insert((function.to_owned(), a[0].to_bits()));
                     continue;
                 };
                 checked += 1;
@@ -479,7 +477,11 @@ fn every_transcendental_sample_is_the_crates_function() {
                 let agrees = if invalid_of_the_other {
                     actual.is_nan()
                 } else {
-                    actual.to_bits() == expected.to_bits()
+                    if let Some(d) = ulps(actual, expected) {
+                        let entry = most.entry(function).or_default();
+                        *entry = (*entry).max(d);
+                    }
+                    agrees(Some(actual), Some(expected), true)
                 };
                 if !agrees {
                     failures.push(format!(
@@ -497,10 +499,12 @@ fn every_transcendental_sample_is_the_crates_function() {
         failures.len(),
         failures.join("\n")
     );
-    let expected_unreached: std::collections::BTreeSet<_> = EXP2_UNREACHED
+    most.retain(|_, d| *d > 0);
+    println!("transcendental samples: ulps off {most:?}");
+    let expected_unreached: BTreeSet<_> = EXP2_UNREACHED
         .iter()
         .map(|&bits| ("exp2".to_owned(), bits))
         .collect();
     assert_eq!(unreached, expected_unreached);
-    assert_eq!(checked, 4 * (1468 - 18));
+    assert_eq!(checked, 3 * (1468 - 18));
 }

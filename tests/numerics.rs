@@ -62,11 +62,6 @@ mod math_functions {
         run(source, vars, &[]).0
     }
 
-    /// The `f64` function of an `f32` argument, rounded to `f32`.
-    fn rounded(f: fn(f64) -> f64, x: f32) -> f32 {
-        f(f64::from(x)) as f32
-    }
-
     /// A float that is not exactly representable in a short literal: `1/3` in f32.
     fn third() -> f32 {
         1.0 / 3.0
@@ -76,15 +71,15 @@ mod math_functions {
     /// ∞`, `∞·0`, two different NaNs, and the bounds of a literal `math.random`.
     #[test]
     fn folded_post_ops_choose_the_nans_of_their_run_time_forms() {
-        let (sqrt, ln) = (eval("math.sqrt(-1)"), eval("math.ln(-1)"));
-        assert_ne!(sqrt.to_bits(), ln.to_bits());
+        let (sqrt, asin) = (eval("math.sqrt(-1)"), eval("math.asin(2)"));
+        assert_ne!(sqrt.to_bits(), asin.to_bits());
         let vars = [
             ("x", 2.0),
             ("p", f32::INFINITY),
             ("q", f32::NEG_INFINITY),
             ("z", 0.0),
             ("s", sqrt),
-            ("a", ln),
+            ("a", asin),
         ];
         for (folded, run_time) in [
             ("(v.x + 1e39) + (v.x - 1e39)", "(v.x + v.p) + (v.x + v.q)"),
@@ -92,11 +87,11 @@ mod math_functions {
             ("(v.x * 1e39) * 0", "(v.x * v.p) * v.z"),
             ("1e39 / 1e39", "v.p / v.p"),
             (
-                "(v.x + math.sqrt(-1)) + (v.x + math.ln(-1))",
+                "(v.x + math.sqrt(-1)) + (v.x + math.asin(2))",
                 "(v.x + v.s) + (v.x + v.a)",
             ),
             (
-                "(v.x + math.ln(-1)) + (v.x + math.sqrt(-1))",
+                "(v.x + math.asin(2)) + (v.x + math.sqrt(-1))",
                 "(v.x + v.a) + (v.x + v.s)",
             ),
             ("v.x + 1e39 + v.x - 1e39", "v.x + v.p + v.x + v.q"),
@@ -193,8 +188,14 @@ mod math_functions {
     fn inverse_trig_clamp_window() {
         assert_eq!(eval("math.acos(1.0005)"), 0.0);
         assert_eq!(eval_vars("math.acos(v.x)", &[("x", 1.0005)]), 0.0);
-        assert_eq!(eval_vars("math.acos(v.x)", &[("x", -1.0001)]), 180.0);
-        assert_eq!(eval_vars("math.acos(v.x)", &[("x", -1.0005)]), 180.0);
+        // The `libm` crate's `acos(-1)` is one ulp below π.
+        let half_turn = if cfg!(feature = "strict-math") {
+            f32::from_bits(0x4333_ffff)
+        } else {
+            180.0
+        };
+        assert_eq!(eval_vars("math.acos(v.x)", &[("x", -1.0001)]), half_turn);
+        assert_eq!(eval_vars("math.acos(v.x)", &[("x", -1.0005)]), half_turn);
         assert_eq!(eval_vars("math.asin(v.x)", &[("x", 1.0005)]), 90.0);
         assert_eq!(eval_vars("math.asin(v.x)", &[("x", -1.0004)]), -90.0);
         for x in [1.0006_f32, -1.0006, 2.0] {
@@ -211,12 +212,12 @@ mod math_functions {
         let x = 0.3_f32;
         assert_bits(
             eval_vars("math.acos(v.x)", &[("x", x)]),
-            rounded(libm::acos, x) * math::RAD_TO_DEG,
+            crate::common::library::acos(x) * math::RAD_TO_DEG,
             "acos(0.3)",
         );
         assert_bits(
             eval_vars("math.asin(v.x)", &[("x", x)]),
-            rounded(libm::asin, x) * math::RAD_TO_DEG,
+            crate::common::library::asin(x) * math::RAD_TO_DEG,
             "asin(0.3)",
         );
     }
@@ -235,7 +236,7 @@ mod math_functions {
         let x = 0.3_f32;
         assert_bits(
             eval_vars("math.atan(v.x)", &[("x", x)]),
-            rounded(libm::atan, x) * math::RAD_TO_DEG,
+            crate::common::library::atan(x) * math::RAD_TO_DEG,
             "atan(0.3)",
         );
         assert_eq!(eval("math.atan(1)"), 45.0);
@@ -250,7 +251,7 @@ mod math_functions {
         let (y, x) = (-1.0_f32, -7.0_f32);
         assert_bits(
             eval_vars("math.atan2(v.y, v.x)", &[("y", y), ("x", x)]),
-            libm::atan2(f64::from(y), f64::from(x)) as f32 * math::RAD_TO_DEG,
+            crate::common::library::atan2(y, x) * math::RAD_TO_DEG,
             "atan2(-1, -7)",
         );
     }
@@ -333,8 +334,7 @@ mod math_functions {
         assert!(nan.is_nan() && nan.is_sign_negative());
     }
 
-    /// Not quantised like the easings: the bits equal the sine / cosine of `x·0.017453292`, in
-    /// `f64` rounded to `f32`.
+    /// Not quantised like the easings: the bits equal the sine / cosine of `x·0.017453292`.
     #[test]
     fn sin_and_cos_are_plain_in_degrees() {
         let deg = f32::from_bits(0x3c8e_fa35);
@@ -354,12 +354,12 @@ mod math_functions {
             let radians = x * deg;
             assert_bits(
                 eval_vars("math.sin(v.x)", &[("x", x)]),
-                rounded(libm::sin, radians),
+                crate::common::library::sin(radians),
                 &format!("sin({x})"),
             );
             assert_bits(
                 eval_vars("math.cos(v.x)", &[("x", x)]),
-                rounded(libm::cos, radians),
+                crate::common::library::cos(radians),
                 &format!("cos({x})"),
             );
         }
@@ -370,7 +370,7 @@ mod math_functions {
         let table_index = ((x * deg * f32::from_bits(0x4622_f983)) as i32 & 0xffff) as f32;
         assert_ne!(
             eval_vars("math.sin(v.x)", &[("x", x)]),
-            rounded(libm::sin, table_index / f32::from_bits(0x4622_f983))
+            crate::common::library::sin(table_index / f32::from_bits(0x4622_f983))
         );
     }
 
@@ -471,14 +471,14 @@ mod math_functions {
         for x in [0.0_f32, 1.0, -1.0, 0.3, 10.0, 88.0] {
             assert_bits(
                 eval_vars("math.exp(v.x)", &[("x", x)]),
-                rounded(libm::exp, x),
+                crate::common::library::exp(x),
                 &format!("exp({x})"),
             );
         }
         for x in [1.0_f32, 2.0, 0.5, 1.0e-3, 1.0e30] {
             assert_bits(
                 eval_vars("math.ln(v.x)", &[("x", x)]),
-                rounded(libm::log, x),
+                crate::common::library::ln(x),
                 &format!("ln({x})"),
             );
         }
@@ -493,7 +493,7 @@ mod math_functions {
         ] {
             assert_bits(
                 eval_vars("math.pow(v.a, v.b)", &[("a", a), ("b", b)]),
-                libm::pow(f64::from(a), f64::from(b)) as f32,
+                crate::common::library::pow(a, b),
                 &format!("pow({a}, {b})"),
             );
         }
@@ -1257,7 +1257,7 @@ mod math_functions {
             // ease_out_sine(0, 1, t) is the table sine of t·π/2.
             assert_bits(
                 eval_vars("math.ease_out_sine(0, 1, v.t)", &[("t", t)]),
-                rounded(libm::sin, index / scale),
+                crate::common::library::sin(index / scale),
                 "entry",
             );
         }
@@ -1267,7 +1267,7 @@ mod math_functions {
         let index = (((t * half_pi) * scale + 16_384.0) as i32 & 0xffff) as f32;
         assert_bits(
             eval_vars("math.ease_in_sine(0, 1, v.t)", &[("t", t)]),
-            1.0 - rounded(libm::sin, index / scale),
+            1.0 - crate::common::library::sin(index / scale),
             "cosine",
         );
     }
@@ -1452,10 +1452,12 @@ mod platforms {
         PLATFORMS, assert_bits, compile_support::server_at, on, servers_or_android,
     };
     use molang::compile::compile;
-    use molang::numeric::Platform;
+    use molang::numeric::{Platform, PostOp};
+    use molang::stdlib::math;
     use molang::vm::{EvalLimits, NoHostEnv, Value, VariableName};
 
     const NAN: f32 = f32::NAN;
+    const ID: PostOp = PostOp::IDENTITY;
 
     /// Compiles at `version` for `platform` (which must succeed) and evaluates with `v.<name>`
     /// preset: the value and the run-time messages.
@@ -1660,24 +1662,48 @@ mod platforms {
             ),
             (
                 "math.acos(0) + (1/3)",
-                bits(0x42b4_aaab),
+                crate::common::library::pinned(
+                    0x42b4_aaaa,
+                    0x42b4_aaab,
+                    math::acos(LINUX, 0.0, ID) + third,
+                ),
                 "math.acos(v.x) + (1/3)",
                 &[("x", 0.0)],
-                bits(0x42b4_aaab),
+                crate::common::library::pinned(
+                    0x42b4_aaaa,
+                    0x42b4_aaab,
+                    math::acos(LINUX, 0.0, ID) + third,
+                ),
             ),
             (
                 "math.acos(1/3) * (1/3)",
-                bits(0x41bc_13a6),
+                crate::common::library::pinned(
+                    0x41bc_13a6,
+                    0x41bc_13a6,
+                    math::acos(LINUX, third, ID) * third,
+                ),
                 "math.acos(v.x) * (1/3)",
                 &[("x", third)],
-                bits(0x41bc_13a6),
+                crate::common::library::pinned(
+                    0x41bc_13a6,
+                    0x41bc_13a6,
+                    math::acos(LINUX, third, ID) * third,
+                ),
             ),
             (
                 "math.atan2(1, -3) * (1/3)",
-                bits(0x4257_6b8a),
+                crate::common::library::pinned(
+                    0x4257_6b8a,
+                    0x4257_6b8a,
+                    math::atan2(LINUX, 1.0, -3.0, ID) * third,
+                ),
                 "math.atan2(v.x, -3) * (1/3)",
                 &[("x", 1.0)],
-                bits(0x4257_6b8a),
+                crate::common::library::pinned(
+                    0x4257_6b8a,
+                    0x4257_6b8a,
+                    math::atan2(LINUX, 1.0, -3.0, ID) * third,
+                ),
             ),
             // The run-time form adds its constant terms together first.
             (
@@ -2538,7 +2564,7 @@ mod math_library {
 
     use molang::numeric::{Platform, PostOp};
 
-    use crate::common::P;
+    use crate::common::{P, assert_bits};
     use molang::rng::RandomSource;
 
     /// `|actual − expected| <= tolerance`; non-finite expectations must match to the bit.
@@ -2610,18 +2636,22 @@ mod math_library {
         assert!(math::asin(P, NAN, PostOp::new(3.0, 0.5)).is_nan());
         // The post-op: ((rad·57.29578)·S) + O, each step rounded.
         let (x, post) = (
-            f32::from_bits(0xbe85_e4a7),
+            f32::from_bits(0xbe85_e4b5),
             PostOp::new(f32::from_bits(0xbfa0_820c), f32::from_bits(0x3ffb_1d93)),
         );
-        let rad = libm::atan(f64::from(x)) as f32;
-        assert_eq!(
-            math::atan(P, x, post),
-            (rad * math::RAD_TO_DEG) * post.scale + post.offset
+        let rad = crate::common::library::atan(x);
+        let grouped = (rad * math::RAD_TO_DEG) * post.scale + post.offset;
+        let merged = rad * (math::RAD_TO_DEG * post.scale) + post.offset;
+        assert_eq!(math::atan(P, x, post), grouped);
+        assert_bits(
+            grouped,
+            crate::common::library::pinned(0x41a2_b669, 0x41a2_b669, grouped),
+            "((rad·57.29578)·S) + O",
         );
-        assert_eq!(math::atan(P, x, post).to_bits(), 0x41a2_b659);
-        assert_eq!(
-            (rad * (math::RAD_TO_DEG * post.scale) + post.offset).to_bits(),
-            0x41a2_b65a
+        assert_bits(
+            merged,
+            crate::common::library::pinned(0x41a2_b66a, 0x41a2_b66a, merged),
+            "rad·(57.29578·S) + O",
         );
     }
 
@@ -2874,7 +2904,7 @@ mod math_library {
     fn sine_easings_are_quantised_by_the_sine_table() {
         let scale = f32::from_bits(0x4622_f983);
         let half_pi = f32::from_bits(0x3fc9_0fdb);
-        let sin = |x: f32| libm::sin(f64::from(x)) as f32;
+        let sin = crate::common::library::sin;
         let mut differs_from_plain_sine = false;
         for step in 1..100_u8 {
             let t = f32::from(step) / 100.0;

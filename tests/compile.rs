@@ -732,7 +732,7 @@ mod folding {
         assert_eq!(constant("1 * 2 + 3 / (4 + 2) + (1 ? 2 : 3)"), 4.5);
         assert_eq!(
             constant("math.cos(15 + math.sqrt(100))"),
-            libm::cos(f64::from(25.0_f32 * f32::from_bits(0x3c8e_fa35))) as f32
+            crate::common::library::cos(25.0_f32 * f32::from_bits(0x3c8e_fa35))
         );
         assert_eq!(constant("math.min_angle(5 + 10)"), 15.0);
         assert_eq!(constant("math.lerp(0, 1, 0.5)"), 0.5);

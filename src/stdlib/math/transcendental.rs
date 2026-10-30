@@ -305,6 +305,25 @@ mod tests {
         }
     }
 
+    /// The `exp2` samples of `tests/numeric_bits.json` that no easing reaches.
+    #[cfg(feature = "strict-math")]
+    #[test]
+    fn exp2_at_exponents_no_easing_reaches() {
+        for (x, expected) in [
+            (0xbf80_0000, 0x3f00_0000),
+            (0xc080_0000, 0x3d80_0000),
+            (0xbfd6_ab74, 0x3ea0_1b65),
+            (0xbf13_7db9, 0x3f2b_b6c1),
+            (0xc08c_be3f, 0x3d42_4033),
+        ] {
+            assert_eq!(
+                bits(exp2(LINUX, f32::from_bits(x))),
+                expected,
+                "exp2({x:#x})"
+            );
+        }
+    }
+
     #[cfg(feature = "strict-math")]
     #[test]
     fn strict_math_is_the_libm_crate() {
