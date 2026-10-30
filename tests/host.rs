@@ -39,7 +39,7 @@ mod queries {
     /// Returns which implementation of its name resolved, and the version of the caller.
     fn which_implementation(cx: &mut QueryCx<'_, '_, NoHost>) -> Result {
         Ok(Value::Float(
-            f32::from(cx.implementation()) * 100.0 + f32::from(cx.version().as_i16()),
+            f32::from(cx.implementation()) * 100.0 + f32::from(cx.version().to_i16()),
         ))
     }
 

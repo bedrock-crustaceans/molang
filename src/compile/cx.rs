@@ -249,7 +249,7 @@ impl Cx<'_> {
                 format!(
                     "MolangVersion {raw} is outside -1..=13: parser rules as version {}, no query \
                      resolves",
-                    raw.effective().as_i16()
+                    raw.effective().to_i16()
                 ),
             ),
             Some(MolangVersion::Invalid) => self.lint(

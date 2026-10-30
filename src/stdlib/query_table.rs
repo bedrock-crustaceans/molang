@@ -150,7 +150,7 @@ impl Row {
             };
             range
         }
-        let latest = MolangVersion::LATEST.as_i16();
+        let latest = MolangVersion::LATEST.to_i16();
         let ranges = match self.versions {
             Versions::All => VersionRanges::single(range(0, latest, self.sets)),
             Versions::Until(last) => VersionRanges::single(range(0, last, self.sets)),
@@ -576,7 +576,7 @@ mod tests {
             .ranges
             .as_slice()
             .iter()
-            .map(|r| (r.first().as_i16(), r.last().as_i16()))
+            .map(|r| (r.first().to_i16(), r.last().to_i16()))
             .collect()
     }
 

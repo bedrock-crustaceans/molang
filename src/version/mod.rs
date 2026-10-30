@@ -122,7 +122,7 @@ impl MolangVersion {
     pub const LATEST: Self = Self::V13;
 
     /// The version number.
-    pub const fn as_i16(self) -> i16 {
+    pub const fn to_i16(self) -> i16 {
         self as i16
     }
 
@@ -205,13 +205,13 @@ impl MolangVersion {
 impl fmt::Display for MolangVersion {
     /// The version number.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.as_i16(), f)
+        fmt::Display::fmt(&self.to_i16(), f)
     }
 }
 
 impl From<MolangVersion> for i16 {
     fn from(version: MolangVersion) -> Self {
-        version.as_i16()
+        version.to_i16()
     }
 }
 
@@ -283,7 +283,7 @@ impl RawVersion {
 
 impl From<MolangVersion> for RawVersion {
     fn from(version: MolangVersion) -> Self {
-        Self(version.as_i16())
+        Self(version.to_i16())
     }
 }
 
@@ -347,11 +347,11 @@ mod tests {
     }
 
     fn map(major: u64, minor: u64, patch: u64) -> i16 {
-        MolangVersion::from(&ev(major, minor, patch)).as_i16()
+        MolangVersion::from(&ev(major, minor, patch)).to_i16()
     }
 
     fn map_pre(major: u64, minor: u64, patch: u64) -> i16 {
-        MolangVersion::from(&ev_pre(major, minor, patch)).as_i16()
+        MolangVersion::from(&ev_pre(major, minor, patch)).to_i16()
     }
 
     #[test]
@@ -364,7 +364,7 @@ mod tests {
     #[test]
     fn the_latest_version_is_thirteen() {
         assert_eq!(MolangVersion::LATEST, MolangVersion::V13);
-        assert_eq!(MolangVersion::LATEST.as_i16(), 13);
+        assert_eq!(MolangVersion::LATEST.to_i16(), 13);
     }
 
     #[test]
@@ -402,7 +402,7 @@ mod tests {
             (13, MolangVersion::V13),
         ];
         for (raw, v) in names {
-            assert_eq!(v.as_i16(), raw);
+            assert_eq!(v.to_i16(), raw);
             assert_eq!(v as i16, raw);
             assert_eq!(MolangVersion::from_i16(raw), Some(v));
         }
@@ -433,7 +433,7 @@ mod tests {
             VERSION_THRESHOLDS.iter().zip(expected).enumerate()
         {
             assert_eq!(entry.engine_version, ev(major, minor, patch), "entry {i}");
-            assert_eq!(entry.version.as_i16(), i as i16 + 1, "entry {i}");
+            assert_eq!(entry.version.to_i16(), i as i16 + 1, "entry {i}");
         }
     }
 
@@ -492,7 +492,7 @@ mod tests {
 
     #[test]
     fn build_metadata_is_not_part_of_the_comparison() {
-        let molang = |text| MolangVersion::from_engine_version_str(text).as_i16();
+        let molang = |text| MolangVersion::from_engine_version_str(text).to_i16();
         assert_eq!(molang("1.21.100+build"), 13);
         assert_eq!(molang("1.21.100-beta+build"), 12);
         assert_eq!(molang("1.17.40+zzz"), 4);
@@ -523,7 +523,7 @@ mod tests {
     #[test]
     fn effective_clamps_the_raw_value() {
         for raw in -1..=13 {
-            assert_eq!(RawVersion(raw).effective().as_i16(), raw);
+            assert_eq!(RawVersion(raw).effective().to_i16(), raw);
         }
         for raw in [14, 15, 100, i16::MAX] {
             assert_eq!(RawVersion(raw).effective(), MolangVersion::LATEST);
@@ -577,7 +577,7 @@ mod tests {
         parse(text)
             .as_ref()
             .map_or(MolangVersion::Invalid, MolangVersion::from)
-            .as_i16()
+            .to_i16()
     }
 
     #[test]
@@ -653,7 +653,7 @@ mod tests {
     fn version_map_is_dense_and_sorted() {
         assert_eq!(VERSION_THRESHOLDS.len(), 13);
         for (k, entry) in VERSION_THRESHOLDS.iter().enumerate() {
-            assert_eq!(usize::try_from(entry.version.as_i16()).unwrap(), k + 1);
+            assert_eq!(usize::try_from(entry.version.to_i16()).unwrap(), k + 1);
             let EngineVersion::Version(version) = &entry.engine_version else {
                 panic!("entry {k} is the any-version");
             };
@@ -690,7 +690,7 @@ mod tests {
             let v = &entry.engine_version;
             // Entries 2 and 3 share 1.17.40.
             let expected = if k == 2 { 4 } else { k as i16 + 1 };
-            assert_eq!(MolangVersion::from(v).as_i16(), expected, "row {k}");
+            assert_eq!(MolangVersion::from(v).to_i16(), expected, "row {k}");
             let EngineVersion::Version(version) = v else {
                 panic!("row {k} is the any-version");
             };
@@ -700,7 +700,7 @@ mod tests {
             } else {
                 ev_pre(major, minor, patch)
             };
-            let previous = MolangVersion::from(&below).as_i16();
+            let previous = MolangVersion::from(&below).to_i16();
             let expected_below = match k {
                 0 => 0,
                 3 => 2,
@@ -716,9 +716,9 @@ mod tests {
             MolangVersion::from(&EngineVersion::Any),
             MolangVersion::LATEST
         );
-        assert_eq!(MolangVersion::from(&ev_pre(1, 21, 100)).as_i16(), 12);
-        assert_eq!(MolangVersion::from(&ev(65535, 0, 0)).as_i16(), 13);
-        assert_eq!(MolangVersion::from(&ev(0, 0, 0)).as_i16(), 0);
+        assert_eq!(MolangVersion::from(&ev_pre(1, 21, 100)).to_i16(), 12);
+        assert_eq!(MolangVersion::from(&ev(65535, 0, 0)).to_i16(), 13);
+        assert_eq!(MolangVersion::from(&ev(0, 0, 0)).to_i16(), 0);
         assert_eq!(MolangVersion::from(&ev(1, 16, 0)), MolangVersion::V0);
         assert_eq!(MolangVersion::from(&ev_pre(1, 17, 30)), MolangVersion::V1);
         assert_eq!(MolangVersion::from(&ev(1, 17, 30)), MolangVersion::V2);
@@ -769,7 +769,7 @@ mod tests {
             match MolangVersion::from_i16(raw) {
                 Some(v) => {
                     assert!((-1..=13).contains(&raw), "{raw}");
-                    assert_eq!(v.as_i16(), raw);
+                    assert_eq!(v.to_i16(), raw);
                     count += 1;
                 }
                 None => assert!(!(-1..=13).contains(&raw), "{raw}"),
@@ -835,13 +835,13 @@ mod tests {
             assert_eq!(RawVersion(raw).to_string(), raw.to_string());
         }
         for version in (-1..=13).filter_map(MolangVersion::from_i16) {
-            assert_eq!(RawVersion::from(version), RawVersion(version.as_i16()));
-            assert_eq!(i16::from(version), version.as_i16());
+            assert_eq!(RawVersion::from(version), RawVersion(version.to_i16()));
+            assert_eq!(i16::from(version), version.to_i16());
             assert_eq!(
                 MolangVersion::try_from(RawVersion::from(version)),
                 Ok(version)
             );
-            assert_eq!(version.to_string(), version.as_i16().to_string());
+            assert_eq!(version.to_string(), version.to_i16().to_string());
         }
     }
 
@@ -860,7 +860,7 @@ mod tests {
         }
         for raw in -1..=13 {
             assert_eq!(
-                MolangVersion::try_from(raw).map(MolangVersion::as_i16),
+                MolangVersion::try_from(raw).map(MolangVersion::to_i16),
                 Ok(raw)
             );
             assert_eq!(

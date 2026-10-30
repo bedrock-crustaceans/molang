@@ -993,7 +993,7 @@ mod resolution_ranges {
                 }
                 if let Some(k) = by_raw {
                     let range = decl.shape().ranges.as_slice()[usize::from(k)];
-                    prop_assert!(range.first().as_i16() <= raw && raw <= range.last().as_i16());
+                    prop_assert!(range.first().to_i16() <= raw && raw <= range.last().to_i16());
                 }
             }
         }
@@ -1005,7 +1005,7 @@ mod resolution_ranges {
             let decl = catalog().iter().nth(index).expect("a declaration");
             let by_raw = decl.resolve(RawVersion(raw), &QueryAdmission::Sets(QuerySetMask::BUILTIN), ExperimentMask::empty());
             if (-1..=13).contains(&raw) {
-                prop_assert_eq!(by_raw, decl.resolve(RawVersion(RawVersion(raw).effective().as_i16()), &QueryAdmission::Sets(QuerySetMask::BUILTIN), ExperimentMask::empty()));
+                prop_assert_eq!(by_raw, decl.resolve(RawVersion(RawVersion(raw).effective().to_i16()), &QueryAdmission::Sets(QuerySetMask::BUILTIN), ExperimentMask::empty()));
             } else {
                 prop_assert!(by_raw.is_none(), "{} resolves at raw version {raw}", decl.name());
             }

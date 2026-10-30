@@ -159,7 +159,7 @@ impl CompileOptions {
     /// allowed, no experiments, no host math functions, source not kept, [`Deviations::DEFAULT`],
     /// [`Platform::default`], [`ArrayAccess::Unresolved`].
     pub const fn new(catalog: QueryCatalog, version: MolangVersion) -> Self {
-        Self::from_raw_version(catalog, RawVersion(version.as_i16()))
+        Self::from_raw_version(catalog, RawVersion(version.to_i16()))
     }
 
     /// Default settings at a raw version: parser gates use

@@ -72,7 +72,7 @@ pub(super) fn group_tokens(cx: &mut Cx<'_>, mut list: Vec<Node>, used: OpSet) ->
 
 /// Runs the grouping passes in their fixed order.
 fn group(cx: &mut Cx<'_>, list: &mut Vec<Node>, used: OpSet) -> Pass {
-    let version = cx.version().as_i16();
+    let version = cx.version().to_i16();
     ends_with_semicolon(cx, list, used)?;
     if used.contains(Op::MemberAccessor) {
         member_accessors(cx, list)?;

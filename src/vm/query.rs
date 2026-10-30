@@ -1244,7 +1244,7 @@ mod tests {
         let one_range = cx.decl().shape().ranges.as_slice().len() == 1;
         Ok(V::Float(
             f32::from(cx.implementation())
-                + 10.0 * f32::from(cx.version().as_i16())
+                + 10.0 * f32::from(cx.version().to_i16())
                 + if one_range { 1000.0 } else { 0.0 },
         ))
     }

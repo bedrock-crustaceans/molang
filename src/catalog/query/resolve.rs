@@ -256,8 +256,8 @@ mod tests {
         assert!(at(query::HAS_BLOCK_STATE, 13, &blocks).is_none());
         let old = list(&[query::BLOCK_PROPERTY]);
         let old = QueryAdmission::Only(old);
-        assert!(at(query::BLOCK_PROPERTY, MolangVersion::V9.as_i16(), &old).is_some());
-        assert!(at(query::BLOCK_PROPERTY, MolangVersion::V10.as_i16(), &old).is_none());
+        assert!(at(query::BLOCK_PROPERTY, MolangVersion::V9.to_i16(), &old).is_some());
+        assert!(at(query::BLOCK_PROPERTY, MolangVersion::V10.to_i16(), &old).is_none());
         assert!(
             at(
                 query::ANY_TAG,

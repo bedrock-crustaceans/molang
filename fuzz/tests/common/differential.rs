@@ -157,7 +157,7 @@ impl Tally {
                 disagreement.get_or_insert_with(|| {
                     format!(
                         "{what} {source:?} (v{}) under {limits:?}: {why}",
-                        expr.version().as_i16()
+                        expr.version().to_i16()
                     )
                 });
             }

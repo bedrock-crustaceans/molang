@@ -569,7 +569,7 @@ impl EvalCase {
             let Row::Eval(eval) = row else { continue };
             evals += 1;
             assert!(
-                eval.version == MolangVersion::LATEST.as_i16() && eval.failure.is_none(),
+                eval.version == MolangVersion::LATEST.to_i16() && eval.failure.is_none(),
                 "{}: the fresh-state pass takes an `eval` row at the latest version without an expected failure",
                 self.name(index, row)
             );
@@ -608,7 +608,7 @@ impl EvalCase {
 
     #[allow(clippy::too_many_lines)]
     fn check_compile_side(&self, failures: &mut Vec<String>) {
-        let latest = MolangVersion::LATEST.as_i16();
+        let latest = MolangVersion::LATEST.to_i16();
         for (index, row) in self.checked_rows() {
             let name = self.name(index, row);
             match row {
@@ -1103,7 +1103,7 @@ impl CaseState {
 fn fresh_state_failure(expr: &str, expected: f32, tolerance: f32) -> Option<String> {
     let options = CompileOptions {
         experiments: reference_experiments(),
-        ..reference_options(MolangVersion::LATEST.as_i16())
+        ..reference_options(MolangVersion::LATEST.to_i16())
     };
     let compiled = compile(expr, &options);
     let fresh = || {

@@ -192,7 +192,7 @@ impl VersionRange {
         last: MolangVersion,
         sets: QuerySetMask,
     ) -> Option<Self> {
-        if first.as_i16() <= last.as_i16() {
+        if first.to_i16() <= last.to_i16() {
             Some(Self { first, last, sets })
         } else {
             None
@@ -222,12 +222,12 @@ impl VersionRange {
 
     /// Whether `first ≤ version ≤ last`.
     pub const fn contains(&self, version: MolangVersion) -> bool {
-        self.contains_raw(RawVersion(version.as_i16()))
+        self.contains_raw(RawVersion(version.to_i16()))
     }
 
     /// Whether `first ≤ raw_version ≤ last`. A raw version outside `-1..=13` is in no window.
     pub const fn contains_raw(&self, raw_version: RawVersion) -> bool {
-        self.first.as_i16() <= raw_version.0 && raw_version.0 <= self.last.as_i16()
+        self.first.to_i16() <= raw_version.0 && raw_version.0 <= self.last.to_i16()
     }
 }
 
@@ -266,7 +266,7 @@ pub struct VersionRanges {
 
 /// Disjoint ranges hold distinct versions, so there are at most as many ranges as versions.
 const MAX_RANGES: usize =
-    (MolangVersion::LATEST.as_i16() - MolangVersion::Invalid.as_i16() + 1) as usize;
+    (MolangVersion::LATEST.to_i16() - MolangVersion::Invalid.to_i16() + 1) as usize;
 
 impl VersionRanges {
     /// [`VersionRange::ALWAYS`] alone.
@@ -293,7 +293,7 @@ impl VersionRanges {
     /// The ranges with `next` added after the last; `None` unless `next` starts after it ends.
     pub(crate) const fn followed_by(mut self, next: VersionRange) -> Option<Self> {
         let len = self.len as usize;
-        if len == MAX_RANGES || self.ranges[len - 1].last.as_i16() >= next.first.as_i16() {
+        if len == MAX_RANGES || self.ranges[len - 1].last.to_i16() >= next.first.to_i16() {
             return None;
         }
         self.ranges[len] = next;
@@ -533,7 +533,7 @@ impl QueryDecl {
 
     /// The position of the range that contains `version`.
     pub fn implementation_at(&self, version: MolangVersion) -> Option<u8> {
-        self.implementation_at_raw(RawVersion(version.as_i16()))
+        self.implementation_at_raw(RawVersion(version.to_i16()))
     }
 
     /// [`QueryDecl::implementation_at`] for a raw version.

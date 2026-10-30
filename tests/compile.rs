@@ -2395,7 +2395,7 @@ mod compile_source {
             assert_eq!(opts, server_at(raw));
         }
         for version in (-1..=13).filter_map(MolangVersion::from_i16) {
-            assert_eq!(CompileOptions::server(version), server_at(version.as_i16()));
+            assert_eq!(CompileOptions::server(version), server_at(version.to_i16()));
         }
     }
 

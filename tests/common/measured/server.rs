@@ -499,7 +499,7 @@ impl ServerRun {
 
     fn version_of(&self, probe: &Probe) -> i16 {
         match &self.format_version {
-            Some(text) => MolangVersion::from_engine_version_str(text).as_i16(),
+            Some(text) => MolangVersion::from_engine_version_str(text).to_i16(),
             None => probe.version,
         }
     }

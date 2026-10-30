@@ -222,7 +222,7 @@ mod tests {
     fn hand_picked_strings_map_as_listed() {
         for &(text, expected) in HAND_PICKED {
             assert_eq!(
-                MolangVersion::from_engine_version_str(text).as_i16(),
+                MolangVersion::from_engine_version_str(text).to_i16(),
                 expected,
                 "{text:?}"
             );

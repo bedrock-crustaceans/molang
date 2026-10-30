@@ -68,7 +68,7 @@ mod types_layer {
         assert_eq!(VERSION_THRESHOLDS[12].version, MolangVersion::LATEST);
         assert_eq!(VERSION_THRESHOLDS[12].engine_version, ev(1, 21, 100));
         for (row, entry) in VERSION_THRESHOLDS.iter().enumerate() {
-            assert_eq!(usize::try_from(entry.version.as_i16()).unwrap(), row + 1);
+            assert_eq!(usize::try_from(entry.version.to_i16()).unwrap(), row + 1);
         }
     }
 
@@ -175,7 +175,7 @@ mod types_layer {
                 &default,
                 ExperimentMask::empty(),
             )?)];
-            Some((range.first().as_i16(), range.last().as_i16()))
+            Some((range.first().to_i16(), range.last().to_i16()))
         };
         assert_eq!(resolve("query.is_baby", 0), Some((0, 13)));
         assert_eq!(resolve("query.is_baby", 13), Some((0, 13)));
@@ -955,7 +955,7 @@ mod vm {
         let mut non_zero = Vec::new();
         let catalog = molang::stdlib::queries(Side::Client);
         for decl in catalog {
-            let version = decl.shape().ranges.as_slice()[0].first().as_i16();
+            let version = decl.shape().ranges.as_slice()[0].first().to_i16();
             let options = CompileOptions {
                 admission: QueryAdmission::Sets(QuerySetMask::BUILTIN),
                 ..CompileOptions::from_raw_version(
@@ -1191,11 +1191,11 @@ mod version_thresholds {
     use molang::version::{EngineVersion, MolangVersion, VERSION_THRESHOLDS};
 
     fn map(major: u64, minor: u64, patch: u64) -> i16 {
-        MolangVersion::from(&ev(major, minor, patch)).as_i16()
+        MolangVersion::from(&ev(major, minor, patch)).to_i16()
     }
 
     fn map_pre(major: u64, minor: u64, patch: u64) -> i16 {
-        MolangVersion::from(&ev_pre(major, minor, patch)).as_i16()
+        MolangVersion::from(&ev_pre(major, minor, patch)).to_i16()
     }
 
     #[test]
@@ -1213,24 +1213,24 @@ mod version_thresholds {
     #[test]
     fn invalid_is_minus_one() {
         assert_eq!(MolangVersion::Invalid as i16, -1);
-        assert_eq!(MolangVersion::Invalid.as_i16(), -1);
+        assert_eq!(MolangVersion::Invalid.to_i16(), -1);
     }
 
     #[test]
     fn version_0_is_zero() {
         assert_eq!(MolangVersion::V0 as i16, 0);
-        assert_eq!(MolangVersion::V0.as_i16(), 0);
+        assert_eq!(MolangVersion::V0.to_i16(), 0);
     }
 
     #[test]
     fn the_latest_version_is_positive() {
-        assert!(MolangVersion::LATEST.as_i16() > 0);
+        assert!(MolangVersion::LATEST.to_i16() > 0);
     }
 
     #[test]
     fn the_latest_version_is_thirteen() {
         assert_eq!(MolangVersion::LATEST, MolangVersion::V13);
-        assert_eq!(MolangVersion::LATEST.as_i16(), 13);
+        assert_eq!(MolangVersion::LATEST.to_i16(), 13);
     }
 
     #[test]
@@ -1269,7 +1269,7 @@ mod version_thresholds {
             (13, MolangVersion::V13),
         ];
         for (raw, v) in names {
-            assert_eq!(v.as_i16(), raw);
+            assert_eq!(v.to_i16(), raw);
             assert_eq!(MolangVersion::from_i16(raw), Some(v));
         }
         assert_eq!(MolangVersion::from_i16(-2), None);
@@ -1300,7 +1300,7 @@ mod version_thresholds {
             VERSION_THRESHOLDS.iter().zip(expected).enumerate()
         {
             assert_eq!(entry.engine_version, ev(major, minor, patch), "row {i}");
-            assert_eq!(entry.version.as_i16(), i as i16 + 1, "row {i}");
+            assert_eq!(entry.version.to_i16(), i as i16 + 1, "row {i}");
         }
     }
 
@@ -1375,7 +1375,7 @@ mod version_thresholds {
 
     #[test]
     fn build_metadata_is_not_part_of_the_comparison() {
-        let molang = |text| MolangVersion::from_engine_version_str(text).as_i16();
+        let molang = |text| MolangVersion::from_engine_version_str(text).to_i16();
         assert_eq!(molang("1.21.100+build"), 13);
         assert_eq!(molang("1.21.100-beta+build"), 12);
         assert_eq!(map(1, 21, 100), 13);
@@ -1450,7 +1450,7 @@ mod version_thresholds {
     #[test]
     fn effective_clamps_the_raw_value() {
         for raw in -1..=13 {
-            assert_eq!(molang::version::RawVersion(raw).effective().as_i16(), raw);
+            assert_eq!(molang::version::RawVersion(raw).effective().to_i16(), raw);
         }
         // Above 13 passes every gate as 13 does.
         for raw in [14, 15, 100, i16::MAX] {
@@ -1518,7 +1518,7 @@ mod engine_version {
         parse(text)
             .as_ref()
             .map_or(MolangVersion::Invalid, MolangVersion::from)
-            .as_i16()
+            .to_i16()
     }
 
     #[test]
@@ -1771,7 +1771,7 @@ mod catalog_and_tables {
     /// Resolution with every set admitted and every experiment enabled: only the version decides.
     fn impl_at(name: &str, v: MolangVersion) -> Option<u8> {
         get(name).resolve(
-            molang::version::RawVersion(v.as_i16()),
+            molang::version::RawVersion(v.to_i16()),
             &every_set(),
             ExperimentMask::all(),
         )
@@ -1974,7 +1974,7 @@ mod catalog_and_tables {
                 .ranges
                 .as_slice()
                 .iter()
-                .map(|r| (r.first().as_i16(), r.last().as_i16()))
+                .map(|r| (r.first().to_i16(), r.last().to_i16()))
                 .collect::<Vec<_>>()
         };
         let two = [
@@ -1992,7 +1992,7 @@ mod catalog_and_tables {
         for (name, old, new) in two {
             assert_eq!(windows(name), [old, new], "{name}");
             for v in versions() {
-                let expected = match v.as_i16() {
+                let expected = match v.to_i16() {
                     raw if raw < 0 => None,
                     raw if raw <= old.1 => Some(0),
                     _ => Some(1),
@@ -2205,10 +2205,10 @@ mod catalog_and_tables {
         assert!(!at(query::PROPERTY, 13, &property));
         // The list still obeys the version window.
         let old = [query::BLOCK_PROPERTY];
-        assert!(at(query::BLOCK_PROPERTY, MolangVersion::V9.as_i16(), &old));
+        assert!(at(query::BLOCK_PROPERTY, MolangVersion::V9.to_i16(), &old));
         assert!(!at(
             query::BLOCK_PROPERTY,
-            MolangVersion::V10.as_i16(),
+            MolangVersion::V10.to_i16(),
             &old
         ));
         // The list admits a query whatever its set.
@@ -2733,7 +2733,7 @@ mod api_surface {
             .collect();
         assert_eq!(all.len(), 15);
         for (v, raw) in all.iter().zip(-1..=13) {
-            assert_eq!(v.as_i16(), raw);
+            assert_eq!(v.to_i16(), raw);
             assert_eq!(*v as i16, raw);
         }
         assert_eq!(MolangVersion::LATEST, MolangVersion::V13);
@@ -2814,7 +2814,7 @@ mod api_surface {
         assert_eq!(returns, ReturnType::FLOAT);
         let windows: Vec<(i16, i16, QuerySetMask)> = ranges
             .iter()
-            .map(|r| (r.first().as_i16(), r.last().as_i16(), r.sets()))
+            .map(|r| (r.first().to_i16(), r.last().to_i16(), r.sets()))
             .collect();
         assert_eq!(
             windows,
@@ -3206,7 +3206,7 @@ mod registry_conformance {
             .ranges
             .as_slice()
             .iter()
-            .map(|r| (r.first().as_i16(), r.last().as_i16(), r.sets()))
+            .map(|r| (r.first().to_i16(), r.last().to_i16(), r.sets()))
             .collect();
         assert_eq!(
             ranges,

@@ -27,7 +27,7 @@ fn options(version: i16) -> CompileOptions {
 
 fn sample(c: &mut Criterion) {
     let lines: Vec<&str> = SAMPLE.lines().filter(|line| !line.is_empty()).collect();
-    let opts = options(MolangVersion::LATEST.as_i16());
+    let opts = options(MolangVersion::LATEST.to_i16());
     for line in &lines {
         let compiled = compile(line, &opts);
         assert!(
