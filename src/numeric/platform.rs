@@ -17,7 +17,7 @@
 /// | | `BdsLinux`, `BdsWindows` | `AndroidArm64` |
 /// | --- | --- | --- |
 /// | NaN operands of `+ − · /` and of a transcendental function | the left one, quietened | the first signalling one quietened, else the first quiet one |
-/// | an invalid operation (`∞ − ∞`, `0·∞`, `0/0`, `math.sqrt(-1)`, `math.ln(-1)`, `math.sin` of ±∞, an invalid `math.pow` or `math.mod`, `math.asin` / `math.acos` beyond the tolerance) | `0xffc00000` | `0x7fc00000` |
+/// | an invalid operation (`∞ − ∞`, `0·∞`, `0/0`, `math.sqrt(-1)`, `math.ln(-1)`, `math.sin` of ±∞, an invalid `math.pow` or `math.mod`) | `0xffc00000` | `0x7fc00000` |
 /// | float → int (`loop` counts, array indices, die counts, the sine-table index) out of range or NaN | `i32::MIN` | saturated; NaN → 0 |
 ///
 /// On `BdsWindows`, ten easings (`in_out_quad`, `in_out_cubic`, `in_out_quart`, `in_out_quint`,
@@ -26,8 +26,10 @@
 /// `math.trunc` and `math.abs` compute their post-op as `O + S·x`: values are the same, only the
 /// choice between two NaNs differs.
 ///
-/// The transcendental functions are not part of the platform: they come from the host's C library,
-/// or with the `strict-math` feature from the `libm` crate.
+/// On every platform `math.asin` and `math.acos` beyond the tolerance give `0x7fc00000`, and
+/// `math.pow` of a NaN to an odd integer gives that NaN with its sign bit cleared. Both are measured
+/// on BDS Linux only; that BDS Windows and Android give the same is assumed. The transcendental functions themselves are not part of the platform: they come from the
+/// host's C library, or with the `strict-math` feature from the `libm` crate.
 ///
 /// ```
 /// # #[cfg(feature = "stdlib")]

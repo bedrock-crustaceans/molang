@@ -10,6 +10,8 @@
 //! - `vm`, `cache`: the modules of the same name ([`vm`], [`cache`]; each implies `compiler`).
 //! - `facet`: `Facet` impls for [`json::MolangSource`] and [`json::MolangValueRepr`]; the optional
 //!   `facet` dependency is a pre-release and is not re-exported.
+//! - `strict-math`: the transcendental `math.*` functions from the `libm` crate, the same bits on
+//!   every host, in place of the host's C library.
 //! - `fuzz`: a hidden `internals` module for the repository's fuzz crate, with no `SemVer`
 //!   guarantee (implies `stdlib`).
 //!
@@ -82,11 +84,15 @@
 //! # Float behaviour
 //!
 //! The host chooses whose float behaviour an expression reproduces: [`compile::CompileOptions`]
-//! holds a [`numeric::Platform`] (BDS Linux, by release, BDS Windows or the Android arm64 client),
-//! the compiled expression records it, and folding and evaluation follow it, so an expression gives
-//! the same bits on every host. The platforms differ in the NaN an operation returns, in float →
-//! int conversion and in the NaN of an invalid standard function; [`numeric::Platform`] lists the
-//! differences.
+//! holds a [`numeric::Platform`] (BDS Linux, BDS Windows or the Android arm64 client), the compiled
+//! expression records it, and folding and evaluation follow it. The platforms differ in the NaN an
+//! operation returns and in float → int conversion; [`numeric::Platform`] lists the differences.
+//!
+//! The transcendental functions (`math.sin`, `math.pow`, the easings' `exp2` and sine table, …)
+//! call the host's C library through `std`, as the game calls the one of the system it runs on, so
+//! the last bits can differ between hosts: the recorded BDS Linux data is reproduced bit for bit on
+//! a Linux x86-64 host with glibc 2.41 and FMA, and on other hosts within two ulps. With
+//! `strict-math` they call the `libm` crate instead and give the same bits on every host.
 //!
 //! [`QueryCatalog`]: catalog::QueryCatalog
 //! [`QueryDecl`]: catalog::QueryDecl

@@ -33,10 +33,11 @@
 //!   `(v.x < 2) * math.exp(1000)` are NaN where the same infinity read from a variable multiplies.
 //!
 //! The float behaviour is a [`Platform`], which the host passes in the compile options and the
-//! compiled expression records: the same expression gives the same bits on every host. Every
-//! platform rounds each multiply, add and divide on its own, in formula order; the platforms differ
-//! in the NaN an operation returns, in float → int conversion and in the C library functions behind
-//! the transcendental `math.*` functions ([`Platform`] lists the differences).
+//! compiled expression records. Every platform rounds each multiply, add and divide on its own, in
+//! formula order; the platforms differ in the NaN an operation returns and in float → int
+//! conversion ([`Platform`] lists the differences). The transcendental `math.*` functions come from
+//! the host's C library, or with the `strict-math` feature from the `libm` crate, whose bits are the
+//! same on every host.
 //!
 //! The arithmetic and the standard functions choose the sign and payload of every NaN they return,
 //! so those are the same on every host too. On 32-bit x86 a value returned through the x87

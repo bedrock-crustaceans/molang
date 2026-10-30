@@ -1,8 +1,13 @@
 //! One function per `math.*` operator.
 //!
 //! Each takes the [`Platform`] whose float behaviour it reproduces, the Molang arguments in order,
-//! then the node's [`PostOp`]. Nothing clamps `t` or validates arguments. The random family takes raw samples from the caller and clamps them with
-//! [`clamp_sample`].
+//! then the node's [`PostOp`]. Nothing clamps `t` or validates arguments. The random family takes
+//! raw samples from the caller and clamps them with [`clamp_sample`].
+//!
+//! The transcendental functions (`sin`, `cos`, `asin`, `acos`, `atan`, `atan2`, `exp`, `ln`, `pow`,
+//! and the `exp2` and sine table of the easings) call `std`'s `f32` methods, the host's C library,
+//! so their last bit can differ between hosts; with the `strict-math` feature they call the `libm`
+//! crate and give the same bits everywhere. Their NaNs follow the platform either way.
 
 // Single-letter names follow the formulas.
 #![allow(clippy::many_single_char_names)]
