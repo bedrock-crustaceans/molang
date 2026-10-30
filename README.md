@@ -100,11 +100,7 @@ fn double(cx: &mut QueryCx<'_, '_, NoHost>) -> QueryResult<NoHost> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let shape = QueryShape {
-        args: Arity::exactly(1),
-        returns: ReturnType::FLOAT,
-        ..QueryShape::DEFAULT
-    };
+    let shape = QueryShape::DEFAULT.with_args(Arity::exactly(1)).with_returns(ReturnType::FLOAT);
     let catalog = stdlib::queries(Side::Server).extended([QueryDecl::new("query.double", shape)?])?;
     let options = CompileOptions::new(catalog.clone(), MolangVersion::LATEST);
     let (expr, _) = compile("query.double(21)", &options).into_result()?;

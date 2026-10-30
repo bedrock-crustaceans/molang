@@ -224,11 +224,9 @@ mod queries {
         let declaring = |returns: ReturnType| {
             let double = QueryDecl::new(
                 "query.double",
-                QueryShape {
-                    args: Arity::exactly(1),
-                    returns,
-                    ..QueryShape::DEFAULT
-                },
+                QueryShape::DEFAULT
+                    .with_args(Arity::exactly(1))
+                    .with_returns(returns),
             )
             .unwrap();
             molang::stdlib::queries(Side::Server)
@@ -274,11 +272,9 @@ mod queries {
         let standard = molang::stdlib::queries(Side::Client);
         let life_time = QueryDecl::new(
             query::LIFE_TIME,
-            QueryShape {
-                args: Arity::exactly(2),
-                returns: ReturnType::STRING,
-                ..QueryShape::DEFAULT
-            },
+            QueryShape::DEFAULT
+                .with_args(Arity::exactly(2))
+                .with_returns(ReturnType::STRING),
         )
         .unwrap();
         let catalog = standard.overriding([life_time.clone()]).unwrap();
@@ -790,7 +786,7 @@ mod query_misuse {
                 .get(name)
                 .unwrap()
                 .shape()
-                .default_return,
+                .default_return(),
         )
     }
 
@@ -2646,11 +2642,11 @@ mod query_tables {
         for decl in client() {
             assert!(table.is_stub(decl.name()).unwrap());
             assert!(table.get(decl.name()).unwrap().is_none());
-            let version = decl.shape().ranges.as_slice()[0].first();
+            let version = decl.shape().ranges().as_slice()[0].first();
             let mut cx = QueryCx::new(client(), decl.name(), version, &mut vm).unwrap();
             assert_eq!(
                 table.call(&mut cx),
-                V::from(decl.shape().default_return),
+                V::from(decl.shape().default_return()),
                 "{}",
                 decl.name()
             );
@@ -2664,7 +2660,7 @@ mod query_tables {
                 .get(query::SPELLCOLOR)
                 .unwrap()
                 .shape()
-                .default_return,
+                .default_return(),
             DefaultReturn::StructRgba0
         );
         assert_eq!(
@@ -2776,7 +2772,7 @@ mod query_tables {
                     .get(query::MAX_DURABILITY)
                     .unwrap()
                     .shape()
-                    .default_return
+                    .default_return()
             )
         );
         assert_eq!(

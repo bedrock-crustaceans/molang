@@ -919,7 +919,7 @@ mod resolution_ranges {
             let mut current: Option<(u8, i16, i16)> = None;
             for raw in i16::MIN..=i16::MAX {
                 let serving: Vec<u8> = (0..)
-                    .zip(decl.shape().ranges.as_slice())
+                    .zip(decl.shape().ranges().as_slice())
                     .filter(|(_, r)| r.contains_raw(RawVersion(raw)))
                     .map(|(k, _)| k)
                     .collect();
@@ -951,10 +951,10 @@ mod resolution_ranges {
             }
             assert_eq!(
                 runs.len(),
-                decl.shape().ranges.as_slice().len(),
+                decl.shape().ranges().as_slice().len(),
                 "{}: {runs:?} vs {:?}",
                 decl.name(),
-                decl.shape().ranges.as_slice()
+                decl.shape().ranges().as_slice()
             );
         }
     }
@@ -992,7 +992,7 @@ mod resolution_ranges {
                     prop_assert_eq!(decl.implementation_at(version), decl.implementation_at_raw(RawVersion(raw)));
                 }
                 if let Some(k) = by_raw {
-                    let range = decl.shape().ranges.as_slice()[usize::from(k)];
+                    let range = decl.shape().ranges().as_slice()[usize::from(k)];
                     prop_assert!(range.first().to_i16() <= raw && raw <= range.last().to_i16());
                 }
             }

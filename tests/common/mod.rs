@@ -47,15 +47,13 @@ pub fn reference_catalog() -> &'static QueryCatalog {
             )
             .unwrap()
         };
-        let shape = |returns: ReturnType, first: i16, last: i16| QueryShape {
-            returns,
-            ranges: VersionRanges::single(window(first, last)),
-            ..QueryShape::DEFAULT
+        let shape = |returns: ReturnType, first: i16, last: i16| {
+            QueryShape::DEFAULT
+                .with_returns(returns)
+                .with_ranges(VersionRanges::single(window(first, last)))
         };
-        let experimental = QueryShape {
-            experiments: reference_experiments(),
-            ..shape(ReturnType::FLOAT, -1, 13)
-        };
+        let experimental =
+            shape(ReturnType::FLOAT, -1, 13).with_experiments(reference_experiments());
         let decls = [
             (GET_NAME_TEST, shape(ReturnType::STRING, -1, 13)),
             (SUM_TEST, shape(ReturnType::FLOAT, -1, 13)),

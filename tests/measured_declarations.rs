@@ -178,7 +178,7 @@ fn the_helper_query_catalogue() {
         (EXPERIMENTAL_TEST, ReturnType::FLOAT),
     ] {
         assert_eq!(
-            (decl(name).sets(), decl(name).shape().returns),
+            (decl(name).sets(), decl(name).shape().returns()),
             (HELPER_SET, returns),
             "{name}"
         );
@@ -223,7 +223,7 @@ fn the_helper_query_catalogue() {
         ("query.valid_late", 4, 13),
     ] {
         assert_eq!(
-            (decl(name).sets(), decl(name).shape().returns),
+            (decl(name).sets(), decl(name).shape().returns()),
             (HELPER_SET, ReturnType::FLOAT),
             "{name}"
         );
@@ -244,7 +244,7 @@ fn the_helper_query_catalogue() {
             "{name}"
         );
         assert_eq!(
-            decl(name).shape().ranges.as_slice()[0].first(),
+            decl(name).shape().ranges().as_slice()[0].first(),
             MolangVersion::Invalid,
             "{name}"
         );

@@ -90,10 +90,7 @@ mod tests {
         let decl: &QueryDecl = catalog.get(query::IS_BABY).unwrap();
         assert_eq!(decl.name(), "query.is_baby");
         let _: QueryAdmission = QueryAdmission::Sets(QuerySetMask::DEFAULT);
-        let _: QueryShape = QueryShape {
-            args: Arity::ANY,
-            ..QueryShape::DEFAULT
-        };
+        let _: QueryShape = QueryShape::DEFAULT.with_args(Arity::ANY);
         let _: Result<VersionRanges, DeclError> = VersionRanges::new([VersionRange::ALWAYS]);
         let _: Option<CatalogError> = None;
         let _: Option<DeclError> = None;

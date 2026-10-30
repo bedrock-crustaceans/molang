@@ -158,7 +158,7 @@ mod types_layer {
         assert!(catalog.get("QUERY.IS_BABY").is_none());
         assert!(catalog.get("query.no_such_query").is_none());
         assert_eq!(catalog.iter().len(), catalog.len());
-        assert_eq!(decl.shape().returns, ReturnType::BOOL);
+        assert_eq!(decl.shape().returns(), ReturnType::BOOL);
         assert_eq!(decl.args(), Arity::ANY);
     }
 
@@ -170,7 +170,7 @@ mod types_layer {
         let default = QueryAdmission::Sets(QuerySetMask::DEFAULT);
         let resolve = |name: &str, raw| {
             let decl = catalog.get(name)?;
-            let range = decl.shape().ranges.as_slice()[usize::from(decl.resolve(
+            let range = decl.shape().ranges().as_slice()[usize::from(decl.resolve(
                 molang::version::RawVersion(raw),
                 &default,
                 ExperimentMask::empty(),
@@ -937,7 +937,7 @@ mod vm {
         let mut non_zero = Vec::new();
         let catalog = molang::stdlib::queries(Side::Client);
         for decl in catalog {
-            let version = decl.shape().ranges.as_slice()[0].first().to_i16();
+            let version = decl.shape().ranges().as_slice()[0].first().to_i16();
             let options = CompileOptions::from_raw_version(
                 catalog.clone(),
                 molang::version::RawVersion(version),
@@ -954,7 +954,7 @@ mod vm {
             let value = compiled.expr().cloned().expect("expr").eval(&mut env.cx());
             assert_eq!(
                 value,
-                Value::from(decl.shape().default_return),
+                Value::from(decl.shape().default_return()),
                 "{}",
                 decl.name()
             );
@@ -1758,7 +1758,7 @@ mod catalog_and_tables {
     fn baseline() -> impl Iterator<Item = &'static QueryDecl> {
         catalog()
             .iter()
-            .filter(|decl| decl.shape().first_release.is_none())
+            .filter(|decl| decl.shape().first_release().is_none())
     }
 
     #[test]
@@ -1766,7 +1766,7 @@ mod catalog_and_tables {
         let mut ranges_per_set: BTreeMap<&str, usize> = BTreeMap::new();
         let mut names_per_set: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
         for decl in baseline() {
-            for range in decl.shape().ranges.as_slice() {
+            for range in decl.shape().ranges().as_slice() {
                 let set = range.sets().name().expect("one set per range");
                 *ranges_per_set.entry(set).or_default() += 1;
                 names_per_set.entry(set).or_default().insert(decl.name());
@@ -1889,11 +1889,11 @@ mod catalog_and_tables {
     fn version_ranges_are_disjoint_ascending_and_from_version_zero() {
         for decl in catalog() {
             assert!(
-                !decl.shape().ranges.as_slice().is_empty(),
+                !decl.shape().ranges().as_slice().is_empty(),
                 "{}",
                 decl.name()
             );
-            for (i, range) in decl.shape().ranges.as_slice().iter().enumerate() {
+            for (i, range) in decl.shape().ranges().as_slice().iter().enumerate() {
                 assert!(
                     range.first() <= range.last() && range.first() >= MolangVersion::V0,
                     "{}",
@@ -1901,7 +1901,7 @@ mod catalog_and_tables {
                 );
                 if i > 0 {
                     assert!(
-                        decl.shape().ranges.as_slice()[i - 1].last() < range.first(),
+                        decl.shape().ranges().as_slice()[i - 1].last() < range.first(),
                         "{}: ranges overlap or are out of order",
                         decl.name()
                     );
@@ -1914,7 +1914,7 @@ mod catalog_and_tables {
     fn each_implementation_serves_one_contiguous_window() {
         for decl in catalog() {
             let served: Vec<Option<u8>> = versions().map(|v| impl_at(decl.name(), v)).collect();
-            for impl_idx in 0..u8::try_from(decl.shape().ranges.as_slice().len()).unwrap() {
+            for impl_idx in 0..u8::try_from(decl.shape().ranges().as_slice().len()).unwrap() {
                 let hits: Vec<usize> = served
                     .iter()
                     .enumerate()
@@ -1948,7 +1948,7 @@ mod catalog_and_tables {
         let windows = |name: &str| {
             get(name)
                 .shape()
-                .ranges
+                .ranges()
                 .as_slice()
                 .iter()
                 .map(|r| (r.first().to_i16(), r.last().to_i16()))
@@ -1979,7 +1979,7 @@ mod catalog_and_tables {
         }
         let multi: Vec<&str> = catalog()
             .iter()
-            .filter(|d| d.shape().ranges.as_slice().len() == 2)
+            .filter(|d| d.shape().ranges().as_slice().len() == 2)
             .map(QueryDecl::name)
             .collect();
         assert_eq!(multi.len(), 6);
@@ -2005,8 +2005,8 @@ mod catalog_and_tables {
         };
         let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
         for decl in baseline() {
-            *counts.entry(kind(decl.shape().returns)).or_default() +=
-                decl.shape().ranges.as_slice().len();
+            *counts.entry(kind(decl.shape().returns())).or_default() +=
+                decl.shape().ranges().as_slice().len();
         }
         assert_eq!(
             counts,
@@ -2022,11 +2022,11 @@ mod catalog_and_tables {
             ])
         );
         assert_eq!(
-            get("query.combine_entities").shape().returns,
+            get("query.combine_entities").shape().returns(),
             ReturnType::ACTOR_ARRAY
         );
         assert_eq!(
-            get("query.equipped_item_is_attachable").shape().returns,
+            get("query.equipped_item_is_attachable").shape().returns(),
             ReturnType::ACTOR
         );
         assert_eq!(
@@ -2066,7 +2066,7 @@ mod catalog_and_tables {
                 );
                 assert!(
                     decl.shape()
-                        .ranges
+                        .ranges()
                         .as_slice()
                         .iter()
                         .all(|r| !r.contains_raw(molang::version::RawVersion(raw))),
@@ -2194,42 +2194,42 @@ mod catalog_and_tables {
         assert!(
             catalog()
                 .iter()
-                .all(|d| d.shape().experiments == ExperimentMask::empty())
+                .all(|d| d.shape().experiments() == ExperimentMask::empty())
         );
     }
 
     #[test]
     fn queries_of_later_releases() {
         let fuse = get(query::FUSE_TIME);
-        assert_eq!(fuse.shape().first_release, Some(Version::new(1, 26, 30)));
+        assert_eq!(fuse.shape().first_release(), Some(&Version::new(1, 26, 30)));
         assert_eq!(fuse.sets(), QuerySetMask::DEFAULT);
-        assert_eq!(fuse.shape().returns, ReturnType::FLOAT);
+        assert_eq!(fuse.shape().returns(), ReturnType::FLOAT);
         assert_eq!(fuse.args(), Arity::ANY);
         assert_eq!(
             (
-                fuse.shape().ranges.as_slice()[0].first(),
-                fuse.shape().ranges.as_slice()[0].last()
+                fuse.shape().ranges().as_slice()[0].first(),
+                fuse.shape().ranges().as_slice()[0].last()
             ),
             (MolangVersion::V0, MolangVersion::V13)
         );
-        assert_eq!(fuse.shape().reads, Reads::ACTOR);
-        assert_eq!(fuse.shape().default_return, DefaultReturn::ZERO);
+        assert_eq!(fuse.shape().reads(), Reads::ACTOR);
+        assert_eq!(fuse.shape().default_return(), DefaultReturn::ZERO);
         for (name, set) in [
             ("query.has_all_biome_tags", QuerySetMask::WORLD_GEN),
             ("query.has_any_biome_tags", QuerySetMask::WORLD_GEN),
             ("query.head_is_in_water", QuerySetMask::DEFAULT),
         ] {
             assert_eq!(
-                get(name).shape().first_release,
-                Some(Version::new(1, 26, 50)),
+                get(name).shape().first_release(),
+                Some(&Version::new(1, 26, 50)),
                 "{name}"
             );
             assert_eq!(get(name).sets(), set, "{name}");
-            assert_eq!(get(name).shape().returns, ReturnType::BOOL, "{name}");
+            assert_eq!(get(name).shape().returns(), ReturnType::BOOL, "{name}");
         }
         let later: Vec<&str> = catalog()
             .iter()
-            .filter(|d| d.shape().first_release.is_some())
+            .filter(|d| d.shape().first_release().is_some())
             .map(QueryDecl::name)
             .collect();
         assert_eq!(
@@ -2325,7 +2325,7 @@ mod catalog_and_tables {
                 .get(decl.name())
                 .copied()
                 .unwrap_or(DefaultReturn::ZERO);
-            assert_eq!(decl.shape().default_return, expected, "{}", decl.name());
+            assert_eq!(decl.shape().default_return(), expected, "{}", decl.name());
         }
         assert_eq!(DefaultReturn::ONE.to_f32(), 1.0);
         assert_eq!(DefaultReturn::NEG_ONE.to_f32(), -1.0);
@@ -2350,7 +2350,7 @@ mod catalog_and_tables {
                 .find(|d| d.name() == name)
                 .unwrap()
                 .shape()
-                .returns;
+                .returns();
             assert_eq!(returns, ReturnType::NUMBER | ReturnType::STRING, "{name}");
         }
     }
@@ -2359,7 +2359,7 @@ mod catalog_and_tables {
     fn sides_and_subjects() {
         let server: Vec<&str> = catalog()
             .iter()
-            .filter(|d| d.shape().side == QuerySide::Server)
+            .filter(|d| d.shape().side() == QuerySide::Server)
             .map(QueryDecl::name)
             .collect();
         assert_eq!(
@@ -2386,7 +2386,7 @@ mod catalog_and_tables {
             "bone_aabb",
         ] {
             assert_eq!(
-                get(&format!("query.{name}")).shape().side,
+                get(&format!("query.{name}")).shape().side(),
                 QuerySide::CLIENT,
                 "{name}"
             );
@@ -2395,29 +2395,29 @@ mod catalog_and_tables {
             "query.surface_particle_texture_coordinate",
             "query.surface_particle_texture_size",
         ] {
-            assert_eq!(get(name).shape().side, QuerySide::BOTH, "{name}");
+            assert_eq!(get(name).shape().side(), QuerySide::BOTH, "{name}");
         }
         assert_eq!(
-            get(query::TARGET_X_ROTATION).shape().reads,
+            get(query::TARGET_X_ROTATION).shape().reads(),
             Reads::CLIENT_STATE
         );
-        assert_eq!(get(query::IS_FIRST_PERSON).shape().reads, Reads::RENDER);
-        assert_eq!(get(query::NOISE).shape().reads, Reads::WORLD_GEN);
-        assert_eq!(get(query::APPROX_EQ).shape().reads, Reads::empty());
-        assert!(get(query::APPROX_EQ).shape().reads.is_empty());
+        assert_eq!(get(query::IS_FIRST_PERSON).shape().reads(), Reads::RENDER);
+        assert_eq!(get(query::NOISE).shape().reads(), Reads::WORLD_GEN);
+        assert_eq!(get(query::APPROX_EQ).shape().reads(), Reads::empty());
+        assert!(get(query::APPROX_EQ).shape().reads().is_empty());
         assert_eq!(
-            get(query::SURFACE_PARTICLE_COLOR).shape().reads,
+            get(query::SURFACE_PARTICLE_COLOR).shape().reads(),
             Reads::ACTOR.union(Reads::BLOCK)
         );
         assert_eq!(
-            get(query::DISTANCE_FROM_CAMERA).shape().reads,
+            get(query::DISTANCE_FROM_CAMERA).shape().reads(),
             Reads::CAMERA
         );
-        assert_eq!(get(query::BLOCK_FACE).shape().reads, Reads::VARIABLES);
+        assert_eq!(get(query::BLOCK_FACE).shape().reads(), Reads::VARIABLES);
         assert!(
             catalog()
                 .iter()
-                .filter(|d| d.shape().reads.contains(Reads::ACTOR))
+                .filter(|d| d.shape().reads().contains(Reads::ACTOR))
                 .count()
                 > 200
         );
@@ -2781,11 +2781,12 @@ mod api_surface {
         let name: &str = decl.name();
         let args: Arity = decl.args();
         let (min, max): (u8, Option<u8>) = (args.min(), args.max());
-        let returns: ReturnType = decl.shape().returns;
-        let ranges: &[VersionRange] = decl.shape().ranges.as_slice();
-        let reads: Reads = decl.shape().reads;
-        let side: QuerySide = decl.shape().side;
-        let default: DefaultReturn = decl.shape().default_return;
+        let returns: ReturnType = decl.shape().returns();
+        let shape_ranges = decl.shape().ranges();
+        let ranges: &[VersionRange] = shape_ranges.as_slice();
+        let reads: Reads = decl.shape().reads();
+        let side: QuerySide = decl.shape().side();
+        let default: DefaultReturn = decl.shape().default_return();
         assert_eq!(name, "query.item_remaining_use_duration");
         assert!(max.is_none_or(|max| max >= min));
         assert_eq!(returns, ReturnType::FLOAT);
@@ -2800,12 +2801,12 @@ mod api_surface {
                 (2, 13, QuerySetMask::DEFAULT)
             ]
         );
-        assert!(decl.shape().experiments == molang::version::ExperimentMask::empty());
+        assert!(decl.shape().experiments() == molang::version::ExperimentMask::empty());
         assert!(reads.contains(Reads::ACTOR));
         assert_eq!(side, QuerySide::BOTH);
         assert_eq!(default, DefaultReturn::ZERO);
         assert!(decl.on_dedicated_server());
-        assert_eq!(decl.shape().first_release, None);
+        assert_eq!(decl.shape().first_release(), None);
     }
 
     /// A declaration is a name and a shape of plain fields; the checks that span fields run in
@@ -2816,18 +2817,16 @@ mod api_surface {
         use std::ops::RangeInclusive;
 
         use molang::catalog::{CatalogError, DeclError, EmptyArity, VersionRanges};
-        let shape = QueryShape {
-            args: Arity::between(0, 2),
-            returns: ReturnType::BOOL,
-            reads: Reads::ACTOR,
-            ..QueryShape::DEFAULT
-        };
+        let shape = QueryShape::DEFAULT
+            .with_args(Arity::between(0, 2))
+            .with_returns(ReturnType::BOOL)
+            .with_reads(Reads::ACTOR);
         let catalog = molang::stdlib::queries(Side::Client)
             .extended([QueryDecl::new("query.my_thing", shape.clone()).expect("well-formed")])
             .expect("a new name");
         let decl = catalog.get("query.my_thing").expect("declared");
         assert_eq!(
-            (decl.shape().args, decl.shape().returns, decl.shape()),
+            (decl.shape().args(), decl.shape().returns(), decl.shape()),
             (Arity::between(0, 2), ReturnType::BOOL, &shape)
         );
         assert_eq!(decl.args(), Arity::between(0, 2));
@@ -2837,19 +2836,13 @@ mod api_surface {
             Some(CatalogError::Duplicate("query.my_thing".into()))
         );
         // `overriding` replaces a declaration; adding a name is `extended`'s job.
-        let wider = QueryDecl::new(
-            "query.my_thing",
-            QueryShape {
-                args: Arity::ANY,
-                ..shape
-            },
-        )
-        .expect("well-formed");
+        let wider =
+            QueryDecl::new("query.my_thing", shape.with_args(Arity::ANY)).expect("well-formed");
         let overridden: QueryCatalog = catalog.overriding([wider]).expect("a declared name");
         assert_eq!(
             overridden
                 .get("query.my_thing")
-                .map(|decl| decl.shape().args),
+                .map(|decl| decl.shape().args()),
             Some(Arity::ANY)
         );
         assert_eq!(
@@ -2885,19 +2878,14 @@ mod api_surface {
             tags.as_slice(),
             [VersionRange::ALWAYS.in_sets(QuerySetMask::TAGS)]
         );
-        let fits = QueryShape {
-            returns: ReturnType::STRING,
-            default_return: DefaultReturn::ONE,
-            ..QueryShape::DEFAULT
-        };
+        let fits = QueryShape::DEFAULT
+            .with_returns(ReturnType::STRING)
+            .with_default_return(DefaultReturn::ONE);
         assert!(matches!(
             QueryDecl::new("query.x", fits),
             Err(DeclError::DefaultNotReturned { .. })
         ));
-        let undefined = QueryShape {
-            reads: Reads::from_bits_retain(1 << 12),
-            ..QueryShape::DEFAULT
-        };
+        let undefined = QueryShape::DEFAULT.with_reads(Reads::from_bits_retain(1 << 12));
         assert!(matches!(
             QueryDecl::new("query.x", undefined),
             Err(DeclError::UndefinedReads(_))
@@ -3177,10 +3165,10 @@ mod registry_conformance {
         let decl = get(query::CAPE_FLAP_AMOUNT);
         assert_eq!(decl.name(), "query.cape_flap_amount");
         assert_eq!(decl.args(), Arity::ANY);
-        assert_eq!(decl.shape().returns, ReturnType::FLOAT);
+        assert_eq!(decl.shape().returns(), ReturnType::FLOAT);
         let ranges: Vec<(i16, i16, QuerySetMask)> = decl
             .shape()
-            .ranges
+            .ranges()
             .as_slice()
             .iter()
             .map(|r| (r.first().to_i16(), r.last().to_i16(), r.sets()))
@@ -3192,18 +3180,18 @@ mod registry_conformance {
                 (8, 13, QuerySetMask::DEFAULT)
             ]
         );
-        assert!(decl.shape().experiments == molang::version::ExperimentMask::empty());
-        assert!(decl.shape().reads.contains(Reads::ACTOR));
-        assert_eq!(decl.shape().default_return, DefaultReturn::ZERO);
-        assert_eq!(decl.shape().side, QuerySide::BOTH);
+        assert!(decl.shape().experiments() == molang::version::ExperimentMask::empty());
+        assert!(decl.shape().reads().contains(Reads::ACTOR));
+        assert_eq!(decl.shape().default_return(), DefaultReturn::ZERO);
+        assert_eq!(decl.shape().side(), QuerySide::BOTH);
         assert_eq!(
-            get(query::CLIENT_MEMORY_TIER).shape().side,
+            get(query::CLIENT_MEMORY_TIER).shape().side(),
             QuerySide::CLIENT
         );
         for decl in molang::stdlib::queries(Side::Client) {
             assert!(decl.name().starts_with("query."), "{}", decl.name());
             assert!(
-                !decl.shape().ranges.as_slice().is_empty(),
+                !decl.shape().ranges().as_slice().is_empty(),
                 "{}",
                 decl.name()
             );
@@ -3218,8 +3206,11 @@ mod registry_conformance {
 
     #[test]
     fn scoreboard_is_a_server_query() {
-        assert_eq!(get(query::SCOREBOARD).shape().side, QuerySide::Server);
-        assert_ne!(get(query::IS_LOCAL_PLAYER).shape().side, QuerySide::Server);
+        assert_eq!(get(query::SCOREBOARD).shape().side(), QuerySide::Server);
+        assert_ne!(
+            get(query::IS_LOCAL_PLAYER).shape().side(),
+            QuerySide::Server
+        );
     }
 
     #[test]

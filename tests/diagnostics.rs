@@ -717,7 +717,7 @@ fn query_must_return_a_number() {
     let non_numeric = molang::stdlib::queries(Side::Client)
         .iter()
         .find(|decl| {
-            !decl.shape().returns.intersects(ReturnType::NUMBER)
+            !decl.shape().returns().intersects(ReturnType::NUMBER)
                 && decl
                     .resolve(RawVersion(13), &default, ExperimentMask::empty())
                     .is_some()

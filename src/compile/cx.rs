@@ -1026,17 +1026,12 @@ mod tests {
 
     #[test]
     fn a_host_declared_query_is_linted_from_its_declaration() {
-        let mine = QueryShape {
-            args: Arity::exactly(1),
-            side: QuerySide::CLIENT,
-            ..QueryShape::DEFAULT
-        };
-        let client_thing = QueryShape {
-            side: QuerySide::Both {
-                on_dedicated_server: false,
-            },
-            ..QueryShape::DEFAULT
-        };
+        let mine = QueryShape::DEFAULT
+            .with_args(Arity::exactly(1))
+            .with_side(QuerySide::CLIENT);
+        let client_thing = QueryShape::DEFAULT.with_side(QuerySide::Both {
+            on_dedicated_server: false,
+        });
         let catalog = crate::stdlib::queries(Side::Server)
             .extended([
                 QueryDecl::new("query.mine", mine).unwrap(),

@@ -159,12 +159,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The standard server catalogue plus one query of the host's own.
     let name_is_decl = QueryDecl::new(
         "query.name_is",
-        QueryShape {
-            args: Arity::exactly(1),
-            returns: ReturnType::BOOL,
-            reads: Reads::ACTOR,
-            ..QueryShape::DEFAULT
-        },
+        QueryShape::DEFAULT
+            .with_args(Arity::exactly(1))
+            .with_returns(ReturnType::BOOL)
+            .with_reads(Reads::ACTOR),
     )?;
     let catalog = queries(Side::Server).extended([name_is_decl])?;
 

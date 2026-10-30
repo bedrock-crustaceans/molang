@@ -503,10 +503,7 @@ mod tests {
             Side::Client,
             [QueryDecl::new(
                 "query.own",
-                QueryShape {
-                    default_return: DefaultReturn::NEG_ONE,
-                    ..QueryShape::DEFAULT
-                },
+                QueryShape::DEFAULT.with_default_return(DefaultReturn::NEG_ONE),
             )
             .unwrap()],
         )

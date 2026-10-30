@@ -388,10 +388,7 @@ mod tests {
     #[test]
     fn a_query_behind_an_experiment_needs_it() {
         let experiment = Experiment::new(9).unwrap();
-        let shape = QueryShape {
-            experiments: ExperimentMask::empty().with(experiment),
-            ..QueryShape::DEFAULT
-        };
+        let shape = QueryShape::DEFAULT.with_experiments(ExperimentMask::empty().with(experiment));
         let decl = QueryDecl::new("query.x", shape).unwrap();
         assert_eq!(
             decl.resolve(RawVersion(13), &DEFAULT, ExperimentMask::empty()),
@@ -433,14 +430,7 @@ mod tests {
             VersionRange::new(v(5), v(13), QuerySetMask::DEFAULT).unwrap(),
         ])
         .unwrap();
-        let decl = QueryDecl::new(
-            "query.x",
-            QueryShape {
-                ranges,
-                ..QueryShape::DEFAULT
-            },
-        )
-        .unwrap();
+        let decl = QueryDecl::new("query.x", QueryShape::DEFAULT.with_ranges(ranges)).unwrap();
         // The union of the sets admits it; the version picks the range, whatever its own set.
         let tags = QueryAdmission::Sets(QuerySetMask::TAGS);
         assert_eq!(

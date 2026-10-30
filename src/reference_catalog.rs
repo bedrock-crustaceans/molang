@@ -97,20 +97,17 @@ pub fn catalog() -> &'static QueryCatalog {
                 panic!("reference catalogue: the window {first}..={last} is empty")
             })
         };
-        let shape = |returns: ReturnType, first: i16, last: i16| QueryShape {
-            returns,
-            ranges: VersionRanges::single(window(first, last)),
-            ..QueryShape::DEFAULT
+        let shape = |returns: ReturnType, first: i16, last: i16| {
+            QueryShape::DEFAULT
+                .with_returns(returns)
+                .with_ranges(VersionRanges::single(window(first, last)))
         };
         let decls = [
             (GET_NAME_TEST, shape(ReturnType::STRING, -1, 13)),
             (SUM_TEST, shape(ReturnType::FLOAT, -1, 13)),
             (
                 EXPERIMENTAL_TEST,
-                QueryShape {
-                    experiments: EXPERIMENTS,
-                    ..shape(ReturnType::FLOAT, -1, 13)
-                },
+                shape(ReturnType::FLOAT, -1, 13).with_experiments(EXPERIMENTS),
             ),
             ("query.valid_always", shape(ReturnType::FLOAT, 1, 13)),
             ("query.valid_early", shape(ReturnType::FLOAT, 1, 8)),

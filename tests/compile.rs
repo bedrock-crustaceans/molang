@@ -1344,7 +1344,7 @@ mod parsing {
             .find(|decl| {
                 !decl
                     .shape()
-                    .returns
+                    .returns()
                     .intersects(molang::catalog::ReturnType::NUMBER)
                     && decl
                         .resolve(RawVersion(0), &default, ExperimentMask::empty())
@@ -1950,7 +1950,7 @@ mod restrictions {
         );
 
         let name = molang::stdlib::queries(Side::Server).iter().find(|decl| {
-            decl.shape().side == molang::catalog::QuerySide::CLIENT
+            decl.shape().side() == molang::catalog::QuerySide::CLIENT
                 && decl
                     .resolve(
                         RawVersion(13),
@@ -2145,12 +2145,10 @@ mod queries {
     fn a_host_declared_query_compiles_like_a_built_in_one() {
         let my_name = QueryDecl::new(
             "query.my_name",
-            QueryShape {
-                args: Arity::between(0, 1),
-                returns: ReturnType::STRING,
-                side: QuerySide::CLIENT,
-                ..QueryShape::DEFAULT
-            },
+            QueryShape::DEFAULT
+                .with_args(Arity::between(0, 1))
+                .with_returns(ReturnType::STRING)
+                .with_side(QuerySide::CLIENT),
         )
         .unwrap();
         let catalog = molang::stdlib::queries(Side::Server)

@@ -74,10 +74,7 @@ struct Inner {
 ///
 /// let my_thing = QueryDecl::new(
 ///     "query.my_thing",
-///     QueryShape {
-///         args: Arity::between(0, 2),
-///         ..QueryShape::DEFAULT
-///     },
+///     QueryShape::DEFAULT.with_args(Arity::between(0, 2)),
 /// )?;
 /// let catalog = stdlib::queries(Side::Client).extended([my_thing])?;
 /// assert_eq!(catalog.len(), stdlib::queries(Side::Client).len() + 1);
@@ -144,15 +141,13 @@ impl QueryCatalog {
     /// let standard = stdlib::queries(Side::Server);
     /// let health = QueryDecl::new(
     ///     query::HEALTH,
-    ///     QueryShape {
-    ///         args: Arity::exactly(1),
-    ///         returns: ReturnType::BOOL,
-    ///         ..QueryShape::DEFAULT
-    ///     },
+    ///     QueryShape::DEFAULT
+    ///         .with_args(Arity::exactly(1))
+    ///         .with_returns(ReturnType::BOOL),
     /// )?;
     /// let catalog = standard.overriding([health])?;
     /// assert_eq!(catalog.len(), standard.len());
-    /// assert_eq!(catalog.get(query::HEALTH).map(|d| d.shape().returns), Some(ReturnType::BOOL));
+    /// assert_eq!(catalog.get(query::HEALTH).map(|d| d.shape().returns()), Some(ReturnType::BOOL));
     /// # }
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -325,14 +320,8 @@ mod tests {
             [decl("query.a"), decl("query.b"), decl("query.c")],
         )
         .unwrap();
-        let b = QueryDecl::new(
-            "query.b",
-            QueryShape {
-                args: Arity::exactly(2),
-                ..QueryShape::DEFAULT
-            },
-        )
-        .unwrap();
+        let b =
+            QueryDecl::new("query.b", QueryShape::DEFAULT.with_args(Arity::exactly(2))).unwrap();
         let catalog = base.overriding([b.clone()]).unwrap();
         assert_eq!(
             catalog.iter().map(QueryDecl::name).collect::<Vec<_>>(),
@@ -407,14 +396,8 @@ mod tests {
 
     #[test]
     fn a_name_declared_twice_is_refused() {
-        let other = QueryDecl::new(
-            "query.a",
-            QueryShape {
-                args: Arity::exactly(1),
-                ..QueryShape::DEFAULT
-            },
-        )
-        .unwrap();
+        let other =
+            QueryDecl::new("query.a", QueryShape::DEFAULT.with_args(Arity::exactly(1))).unwrap();
         assert_eq!(
             QueryCatalog::new(Side::Client, [decl("query.a"), decl("query.b"), other]).err(),
             Some(CatalogError::Duplicate("query.a".into()))

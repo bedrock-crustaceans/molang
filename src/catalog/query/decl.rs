@@ -415,27 +415,27 @@ pub enum DeclError {
     TaggedRelease(Version),
 }
 
-/// Everything a [`QueryDecl`] declares besides its name. Each field is valid on its own;
-/// [`QueryDecl::new`] checks the rest.
+/// Everything a [`QueryDecl`] declares besides its name, built from [`QueryShape::DEFAULT`] with
+/// the `with_*` setters. Each setting is valid on its own; [`QueryDecl::new`] checks the rest.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct QueryShape {
     /// The argument counts. A call outside them only warns (`DiagCode::QueryArity`).
-    pub args: Arity,
+    pub(crate) args: Arity,
     /// The return type.
-    pub returns: ReturnType,
+    pub(crate) returns: ReturnType,
     /// The version ranges the query resolves at, and its query sets there.
-    pub ranges: VersionRanges,
+    pub(crate) ranges: VersionRanges,
     /// The experiments that must be enabled as well.
-    pub experiments: ExperimentMask,
+    pub(crate) experiments: ExperimentMask,
     /// What the implementation reads.
-    pub reads: Reads,
+    pub(crate) reads: Reads,
     /// The side the query is meaningful on, and whether a server catalogue resolves it.
-    pub side: QuerySide,
+    pub(crate) side: QuerySide,
     /// The value returned without a subject or an implementation; it fits `returns`.
-    pub default_return: DefaultReturn,
+    pub(crate) default_return: DefaultReturn,
     /// The first game release that has the query, without a pre-release tag or build metadata;
     /// `None` for every supported release.
-    pub first_release: Option<Version>,
+    pub(crate) first_release: Option<Version>,
 }
 
 impl QueryShape {
@@ -451,6 +451,106 @@ impl QueryShape {
         default_return: DefaultReturn::ZERO,
         first_release: None,
     };
+
+    /// The argument counts. A call outside them only warns (`DiagCode::QueryArity`).
+    pub const fn args(&self) -> Arity {
+        self.args
+    }
+
+    /// The return type.
+    pub const fn returns(&self) -> ReturnType {
+        self.returns
+    }
+
+    /// The version ranges the query resolves at, and its query sets there.
+    pub const fn ranges(&self) -> VersionRanges {
+        self.ranges
+    }
+
+    /// The experiments that must be enabled as well.
+    pub const fn experiments(&self) -> ExperimentMask {
+        self.experiments
+    }
+
+    /// What the implementation reads.
+    pub const fn reads(&self) -> Reads {
+        self.reads
+    }
+
+    /// The side the query is meaningful on, and whether a server catalogue resolves it.
+    pub const fn side(&self) -> QuerySide {
+        self.side
+    }
+
+    /// The value returned without a subject or an implementation; it fits
+    /// [`returns`](Self::returns).
+    pub const fn default_return(&self) -> DefaultReturn {
+        self.default_return
+    }
+
+    /// The first game release that has the query, without a pre-release tag or build metadata;
+    /// `None` for every supported release.
+    pub const fn first_release(&self) -> Option<&Version> {
+        self.first_release.as_ref()
+    }
+
+    /// This shape with another [`args`](Self::args).
+    #[must_use]
+    pub const fn with_args(mut self, args: Arity) -> Self {
+        self.args = args;
+        self
+    }
+
+    /// This shape with another [`returns`](Self::returns).
+    #[must_use]
+    pub const fn with_returns(mut self, returns: ReturnType) -> Self {
+        self.returns = returns;
+        self
+    }
+
+    /// This shape with another [`ranges`](Self::ranges).
+    #[must_use]
+    pub const fn with_ranges(mut self, ranges: VersionRanges) -> Self {
+        self.ranges = ranges;
+        self
+    }
+
+    /// This shape with another [`experiments`](Self::experiments).
+    #[must_use]
+    pub const fn with_experiments(mut self, experiments: ExperimentMask) -> Self {
+        self.experiments = experiments;
+        self
+    }
+
+    /// This shape with another [`reads`](Self::reads).
+    #[must_use]
+    pub const fn with_reads(mut self, reads: Reads) -> Self {
+        self.reads = reads;
+        self
+    }
+
+    /// This shape with another [`side`](Self::side).
+    #[must_use]
+    pub const fn with_side(mut self, side: QuerySide) -> Self {
+        self.side = side;
+        self
+    }
+
+    /// This shape with another [`default_return`](Self::default_return).
+    #[must_use]
+    pub const fn with_default_return(mut self, default_return: DefaultReturn) -> Self {
+        self.default_return = default_return;
+        self
+    }
+
+    /// This shape with another [`first_release`](Self::first_release).
+    #[must_use]
+    pub fn with_first_release(self, first_release: Option<Version>) -> Self {
+        Self {
+            first_release,
+            ..self
+        }
+    }
 }
 
 impl Default for QueryShape {
@@ -465,11 +565,9 @@ impl Default for QueryShape {
 /// ```
 /// use molang::catalog::{Arity, DeclError, QueryDecl, QueryShape, ReturnType};
 ///
-/// let shape = QueryShape {
-///     args: Arity::between(0, 2),
-///     returns: ReturnType::BOOL,
-///     ..QueryShape::DEFAULT
-/// };
+/// let shape = QueryShape::DEFAULT
+///     .with_args(Arity::between(0, 2))
+///     .with_returns(ReturnType::BOOL);
 /// let decl = QueryDecl::new("query.my_thing", shape)?;
 /// assert_eq!(decl.args(), Arity::between(0, 2));
 /// assert_eq!(
@@ -728,11 +826,9 @@ mod tests {
                 Err(DeclError::Name(bad.into())),
                 "{bad:?}"
             );
-            let misfit = QueryShape {
-                returns: ReturnType::STRING,
-                default_return: DefaultReturn::ONE,
-                ..shape()
-            };
+            let misfit = shape()
+                .with_returns(ReturnType::STRING)
+                .with_default_return(DefaultReturn::ONE);
             assert_eq!(
                 QueryDecl::new(bad, misfit),
                 Err(DeclError::Name(bad.into())),
@@ -745,20 +841,14 @@ mod tests {
     fn a_first_release_with_a_tag_or_build_metadata_is_rejected() {
         for text in ["1.26.30-beta", "1.26.30+build", "1.26.30-rc.1+b"] {
             let release = Version::parse(text).unwrap();
-            let tagged = QueryShape {
-                first_release: Some(release.clone()),
-                ..shape()
-            };
+            let tagged = shape().with_first_release(Some(release.clone()));
             assert_eq!(x(tagged), Err(DeclError::TaggedRelease(release)), "{text}");
         }
         assert_eq!(
             DeclError::TaggedRelease(Version::parse("1.26.30-beta").unwrap()).to_string(),
             "the first release 1.26.30-beta has a pre-release tag or build metadata"
         );
-        let plain = QueryShape {
-            first_release: Some(Version::new(1, 26, 30)),
-            ..shape()
-        };
+        let plain = shape().with_first_release(Some(Version::new(1, 26, 30)));
         assert!(x(plain).is_ok());
     }
 
@@ -839,11 +929,9 @@ mod tests {
     #[test]
     fn the_default_fits_the_return_type() {
         let with = |returns: ReturnType, default_return: DefaultReturn| {
-            x(QueryShape {
-                returns,
-                default_return,
-                ..shape()
-            })
+            x(shape()
+                .with_returns(returns)
+                .with_default_return(default_return))
         };
         assert_eq!(
             with(ReturnType::STRING, DefaultReturn::EmptyActorArray),
@@ -927,12 +1015,9 @@ mod tests {
         let every = VersionRanges::new((-1..=13).map(|raw| range(raw, raw))).unwrap();
         assert_eq!(every.as_slice().len(), 15);
         assert_eq!(
-            x(QueryShape {
-                ranges: every,
-                ..shape()
-            })
-            .unwrap()
-            .implementation_at(MolangVersion::LATEST),
+            x(shape().with_ranges(every))
+                .unwrap()
+                .implementation_at(MolangVersion::LATEST),
             Some(14)
         );
     }
@@ -967,23 +1052,14 @@ mod tests {
     fn a_read_set_with_an_undefined_bit_is_rejected() {
         let undefined = Reads::ACTOR | Reads::from_bits_retain(1 << 12);
         assert_eq!(
-            x(QueryShape {
-                reads: undefined,
-                ..shape()
-            }),
+            x(shape().with_reads(undefined)),
             Err(DeclError::UndefinedReads(undefined))
         );
         assert_eq!(
             DeclError::UndefinedReads(undefined).to_string(),
             "the read set {Actor, 0x1000} has a bit no `Reads` constant names"
         );
-        assert!(
-            x(QueryShape {
-                reads: Reads::all(),
-                ..shape()
-            })
-            .is_ok()
-        );
+        assert!(x(shape().with_reads(Reads::all())).is_ok());
     }
 
     #[test]

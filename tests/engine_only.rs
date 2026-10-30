@@ -9,15 +9,10 @@ use molang::version::MolangVersion;
 
 /// `query.double(x)` and `query.actors`.
 fn catalog() -> QueryCatalog {
-    let double = QueryShape {
-        args: Arity::exactly(1),
-        returns: ReturnType::FLOAT,
-        ..QueryShape::DEFAULT
-    };
-    let actors = QueryShape {
-        returns: ReturnType::ACTOR_ARRAY,
-        ..QueryShape::DEFAULT
-    };
+    let double = QueryShape::DEFAULT
+        .with_args(Arity::exactly(1))
+        .with_returns(ReturnType::FLOAT);
+    let actors = QueryShape::DEFAULT.with_returns(ReturnType::ACTOR_ARRAY);
     let decls = [
         QueryDecl::new("query.double", double).expect("a declaration"),
         QueryDecl::new("query.actors", actors).expect("a declaration"),

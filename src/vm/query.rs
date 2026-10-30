@@ -487,11 +487,9 @@ mod tests {
     fn decl(name: &str, returns: ReturnType, default_return: DefaultReturn) -> QueryDecl {
         QueryDecl::new(
             name,
-            QueryShape {
-                returns,
-                default_return,
-                ..QueryShape::DEFAULT
-            },
+            QueryShape::DEFAULT
+                .with_returns(returns)
+                .with_default_return(default_return),
         )
         .unwrap()
     }
@@ -1257,11 +1255,9 @@ mod tests {
         let ranges = ranges.iter().map(|&(first, last)| {
             VersionRange::new(v(first), v(last), QuerySetMask::DEFAULT).unwrap()
         });
-        let shape = QueryShape {
-            ranges: VersionRanges::new(ranges).unwrap(),
-            default_return: default,
-            ..QueryShape::DEFAULT
-        };
+        let shape = QueryShape::DEFAULT
+            .with_ranges(VersionRanges::new(ranges).unwrap())
+            .with_default_return(default);
         QueryCatalog::new(Side::Client, [QueryDecl::new("query.x", shape).unwrap()]).unwrap()
     }
 
