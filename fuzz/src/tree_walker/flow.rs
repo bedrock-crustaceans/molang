@@ -189,7 +189,7 @@ impl<H: Host> Walker<H> {
             if numeric::le(counter, 0.0) {
                 return Ok(());
             }
-            if let Some(limit) = cx.limits.loop_iterations
+            if let Some(limit) = cx.limits.loop_iterations()
                 && iterations >= limit
             {
                 self.loop_guard(cx, limit);
@@ -236,7 +236,7 @@ impl<H: Host> Walker<H> {
             };
             // The budget is tested once a live entry is found, so an array whose remaining
             // entries are all dead ends without the message.
-            if let Some(limit) = cx.limits.loop_iterations
+            if let Some(limit) = cx.limits.loop_iterations()
                 && iterations >= limit
             {
                 self.loop_guard(cx, limit);
@@ -394,7 +394,7 @@ mod tests {
     #[test]
     fn the_loop_guard_leaves_a_long_loop_with_one_message() {
         let mut start = Env::new();
-        start.limits.loop_iterations = Some(4);
+        start.limits = start.limits.with_loop_iterations(Some(4));
         let run = both_on(
             "v.n = 0; loop(100, { v.n = v.n + 1; }); loop(100, { v.n = v.n + 1; }); return v.n;",
             &start,
@@ -441,7 +441,7 @@ mod tests {
     #[test]
     fn for_each_is_bounded_by_the_loop_guard() {
         let mut start = Env::new();
-        start.limits.loop_iterations = Some(1);
+        start.limits = start.limits.with_loop_iterations(Some(1));
         let run = both_on(
             "v.n = 0; for_each(t.e, c.arr, { v.n = v.n + 1; }); return v.n;",
             &start,
@@ -629,7 +629,7 @@ mod tests {
     #[test]
     fn the_loop_guard_speaks_once_for_all_the_loops_of_an_evaluation() {
         let mut start = Env::new();
-        start.limits.loop_iterations = Some(2);
+        start.limits = start.limits.with_loop_iterations(Some(2));
         let src = "v.n = 0; loop(9, { v.n = v.n + 1; }); for_each(t.e, c.arr, { v.n = v.n + 10; }); loop(9, { v.n = v.n + 100; }); return v.n;";
         let run = both_on(src, &start);
         assert_eq!(run.f(), 2.0 + 20.0 + 200.0);
@@ -649,14 +649,14 @@ mod tests {
     #[test]
     fn an_unlimited_loop_budget_runs_to_the_count() {
         let mut start = Env::new();
-        start.limits.loop_iterations = None;
+        start.limits = start.limits.with_loop_iterations(None);
         let run = both_on(
             "v.n = 0; loop(300, { v.n = v.n + 1; }); return v.n;",
             &start,
         );
         assert_eq!(run.f(), 300.0);
         assert!(run.env.messages().is_empty());
-        start.limits.loop_iterations = Some(0);
+        start.limits = start.limits.with_loop_iterations(Some(0));
         let run = both_on(
             "v.n = 0; loop(300, { v.n = v.n + 1; }); return v.n;",
             &start,

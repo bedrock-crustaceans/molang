@@ -138,7 +138,7 @@ mod lowering {
             let b = compile(&respaced, &options);
             prop_assert_eq!(outcome(&a, false), outcome(&b, false), "{:?} vs {:?}", source, respaced);
             if let (Some(x), Some(y)) = (&a.expr(), &b.expr()) {
-                let limits = EvalLimits { loop_iterations: Some(16), total_steps: Some(2_000), ..EvalLimits::DEFAULT };
+                let limits = EvalLimits::DEFAULT.with_loop_iterations(Some(16)).with_total_steps(Some(2_000));
                 let start = FuzzEnv::new(Subject::Actor, TempLifetime::PerEvaluation, limits, FuzzRng::Xorshift(Xorshift128::new()));
                 let (mut first, mut second) = (start.clone(), start);
                 let u = x.eval(&mut first.cx());
@@ -209,11 +209,9 @@ mod vm_host {
             forced_source
         );
 
-        let limits = EvalLimits {
-            loop_iterations: Some(case.loop_iterations),
-            total_steps: Some(100_000),
-            ..EvalLimits::DEFAULT
-        };
+        let limits = EvalLimits::DEFAULT
+            .with_loop_iterations(Some(case.loop_iterations))
+            .with_total_steps(Some(100_000));
         let start = FuzzEnv::new(case.subject, case.temps, limits, case.rng());
         let mut float_env = start.clone();
         let float = expr.eval_f32(&mut float_env.cx());

@@ -554,11 +554,11 @@ mod eval_budgets {
         #[test]
         fn struct_depth_at_the_limit() {
             assert_eq!(
-                EvalLimits::DEFAULT.struct_depth,
+                EvalLimits::DEFAULT.struct_depth(),
                 Some(EvalLimits::DEFAULT_STRUCT_DEPTH)
             );
             assert_eq!(EvalLimits::DEFAULT_STRUCT_DEPTH, 32);
-            assert_eq!(EvalLimits::NONE.struct_depth, None);
+            assert_eq!(EvalLimits::NONE.struct_depth(), None);
             let store = |members: usize| format!("v.x{} = 1; return 7;", ".m".repeat(members));
             let mut env = NoHostEnv::new();
             assert_eq!(expr(&store(32)).eval_f32(&mut env.cx()), 7.0);
@@ -758,14 +758,9 @@ mod eval_budgets {
                 ("1000 x 300 looped", looped(1000, 300)),
                 ("2700 x 3000 flat", flat(2700, 3000)),
             ];
-            let width_off = EvalLimits {
-                struct_members: None,
-                ..EvalLimits::DEFAULT
-            };
-            let unlimited_with_steps = EvalLimits {
-                total_steps: Some(EvalLimits::DEFAULT_TOTAL_STEPS),
-                ..EvalLimits::NONE
-            };
+            let width_off = EvalLimits::DEFAULT.with_struct_members(None);
+            let unlimited_with_steps =
+                EvalLimits::NONE.with_total_steps(Some(EvalLimits::DEFAULT_TOTAL_STEPS));
             for (label, source) in &repros {
                 let (result, messages, took, retained) = run(source, EvalLimits::DEFAULT);
                 assert_eq!(
@@ -825,11 +820,11 @@ mod eval_budgets {
         #[test]
         fn struct_width_at_the_limit() {
             assert_eq!(
-                EvalLimits::DEFAULT.struct_members,
+                EvalLimits::DEFAULT.struct_members(),
                 Some(EvalLimits::DEFAULT_STRUCT_MEMBERS)
             );
             assert_eq!(EvalLimits::DEFAULT_STRUCT_MEMBERS, 256);
-            assert_eq!(EvalLimits::NONE.struct_members, None);
+            assert_eq!(EvalLimits::NONE.struct_members(), None);
             assert!(EvalLimits::NONE.is_unlimited());
             let fill = |members: usize| {
                 (0..members).fold(String::new(), |mut s, i| {
@@ -897,7 +892,7 @@ mod eval_budgets {
             assert_eq!(width(&env), Some(1000));
             // A budget of 0 refuses every new member, including the first.
             let mut env = NoHostEnv::new();
-            env.limits.struct_members = Some(0);
+            env.limits = env.limits.with_struct_members(Some(0));
             assert_eq!(expr("v.s.a = 1; return 1;").eval_f32(&mut env.cx()), 0.0);
             assert_eq!(
                 env.sink.take(),
@@ -912,7 +907,7 @@ mod eval_budgets {
             (0..10_000)
                 .find(|&steps| {
                     let mut env = env();
-                    env.limits.total_steps = Some(steps);
+                    env.limits = env.limits.with_total_steps(Some(steps));
                     expr.eval(&mut env.cx());
                     env.sink.is_empty()
                 })
@@ -1229,8 +1224,8 @@ mod eval_budgets {
         use crate::common::host::Env;
         use crate::common::rng::Xorshift128;
         use molang::vm::{CollectSink, EvalLimits};
-        assert_eq!(EvalLimits::DEFAULT.query_depth, None);
-        assert_eq!(EvalLimits::NONE.query_depth, None);
+        assert_eq!(EvalLimits::DEFAULT.query_depth(), None);
+        assert_eq!(EvalLimits::NONE.query_depth(), None);
         let nested = |depth: usize| format!("{}1{}", "query.log(".repeat(depth), ")".repeat(depth));
         let run = |depth: usize, budget: u32| {
             let expr = at(&nested(depth), 13).expr().cloned().expect("compiles");
@@ -1238,7 +1233,7 @@ mod eval_budgets {
                 .stack_size(128 << 10)
                 .spawn(move || {
                     let mut env = Env::new();
-                    env.limits.query_depth = Some(budget);
+                    env.limits = env.limits.with_query_depth(Some(budget));
                     let mut rng = Xorshift128::new();
                     let mut sink = CollectSink::new();
                     let value = env.with_cx(&mut rng, &mut sink, |cx| expr.eval_f32(cx));
@@ -1291,11 +1286,9 @@ mod eval_budgets {
             assert!(env.sink.is_empty());
 
             // The budget is per loop: each inner loop gets its own.
-            env.limits = EvalLimits {
-                loop_iterations: Some(10),
-                total_steps: None,
-                ..EvalLimits::NONE
-            };
+            env.limits = EvalLimits::NONE
+                .with_loop_iterations(Some(10))
+                .with_total_steps(None);
             assert_eq!(
                 eval_in(
                     &mut env,
@@ -1339,10 +1332,7 @@ mod eval_budgets {
         #[test]
         fn step_budget_logs_once() {
             let mut env = Env::new();
-            env.limits = EvalLimits {
-                total_steps: Some(500),
-                ..EvalLimits::NONE
-            };
+            env.limits = EvalLimits::NONE.with_total_steps(Some(500));
             let expr = server_expr(
                 "query.log(math.die_roll(1000, 1, 2), math.die_roll(1000, 1, 2), 3) + math.die_roll(1000, 1, 2)",
             );
@@ -1371,10 +1361,7 @@ mod eval_budgets {
                 let mut env = NoHostEnv::new();
                 env.variables
                     .set(VariableName::new("s"), Value::string("moo"));
-                env.limits = EvalLimits {
-                    total_steps: Some(steps),
-                    ..EvalLimits::NONE
-                };
+                env.limits = EvalLimits::NONE.with_total_steps(Some(steps));
                 let value = if as_f32 {
                     Value::Float(expr.eval_f32(&mut env.cx()))
                 } else {
@@ -1403,10 +1390,7 @@ mod eval_budgets {
             let mut env = NoHostEnv::new();
             env.variables
                 .set(VariableName::new("s"), Value::string("moo"));
-            env.limits = EvalLimits {
-                total_steps: Some(4),
-                ..EvalLimits::NONE
-            };
+            env.limits = EvalLimits::NONE.with_total_steps(Some(4));
             store.eval(&mut env.cx());
             assert!(env.sink.is_empty(), "{:?}", env.sink.messages());
             assert_eq!(
@@ -1420,11 +1404,9 @@ mod eval_budgets {
         #[test]
         fn step_budget() {
             let mut env = NoHostEnv {
-                limits: EvalLimits {
-                    loop_iterations: None,
-                    total_steps: Some(10_000),
-                    ..EvalLimits::NONE
-                },
+                limits: EvalLimits::NONE
+                    .with_loop_iterations(None)
+                    .with_total_steps(Some(10_000)),
                 ..NoHostEnv::new()
             };
             // An f32 counter of 1e30 never reaches 0.
@@ -1478,10 +1460,7 @@ mod eval_limit_fields {
 
     #[test]
     fn loop_iterations_leave_the_loop_and_say_so_once() {
-        let limits = EvalLimits {
-            loop_iterations: Some(3),
-            ..EvalLimits::NONE
-        };
+        let limits = EvalLimits::NONE.with_loop_iterations(Some(3));
         let source = "t.n = 0; loop(10, {t.n = t.n + 1;}); return t.n;";
         assert_eq!(
             run(limits, source),
@@ -1498,10 +1477,7 @@ mod eval_limit_fields {
 
     #[test]
     fn total_steps_end_the_evaluation_with_run() {
-        let limits = EvalLimits {
-            total_steps: Some(40),
-            ..EvalLimits::NONE
-        };
+        let limits = EvalLimits::NONE.with_total_steps(Some(40));
         assert_eq!(
             run(limits, "t.n = 0; loop(100, {t.n = t.n + 1;}); return t.n;"),
             (
@@ -1514,10 +1490,7 @@ mod eval_limit_fields {
 
     #[test]
     fn struct_depth_refuses_a_store_that_nests_deeper() {
-        let limits = EvalLimits {
-            struct_depth: Some(1),
-            ..EvalLimits::NONE
-        };
+        let limits = EvalLimits::NONE.with_struct_depth(Some(1));
         assert_eq!(run(limits, "v.a.b = 1; return 5;"), (5.0, vec![]));
         assert_eq!(
             run(limits, "v.a.b.c = 1; return 5;"),
@@ -1527,10 +1500,7 @@ mod eval_limit_fields {
 
     #[test]
     fn struct_members_refuse_a_store_that_widens_a_struct() {
-        let limits = EvalLimits {
-            struct_members: Some(2),
-            ..EvalLimits::NONE
-        };
+        let limits = EvalLimits::NONE.with_struct_members(Some(2));
         assert_eq!(
             run(
                 limits,
@@ -1546,20 +1516,14 @@ mod eval_limit_fields {
 
     #[test]
     fn query_depth_refuses_an_argument_that_runs_too_deep() {
-        let limits = EvalLimits {
-            query_depth: Some(1),
-            ..EvalLimits::NONE
-        };
+        let limits = EvalLimits::NONE.with_query_depth(Some(1));
         assert_eq!(run(limits, "q.is_baby(7)"), (7.0, vec![]));
         assert_eq!(
             run(limits, "q.is_baby(q.is_baby(7))"),
             (0.0, vec!["molang: evaluation stopped: query arguments would nest deeper than their budget of 1 levels".to_owned()])
         );
         // Zero lets no query evaluate an argument.
-        let none = EvalLimits {
-            query_depth: Some(0),
-            ..EvalLimits::NONE
-        };
+        let none = EvalLimits::NONE.with_query_depth(Some(0));
         assert_eq!(
             run(none, "q.is_baby(7)").1,
             [
@@ -1571,10 +1535,7 @@ mod eval_limit_fields {
     /// What `Some(0)` means for each field, as the field docs say.
     #[test]
     fn a_zero_budget() {
-        let loops = EvalLimits {
-            loop_iterations: Some(0),
-            ..EvalLimits::NONE
-        };
+        let loops = EvalLimits::NONE.with_loop_iterations(Some(0));
         assert_eq!(
             run(loops, "t.n = 0; loop(2, {t.n = t.n + 1;}); return t.n + 5;"),
             (
@@ -1583,10 +1544,7 @@ mod eval_limit_fields {
             ),
             "a loop runs its first iteration"
         );
-        let steps = EvalLimits {
-            total_steps: Some(0),
-            ..EvalLimits::NONE
-        };
+        let steps = EvalLimits::NONE.with_total_steps(Some(0));
         assert_eq!(
             run(steps, "1 + 2"),
             (3.0, vec![]),
@@ -1596,19 +1554,13 @@ mod eval_limit_fields {
             run(steps, "v.a ?? 4").1,
             ["molang: evaluation stopped after its budget of 0 steps"]
         );
-        let depth = EvalLimits {
-            struct_depth: Some(0),
-            ..EvalLimits::NONE
-        };
+        let depth = EvalLimits::NONE.with_struct_depth(Some(0));
         assert_eq!(
             run(depth, "v.a.b = 1; return 5;"),
             (0.0, vec!["molang: evaluation stopped: a struct would nest deeper than its budget of 0 levels".to_owned()])
         );
         assert_eq!(run(depth, "v.a = 1; return 5;"), (5.0, vec![]));
-        let members = EvalLimits {
-            struct_members: Some(0),
-            ..EvalLimits::NONE
-        };
+        let members = EvalLimits::NONE.with_struct_members(Some(0));
         assert_eq!(
             run(members, "v.s.a = 1; return 9;"),
             (0.0, vec!["molang: evaluation stopped: a struct would hold more than its budget of 0 members".to_owned()])
@@ -1620,21 +1572,21 @@ mod eval_limit_fields {
         let default = EvalLimits::DEFAULT;
         assert_eq!(
             (
-                default.loop_iterations,
-                default.total_steps,
-                default.struct_depth,
-                default.struct_members
+                default.loop_iterations(),
+                default.total_steps(),
+                default.struct_depth(),
+                default.struct_members()
             ),
             (Some(1024), Some(1_048_576), Some(32), Some(256))
         );
         let unlimited = EvalLimits::NONE;
         assert_eq!(
             (
-                unlimited.loop_iterations,
-                unlimited.total_steps,
-                unlimited.struct_depth,
-                unlimited.struct_members,
-                unlimited.query_depth
+                unlimited.loop_iterations(),
+                unlimited.total_steps(),
+                unlimited.struct_depth(),
+                unlimited.struct_members(),
+                unlimited.query_depth()
             ),
             (None, None, None, None, None)
         );

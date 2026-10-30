@@ -369,7 +369,7 @@ pub(crate) mod test_support {
     ) -> u64 {
         let completes = |steps: u64| {
             let mut env = server_env();
-            env.limits.total_steps = Some(steps);
+            env.limits = env.limits.with_total_steps(Some(steps));
             setup(&mut env);
             let _ = run(expr, &mut env);
             !step_limit_hit(&env.sink.take())
@@ -504,8 +504,8 @@ pub(crate) mod test_support {
 
     pub(crate) fn limited(depth: Option<u32>, members: Option<u32>) -> impl Fn(&mut TestEnv) {
         move |env| {
-            env.limits.struct_depth = depth;
-            env.limits.struct_members = members;
+            env.limits = env.limits.with_struct_depth(depth);
+            env.limits = env.limits.with_struct_members(members);
         }
     }
 }
@@ -636,7 +636,7 @@ mod tests {
     fn outcome(expr: &Expr, general: bool, steps: u64) -> Outcome {
         let mut env = test_env();
         sample_vars(&mut env);
-        env.limits.total_steps = Some(steps);
+        env.limits = env.limits.with_total_steps(Some(steps));
         let value = if general {
             eval_general(expr, &mut env)
         } else {

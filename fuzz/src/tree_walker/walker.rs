@@ -73,7 +73,7 @@ impl<H: Host> Walker<H> {
             return Ok(());
         }
         self.steps = self.steps.saturating_add(cost);
-        if let Some(limit) = cx.limits.total_steps
+        if let Some(limit) = cx.limits.total_steps()
             && self.steps > limit
         {
             self.stopped = true;

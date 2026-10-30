@@ -4631,63 +4631,12 @@ mod deviation_switches {
     #[cfg(feature = "vm")]
     #[test]
     fn every_evaluator_budget_switches_off() {
-        assert_eq!(EvalLimits::NONE.loop_iterations, None);
-        assert_eq!(EvalLimits::NONE.total_steps, None);
-        assert_eq!(EvalLimits::NONE.struct_depth, None);
-        assert_eq!(EvalLimits::DEFAULT.loop_iterations, Some(1_024));
-        assert_eq!(EvalLimits::DEFAULT.total_steps, Some(1_048_576));
-        assert_eq!(EvalLimits::DEFAULT.struct_depth, Some(32));
+        assert_eq!(EvalLimits::NONE.loop_iterations(), None);
+        assert_eq!(EvalLimits::NONE.total_steps(), None);
+        assert_eq!(EvalLimits::NONE.struct_depth(), None);
+        assert_eq!(EvalLimits::DEFAULT.loop_iterations(), Some(1_024));
+        assert_eq!(EvalLimits::DEFAULT.total_steps(), Some(1_048_576));
+        assert_eq!(EvalLimits::DEFAULT.struct_depth(), Some(32));
         assert_eq!(EvalLimits::OPERAND_STACK_CAP, 65_536);
-    }
-}
-
-mod public_fields {
-    //! These tests name every field, so a field becoming private, or a new one, fails to compile.
-
-    #[cfg(feature = "vm")]
-    use molang::vm::EvalLimits;
-
-    #[cfg(feature = "vm")]
-    #[test]
-    fn eval_limits_are_a_struct_of_public_budgets() {
-        let EvalLimits {
-            loop_iterations,
-            total_steps,
-            struct_depth,
-            struct_members,
-            query_depth,
-        } = EvalLimits::DEFAULT;
-        assert_eq!(
-            (
-                loop_iterations,
-                total_steps,
-                struct_depth,
-                struct_members,
-                query_depth
-            ),
-            (Some(1_024), Some(1_048_576), Some(32), Some(256), None)
-        );
-        let EvalLimits {
-            loop_iterations,
-            total_steps,
-            struct_depth,
-            struct_members,
-            query_depth,
-        } = EvalLimits::NONE;
-        assert_eq!(
-            (
-                loop_iterations,
-                total_steps,
-                struct_depth,
-                struct_members,
-                query_depth
-            ),
-            (None, None, None, None, None)
-        );
-        let custom = EvalLimits {
-            loop_iterations: Some(3),
-            ..EvalLimits::NONE
-        };
-        assert_eq!(custom.loop_iterations, Some(3));
     }
 }

@@ -313,11 +313,9 @@ mod control_flow {
             Some(&Value::Actor(Actor::Id(3)))
         );
         // The loop guard applies to `for_each` too.
-        env.limits = EvalLimits {
-            loop_iterations: Some(1),
-            total_steps: None,
-            ..EvalLimits::NONE
-        };
+        env.limits = EvalLimits::NONE
+            .with_loop_iterations(Some(1))
+            .with_total_steps(None);
         let expr = server_expr("t.n = 0; for_each(t.a, v.herd, {t.n = t.n + 1;}); return t.n;");
         let mut rng = Xorshift128::new();
         let mut sink = CollectSink::new();
@@ -865,10 +863,7 @@ mod evaluation_model {
         env.world.alive.extend([1, 2]);
         env.context
             .set(ContextName::new("moo"), Value::Actor(Actor::Handle(2)));
-        env.limits = EvalLimits {
-            total_steps: Some(50),
-            ..EvalLimits::NONE
-        };
+        env.limits = EvalLimits::NONE.with_total_steps(Some(50));
         let expr = server_expr("v.r = c.moo->q.log(math.die_roll(1000, 1, 2)); return 1;");
         let mut rng = Xorshift128::new();
         let mut sink = CollectSink::new();
@@ -890,11 +885,9 @@ mod evaluation_model {
     #[test]
     fn large_loop_counts_stick() {
         let mut env = NoHostEnv {
-            limits: EvalLimits {
-                loop_iterations: None,
-                total_steps: Some(20_000),
-                ..EvalLimits::NONE
-            },
+            limits: EvalLimits::NONE
+                .with_loop_iterations(None)
+                .with_total_steps(Some(20_000)),
             ..NoHostEnv::new()
         };
         for count in ["33554432", "16777220", "16777228", "v.inf"] {

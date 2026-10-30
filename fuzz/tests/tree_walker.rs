@@ -133,12 +133,10 @@ mod differential {
             for steps in 0..=300 {
                 for struct_members in [0, 1, 2, 3, u32::MAX] {
                     for query_depth in [0, 1, 2, u32::MAX] {
-                        let limits = EvalLimits {
-                            total_steps: Some(steps),
-                            struct_members: Some(struct_members),
-                            query_depth: Some(query_depth),
-                            ..EvalLimits::DEFAULT
-                        };
+                        let limits = EvalLimits::DEFAULT
+                            .with_total_steps(Some(steps))
+                            .with_struct_members(Some(struct_members))
+                            .with_query_depth(Some(query_depth));
                         if let (_, Some(why)) = differential(&expr, &env, &rng, limits) {
                             panic!("{source:?} under {limits:?}: {why}");
                         }
@@ -228,10 +226,7 @@ mod float_loop {
                 "{source}: a query is never FLOAT_ONLY"
             );
             let mut budgets = vec![EvalLimits::DEFAULT];
-            budgets.extend((0..12).map(|steps| EvalLimits {
-                total_steps: Some(steps),
-                ..EvalLimits::DEFAULT
-            }));
+            budgets.extend((0..12).map(|steps| EvalLimits::DEFAULT.with_total_steps(Some(steps))));
             for limits in budgets {
                 let mut vm_env = env(limits);
                 let mut walker_env = env(limits);

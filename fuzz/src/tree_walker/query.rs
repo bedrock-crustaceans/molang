@@ -89,7 +89,7 @@ impl<H: Host> Walker<H> {
         if self.stopped {
             return Value::ZERO;
         }
-        if let Some(limit) = cx.limits.query_depth
+        if let Some(limit) = cx.limits.query_depth()
             && self.arg_depth >= limit
         {
             self.stopped = true;
@@ -203,7 +203,7 @@ mod tests {
     #[test]
     fn query_arguments_nest_only_as_deep_as_the_budget() {
         let mut start = Env::new();
-        start.limits.query_depth = Some(1);
+        start.limits = start.limits.with_query_depth(Some(1));
         let run = both_on("q.sum_test(1, 2)", &start);
         assert_eq!(run.f(), 3.0, "one level of arguments is allowed");
         let run = both_on("q.sum_test(q.sum_test(1), 2)", &start);
@@ -214,7 +214,7 @@ mod tests {
                 "molang: evaluation stopped: query arguments would nest deeper than their budget of 1 levels"
             ]
         );
-        start.limits.query_depth = Some(0);
+        start.limits = start.limits.with_query_depth(Some(0));
         let run = both_on("q.sum_test(1)", &start);
         assert_eq!(run.f(), 0.0);
         assert_eq!(run.env.messages().len(), 1);
@@ -226,7 +226,7 @@ mod tests {
         let tree = tree(&expr).expect("a tree");
         let mut walker = Walker::<World>::new(&expr);
         let mut env = Env::new();
-        env.limits.query_depth = Some(1);
+        env.limits = env.limits.with_query_depth(Some(1));
         let mut cx = env.cx();
         assert_eq!(walker.run_arg(tree, &mut cx), Value::Float(3.0));
         assert_eq!(walker.arg_depth, 0);

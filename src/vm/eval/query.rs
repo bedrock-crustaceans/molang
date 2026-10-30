@@ -150,7 +150,7 @@ mod tests {
             "v.a = 1; v.b = q.position(q.position(1)); v.c = 1; return 5;",
             |env| {
                 table(env).set(query::POSITION, first_arg).unwrap();
-                env.limits.query_depth = Some(limit);
+                env.limits = env.limits.with_query_depth(Some(limit));
             },
         )
     }
@@ -172,14 +172,14 @@ mod tests {
     fn a_query_budget_of_zero_lets_no_query_evaluate_an_argument() {
         let r = ran("v.a = q.position(1); v.c = 1;", |env| {
             table(env).set(query::POSITION, first_arg).unwrap();
-            env.limits.query_depth = Some(0);
+            env.limits = env.limits.with_query_depth(Some(0));
         });
         assert_eq!(r.msgs, [format!("{QUERY_DEPTH_MSG} 0 levels")]);
         assert!(r.var("a").is_none() && r.var("c").is_none());
         // A query with no argument is not an argument: it still runs.
         let r = ran("q.is_baby", |env| {
             table(env).set(query::IS_BABY, five).unwrap();
-            env.limits.query_depth = Some(0);
+            env.limits = env.limits.with_query_depth(Some(0));
         });
         assert_eq!(r.value, NV::Float(5.0));
         assert!(r.msgs.is_empty());
@@ -201,7 +201,7 @@ mod tests {
         let program = expr.program().unwrap();
         let start = program.calls[0].args[0];
         let mut env = test_env();
-        env.limits.query_depth = Some(1);
+        env.limits = env.limits.with_query_depth(Some(1));
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(program, Some(100));
         vm.acc = NV::Float(42.0);

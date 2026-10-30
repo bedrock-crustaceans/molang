@@ -423,7 +423,7 @@ mod tests {
     fn the_guard_allows_exactly_its_budget_of_iterations() {
         let with = |count: f32| {
             ran(COUNT_LOOP, |env| {
-                env.limits.loop_iterations = Some(4);
+                env.limits = env.limits.with_loop_iterations(Some(4));
                 set(env, &[("c", count), ("n", 0.0)]);
             })
         };
@@ -437,7 +437,7 @@ mod tests {
         );
         // The first iteration is always allowed.
         let r = ran(COUNT_LOOP, |env| {
-            env.limits.loop_iterations = Some(1);
+            env.limits = env.limits.with_loop_iterations(Some(1));
             set(env, &[("c", 9.0), ("n", 0.0)]);
         });
         assert_eq!(r.value, NV::Float(1.0));
@@ -450,7 +450,7 @@ mod tests {
     #[test]
     fn a_loop_budget_of_zero_still_runs_the_first_iteration() {
         let r = ran(COUNT_LOOP, |env| {
-            env.limits.loop_iterations = Some(0);
+            env.limits = env.limits.with_loop_iterations(Some(0));
             set(env, &[("c", 3.0), ("n", 0.0)]);
         });
         assert_eq!(r.value, NV::Float(1.0));
@@ -475,7 +475,7 @@ mod tests {
         let r = ran(
             "loop(10, { v.a = v.a + 1; }); loop(10, { v.b = v.b + 1; }); return v.a + v.b;",
             |env| {
-                env.limits.loop_iterations = Some(3);
+                env.limits = env.limits.with_loop_iterations(Some(3));
                 set(env, &[("a", 0.0), ("b", 0.0)]);
             },
         );
@@ -488,7 +488,7 @@ mod tests {
         let r = ran(
             "loop(2, { loop(10, { v.n = v.n + 1; }); }); return v.n;",
             |env| {
-                env.limits.loop_iterations = Some(3);
+                env.limits = env.limits.with_loop_iterations(Some(3));
                 set(env, &[("n", 0.0)]);
             },
         );
@@ -500,7 +500,7 @@ mod tests {
         // Another evaluation logs it again.
         let expr = compile_ok("loop(10, { v.n = v.n + 1; });");
         let mut env = test_env();
-        env.limits.loop_iterations = Some(3);
+        env.limits = env.limits.with_loop_iterations(Some(3));
         set(&mut env, &[("n", 0.0)]);
         expr.eval(&mut env.cx());
         expr.eval(&mut env.cx());
@@ -661,7 +661,7 @@ mod tests {
     fn a_pending_positive_operand_is_counted_down_instead_of_the_counter() {
         let program = loop_with_pending(ConstIdx(2));
         let mut env = counted_env();
-        env.limits.loop_iterations = Some(5);
+        env.limits = env.limits.with_loop_iterations(Some(5));
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, NV>::new(&program, Some(1000));
         vm.run(&program, &mut cx, 0, Base::ROOT).unwrap();
@@ -889,7 +889,7 @@ mod tests {
     #[test]
     fn the_loop_guard_applies_to_for_each() {
         let r = each(COUNT_EACH, herd(&[1, 2, 3, 4, 5]), |env| {
-            env.limits.loop_iterations = Some(2);
+            env.limits = env.limits.with_loop_iterations(Some(2));
         });
         assert_eq!(r.value, HV::Float(2.0));
         assert_eq!(
@@ -898,7 +898,7 @@ mod tests {
         );
         // Skipped entries do not count as iterations.
         let r = each(COUNT_EACH, herd(&[100, 1, 101, 2]), |env| {
-            env.limits.loop_iterations = Some(2);
+            env.limits = env.limits.with_loop_iterations(Some(2));
         });
         assert_eq!(r.value, HV::Float(2.0));
         assert!(r.msgs.is_empty());
@@ -937,7 +937,7 @@ mod tests {
             let actors: Vec<u32> = (1..=len).collect();
             let completes = |steps: u64| {
                 let mut env = HostEnv::<TestHost>::default();
-                env.limits.total_steps = Some(steps);
+                env.limits = env.limits.with_total_steps(Some(steps));
                 env.variables.set(key("arr"), herd(&actors));
                 env.variables.set(key("n"), HV::Float(0.0));
                 let mut world = TestHost;

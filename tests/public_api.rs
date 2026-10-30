@@ -700,10 +700,7 @@ mod vm {
             queries: Some(&queries),
             rng: &mut rng as &mut dyn RandomSource,
             sink: &mut sink,
-            limits: EvalLimits {
-                loop_iterations: Some(4),
-                ..EvalLimits::DEFAULT
-            },
+            limits: EvalLimits::DEFAULT.with_loop_iterations(Some(4)),
             temps: Temps::Kept(&mut temps),
         };
         let expr = compile(
@@ -852,10 +849,7 @@ mod vm {
         assert!(installed.is_some());
         let mut env = NoHostEnv {
             queries: Some(queries),
-            limits: EvalLimits {
-                total_steps: Some(10_000),
-                ..EvalLimits::DEFAULT
-            },
+            limits: EvalLimits::DEFAULT.with_total_steps(Some(10_000)),
             temps: Temps::Kept(TempMap::new()),
             context: ContextMap::from([(ContextName::new("bonus"), 1.0)]),
             ..NoHostEnv::new()

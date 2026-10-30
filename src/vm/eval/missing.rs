@@ -604,7 +604,7 @@ mod tests {
         let expr = compile_ok("v.p->v.x");
         for steps in 1..=8 {
             let mut env = arrow_world();
-            env.limits.total_steps = Some(steps);
+            env.limits = env.limits.with_total_steps(Some(steps));
             let mut world = TestHost;
             let mut cx = env.cx(
                 &mut world,

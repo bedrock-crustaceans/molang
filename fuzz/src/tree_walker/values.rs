@@ -180,7 +180,7 @@ impl<H: Host> Walker<H> {
         value: Value<H>,
         cx: &mut EvalCx<'_, '_, H>,
     ) -> Result<Value<H>, Unwind<H>> {
-        let check = member_store_check(&whole, path, cx.limits.struct_members);
+        let check = member_store_check(&whole, path, cx.limits.struct_members());
         self.charge(cx, check.cost.saturating_add(store_cost(&value)))?;
         if let Some(limit) = check.exceeded_width {
             self.stopped = true;
@@ -188,7 +188,7 @@ impl<H: Host> Walker<H> {
             return Err(Unwind::Stop);
         }
         whole.set_member_path(path, storable(cx, value));
-        if let Some(limit) = cx.limits.struct_depth
+        if let Some(limit) = cx.limits.struct_depth()
             && whole.struct_depth() > limit
         {
             self.stopped = true;
@@ -231,7 +231,7 @@ mod tests {
                 let expr = compile(src, &options).expr().cloned().expect(src);
                 for budget in [None, Some(0), Some(1), Some(2), Some(3)] {
                     let mut env = start.clone();
-                    env.limits.total_steps = budget;
+                    env.limits = env.limits.with_total_steps(budget);
                     let what = format!("{src} on {platform:?} with {budget:?} steps");
                     assert_agree(&what, &vm_run(&expr, &env), &walker_run(&expr, &env));
                 }
@@ -439,7 +439,7 @@ mod tests {
     #[test]
     fn a_struct_deeper_than_the_budget_ends_the_evaluation() {
         let mut start = Env::new();
-        start.limits.struct_depth = Some(2);
+        start.limits = start.limits.with_struct_depth(Some(2));
         let run = both_on("v.st.a.b = 1; v.after = 1; return 7;", &start);
         assert_eq!(run.f(), 7.0, "depth 2 is allowed");
         let run = both_on("v.q.a.b.c = 1; v.after = 1; return 7;", &start);
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn a_struct_wider_than_the_budget_ends_the_evaluation() {
         let mut start = Env::new();
-        start.limits.struct_members = Some(2);
+        start.limits = start.limits.with_struct_members(Some(2));
         let run = both_on("v.q.a = 1; v.q.b = 2; return 7;", &start);
         assert_eq!(run.f(), 7.0);
         let run = both_on(
@@ -505,7 +505,7 @@ mod tests {
         // The width check comes after the cost: with both exceeded the step message wins.
         let mut walker = Walker::<World>::new(&expr);
         let mut env = Env::new().with_steps(0);
-        env.limits.struct_members = Some(0);
+        env.limits = env.limits.with_struct_members(Some(0));
         assert!(is_stop(&walker.write_member(
             Value::ZERO,
             &path,
@@ -516,7 +516,7 @@ mod tests {
         // And with enough steps the width message is the one.
         let mut walker = Walker::<World>::new(&expr);
         let mut env = Env::new();
-        env.limits.struct_members = Some(0);
+        env.limits = env.limits.with_struct_members(Some(0));
         assert!(is_stop(&walker.write_member(
             Value::ZERO,
             &path,

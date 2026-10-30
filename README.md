@@ -258,7 +258,7 @@ The arithmetic and the standard functions choose the sign and payload of the NaN
 
 ## Evaluation
 
-`EvalLimits` budgets one evaluation. Each budget is an `Option` (`None` is no limit); `EvalLimits::DEFAULT` is the column below and `EvalLimits::NONE` sets none. Keep a `total_steps` budget for untrusted content: a member store pays steps for the structs it copies, so the step budget bounds memory too. The operand stack is capped at 65,536 slots under every budget.
+`EvalLimits` budgets one evaluation. Each budget is an `Option` (`None` is no limit); `EvalLimits::DEFAULT` is the column below, `EvalLimits::NONE` sets none, and each budget has a `with_*` setter and a getter. Keep a `total_steps` budget for untrusted content: a member store pays steps for the structs it copies, so the step budget bounds memory too. The operand stack is capped at 65,536 slots under every budget.
 
 | Field | Meaning | Default |
 | --- | --- | --- |
@@ -271,12 +271,10 @@ The arithmetic and the standard functions choose the sign and payload of the NaN
 ```rust
 use molang::vm::EvalLimits;
 
-let limits = EvalLimits {
-    loop_iterations: Some(5), // a tighter per-loop budget
-    struct_depth: None,       // no struct depth budget
-    query_depth: Some(0),     // no query may evaluate an argument
-    ..EvalLimits::DEFAULT
-};
+let limits = EvalLimits::DEFAULT
+    .with_loop_iterations(Some(5)) // a tighter per-loop budget
+    .with_struct_depth(None) // no struct depth budget
+    .with_query_depth(Some(0)); // no query may evaluate an argument
 assert!(!limits.is_unlimited());
 ```
 
@@ -339,7 +337,7 @@ assert!((0.0..=10.0).contains(&value));
 
 The default message sink, `BoundedSink`, keeps the last 64 messages, each cut to 1 KiB; `LogOnce` drops repeats.
 
-The deepest nesting `compile` accepts needs about 320 KiB of stack in a release build and 1.9 MiB in a debug build; evaluate on threads of at least 512 KiB / 4 MiB, or set `EvalLimits::query_depth`. Structs share members, so walk a stored value with `Value::distinct_structs` or bound the walk.
+The deepest nesting `compile` accepts needs about 320 KiB of stack in a release build and 1.9 MiB in a debug build; evaluate on threads of at least 512 KiB / 4 MiB, or set `EvalLimits::with_query_depth`. Structs share members, so walk a stored value with `Value::distinct_structs` or bound the walk.
 
 ## Examples
 

@@ -1,6 +1,7 @@
 //! [`EvalLimits`]: the evaluator's host-protection budgets.
 
-/// The budgets of one evaluation.
+/// The budgets of one evaluation: [`EvalLimits::DEFAULT`] or [`EvalLimits::NONE`] changed with the
+/// `with_*` setters.
 ///
 /// A per-loop budget alone does not bound nested loops, hence the per-evaluation step budget.
 ///
@@ -18,40 +19,11 @@
 /// off, `total_steps` alone still bounds an evaluation's time and memory.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EvalLimits {
-    /// Iterations one `loop` / `for_each` may run before it is left; `None`: no limit. A `loop`
-    /// always runs its first iteration, so `Some(0)` leaves it after one, like `Some(1)`; a
-    /// `for_each` runs none.
-    ///
-    /// Only the first loop left in an evaluation sends a
-    /// [`RuntimeMsg::LoopLimit`](super::RuntimeMsg::LoopLimit).
-    pub loop_iterations: Option<u32>,
-    /// Steps one top-level evaluation may take before it ends with 0.0 and a
-    /// [`RuntimeMsg::StepLimit`](super::RuntimeMsg::StepLimit); `None`: no limit, `Some(0)`: every
-    /// evaluation that runs an instruction ends at once (a folded constant still returns its
-    /// value).
-    pub total_steps: Option<u64>,
-    /// Struct levels a member store may leave in the variable or temp it writes
-    /// ([`Value::struct_depth`](super::Value::struct_depth)); `None`: no limit, `Some(0)`: every
-    /// member store is refused.
-    ///
-    /// A deeper store writes nothing and ends the evaluation with 0.0 and a
-    /// [`RuntimeMsg::StructDepthLimit`](super::RuntimeMsg::StructDepthLimit).
-    pub struct_depth: Option<u32>,
-    /// Members a member store may leave in a struct it adds a member to; `None`: no limit,
-    /// `Some(0)`: every store adding a member is refused.
-    ///
-    /// A wider store writes nothing and ends the evaluation with 0.0 and a
-    /// [`RuntimeMsg::StructMemberLimit`](super::RuntimeMsg::StructMemberLimit). Storing into an
-    /// existing member is never refused, so a wider struct the host stored stays usable.
-    pub struct_members: Option<u32>,
-    /// How deep query arguments may nest at run time (the top level is 0); `None`: no limit,
-    /// `Some(0)`: no query may evaluate an argument.
-    ///
-    /// An argument that would run deeper ends the evaluation with 0.0 and a
-    /// [`RuntimeMsg::QueryDepthLimit`](super::RuntimeMsg::QueryDepthLimit). This is the
-    /// evaluator's only native recursion: a host whose threads have less stack than
-    /// [`Expr::eval`](crate::compile::Expr::eval) requires sets it.
-    pub query_depth: Option<u32>,
+    pub(crate) loop_iterations: Option<u32>,
+    pub(crate) total_steps: Option<u64>,
+    pub(crate) struct_depth: Option<u32>,
+    pub(crate) struct_members: Option<u32>,
+    pub(crate) query_depth: Option<u32>,
 }
 
 impl EvalLimits {
@@ -103,6 +75,100 @@ impl EvalLimits {
         query_depth: None,
     };
 
+    /// Iterations one `loop` / `for_each` may run before it is left; `None`: no limit. A `loop`
+    /// always runs its first iteration, so `Some(0)` leaves it after one, like `Some(1)`; a
+    /// `for_each` runs none.
+    ///
+    /// Only the first loop left in an evaluation sends a
+    /// [`RuntimeMsg::LoopLimit`](super::RuntimeMsg::LoopLimit).
+    pub const fn loop_iterations(self) -> Option<u32> {
+        self.loop_iterations
+    }
+
+    /// Steps one top-level evaluation may take before it ends with 0.0 and a
+    /// [`RuntimeMsg::StepLimit`](super::RuntimeMsg::StepLimit); `None`: no limit, `Some(0)`: every
+    /// evaluation that runs an instruction ends at once (a folded constant still returns its
+    /// value).
+    pub const fn total_steps(self) -> Option<u64> {
+        self.total_steps
+    }
+
+    /// Struct levels a member store may leave in the variable or temp it writes
+    /// ([`Value::struct_depth`](super::Value::struct_depth)); `None`: no limit, `Some(0)`: every
+    /// member store is refused.
+    ///
+    /// A deeper store writes nothing and ends the evaluation with 0.0 and a
+    /// [`RuntimeMsg::StructDepthLimit`](super::RuntimeMsg::StructDepthLimit).
+    pub const fn struct_depth(self) -> Option<u32> {
+        self.struct_depth
+    }
+
+    /// Members a member store may leave in a struct it adds a member to; `None`: no limit,
+    /// `Some(0)`: every store adding a member is refused.
+    ///
+    /// A wider store writes nothing and ends the evaluation with 0.0 and a
+    /// [`RuntimeMsg::StructMemberLimit`](super::RuntimeMsg::StructMemberLimit). Storing into an
+    /// existing member is never refused, so a wider struct the host stored stays usable.
+    pub const fn struct_members(self) -> Option<u32> {
+        self.struct_members
+    }
+
+    /// How deep query arguments may nest at run time (the top level is 0); `None`: no limit,
+    /// `Some(0)`: no query may evaluate an argument.
+    ///
+    /// An argument that would run deeper ends the evaluation with 0.0 and a
+    /// [`RuntimeMsg::QueryDepthLimit`](super::RuntimeMsg::QueryDepthLimit). This is the
+    /// evaluator's only native recursion: a host whose threads have less stack than
+    /// [`Expr::eval`](crate::compile::Expr::eval) requires sets it.
+    pub const fn query_depth(self) -> Option<u32> {
+        self.query_depth
+    }
+
+    /// These budgets with another [`loop_iterations`](Self::loop_iterations) budget; `None` switches it off.
+    #[must_use]
+    pub const fn with_loop_iterations(self, loop_iterations: Option<u32>) -> Self {
+        Self {
+            loop_iterations,
+            ..self
+        }
+    }
+
+    /// These budgets with another [`total_steps`](Self::total_steps) budget; `None` switches it off.
+    #[must_use]
+    pub const fn with_total_steps(self, total_steps: Option<u64>) -> Self {
+        Self {
+            total_steps,
+            ..self
+        }
+    }
+
+    /// These budgets with another [`struct_depth`](Self::struct_depth) budget; `None` switches it off.
+    #[must_use]
+    pub const fn with_struct_depth(self, struct_depth: Option<u32>) -> Self {
+        Self {
+            struct_depth,
+            ..self
+        }
+    }
+
+    /// These budgets with another [`struct_members`](Self::struct_members) budget; `None` switches it off.
+    #[must_use]
+    pub const fn with_struct_members(self, struct_members: Option<u32>) -> Self {
+        Self {
+            struct_members,
+            ..self
+        }
+    }
+
+    /// These budgets with another [`query_depth`](Self::query_depth) budget; `None` switches it off.
+    #[must_use]
+    pub const fn with_query_depth(self, query_depth: Option<u32>) -> Self {
+        Self {
+            query_depth,
+            ..self
+        }
+    }
+
     /// Whether every budget is off.
     pub const fn is_unlimited(self) -> bool {
         self.loop_iterations.is_none()
@@ -143,13 +209,12 @@ mod tests {
     fn default_matches_the_documented_budgets() {
         assert_eq!(
             EvalLimits::DEFAULT,
-            EvalLimits {
-                loop_iterations: Some(1024),
-                total_steps: Some(1_048_576),
-                struct_depth: Some(32),
-                struct_members: Some(256),
-                query_depth: None,
-            }
+            EvalLimits::NONE
+                .with_loop_iterations(Some(1024))
+                .with_total_steps(Some(1_048_576))
+                .with_struct_depth(Some(32))
+                .with_struct_members(Some(256))
+                .with_query_depth(None)
         );
         assert_eq!(EvalLimits::default(), EvalLimits::DEFAULT);
         assert_eq!(EvalLimits::DEFAULT_TOTAL_STEPS, 1_048_576);
@@ -163,34 +228,31 @@ mod tests {
     fn none_switches_every_budget_off() {
         assert_eq!(
             EvalLimits::NONE,
-            EvalLimits {
-                loop_iterations: None,
-                total_steps: None,
-                struct_depth: None,
-                struct_members: None,
-                query_depth: None,
-            }
+            EvalLimits::NONE
+                .with_loop_iterations(None)
+                .with_total_steps(None)
+                .with_struct_depth(None)
+                .with_struct_members(None)
+                .with_query_depth(None)
         );
         assert!(EvalLimits::NONE.is_unlimited());
     }
 
     #[test]
     fn zero_is_a_budget_not_off() {
-        let zero = EvalLimits {
-            loop_iterations: Some(0),
-            total_steps: Some(0),
-            struct_depth: Some(0),
-            struct_members: Some(0),
-            query_depth: Some(0),
-        };
+        let zero = EvalLimits::NONE
+            .with_loop_iterations(Some(0))
+            .with_total_steps(Some(0))
+            .with_struct_depth(Some(0))
+            .with_struct_members(Some(0))
+            .with_query_depth(Some(0));
         assert!(!zero.is_unlimited());
-        let largest = EvalLimits {
-            loop_iterations: Some(u32::MAX),
-            total_steps: Some(u64::MAX),
-            struct_depth: Some(u32::MAX),
-            struct_members: Some(u32::MAX),
-            query_depth: Some(u32::MAX),
-        };
+        let largest = EvalLimits::NONE
+            .with_loop_iterations(Some(u32::MAX))
+            .with_total_steps(Some(u64::MAX))
+            .with_struct_depth(Some(u32::MAX))
+            .with_struct_members(Some(u32::MAX))
+            .with_query_depth(Some(u32::MAX));
         assert!(!largest.is_unlimited());
         assert_ne!(largest, EvalLimits::NONE);
     }
@@ -199,26 +261,11 @@ mod tests {
     fn one_budget_alone_makes_the_limits_not_unlimited() {
         let base = EvalLimits::NONE;
         let cases = [
-            EvalLimits {
-                loop_iterations: Some(5),
-                ..base
-            },
-            EvalLimits {
-                total_steps: Some(5),
-                ..base
-            },
-            EvalLimits {
-                struct_depth: Some(5),
-                ..base
-            },
-            EvalLimits {
-                struct_members: Some(5),
-                ..base
-            },
-            EvalLimits {
-                query_depth: Some(5),
-                ..base
-            },
+            base.with_loop_iterations(Some(5)),
+            base.with_total_steps(Some(5)),
+            base.with_struct_depth(Some(5)),
+            base.with_struct_members(Some(5)),
+            base.with_query_depth(Some(5)),
         ];
         for limits in cases {
             assert!(!limits.is_unlimited(), "{limits:?}");

@@ -1579,7 +1579,7 @@ mod sinks {
     #[test]
     fn a_language_only_sink_drops_the_budget_messages() {
         let mut env = Env::new();
-        env.limits.loop_iterations = Some(2);
+        env.limits = env.limits.with_loop_iterations(Some(2));
         let compiled = compile(
             "t.n = 0; loop(5, {t.n = t.n + 1;}); return v.never_set;",
             &CompileOptions::server(MolangVersion::LATEST),
@@ -2426,19 +2426,19 @@ mod variable_maps {
     fn eval_limits() {
         let limits = EvalLimits::default();
         assert_eq!(
-            limits.loop_iterations,
+            limits.loop_iterations(),
             Some(molang::vm::EvalLimits::DEFAULT_LOOP_ITERATIONS)
         );
-        assert_eq!(limits.loop_iterations, Some(1024));
-        assert_eq!(limits.total_steps, Some(1_048_576));
-        assert_eq!(limits.loop_iterations, Some(1024));
-        assert_eq!(limits.total_steps, Some(1_048_576));
+        assert_eq!(limits.loop_iterations(), Some(1024));
+        assert_eq!(limits.total_steps(), Some(1_048_576));
+        assert_eq!(limits.loop_iterations(), Some(1024));
+        assert_eq!(limits.total_steps(), Some(1_048_576));
         assert!(!limits.is_unlimited());
         // `EvalLimits::NONE` sets no loop, step or struct-depth budget.
-        assert_eq!(EvalLimits::NONE.loop_iterations, None);
-        assert_eq!(EvalLimits::NONE.total_steps, None);
-        assert_eq!(limits.struct_depth, Some(32));
-        assert_eq!(EvalLimits::NONE.struct_depth, None);
+        assert_eq!(EvalLimits::NONE.loop_iterations(), None);
+        assert_eq!(EvalLimits::NONE.total_steps(), None);
+        assert_eq!(limits.struct_depth(), Some(32));
+        assert_eq!(EvalLimits::NONE.struct_depth(), None);
         assert!(EvalLimits::NONE.is_unlimited());
     }
 

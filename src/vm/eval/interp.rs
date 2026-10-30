@@ -889,13 +889,13 @@ mod tests {
         let expr = compile_ok("math.die_roll(v.n, 1, 6)");
         for budget in [7, 8, 9] {
             let mut env = test_env();
-            env.limits.total_steps = Some(budget);
+            env.limits = env.limits.with_total_steps(Some(budget));
             set(&mut env, &[("n", 5.0)]);
             assert_eq!(expr.eval(&mut env.cx()), NV::ZERO, "budget {budget}");
             assert_eq!(env.sink.take(), [step_msg(budget)], "budget {budget}");
         }
         let mut env = test_env();
-        env.limits.total_steps = Some(12);
+        env.limits = env.limits.with_total_steps(Some(12));
         set(&mut env, &[("n", 5.0)]);
         assert!(expr.eval(&mut env.cx()).to_f32() >= 5.0);
         assert!(env.sink.is_empty());

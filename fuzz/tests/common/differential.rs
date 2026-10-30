@@ -145,10 +145,10 @@ impl Tally {
         self.expressions += 1;
         let mut first = None;
         let mut disagreement = None;
-        let sweep = BUDGET_SWEEP.iter().map(|&steps| EvalLimits {
-            loop_iterations: Some(3),
-            total_steps: Some(steps),
-            ..EvalLimits::DEFAULT
+        let sweep = BUDGET_SWEEP.iter().map(|&steps| {
+            EvalLimits::DEFAULT
+                .with_loop_iterations(Some(3))
+                .with_total_steps(Some(steps))
         });
         for limits in std::iter::once(env.limits).chain(sweep) {
             self.evaluations += 1;

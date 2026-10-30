@@ -147,13 +147,12 @@ impl FuzzCase {
 
     /// The budgets of the case; the struct depth budget is always the default.
     pub fn limits(&self) -> EvalLimits {
-        EvalLimits {
-            loop_iterations: Some(self.loop_iterations),
-            total_steps: Some(self.steps),
-            struct_depth: Some(EvalLimits::DEFAULT_STRUCT_DEPTH),
-            struct_members: Some(self.struct_members),
-            query_depth: self.query_depth,
-        }
+        EvalLimits::NONE
+            .with_loop_iterations(Some(self.loop_iterations))
+            .with_total_steps(Some(self.steps))
+            .with_struct_depth(Some(EvalLimits::DEFAULT_STRUCT_DEPTH))
+            .with_struct_members(Some(self.struct_members))
+            .with_query_depth(self.query_depth)
     }
 
     /// The random source the case starts with.

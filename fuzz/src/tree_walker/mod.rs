@@ -284,7 +284,7 @@ pub(crate) mod test_support {
         }
 
         pub(crate) fn with_steps(mut self, steps: u64) -> Self {
-            self.limits.total_steps = Some(steps);
+            self.limits = self.limits.with_total_steps(Some(steps));
             self
         }
 

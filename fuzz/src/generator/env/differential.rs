@@ -680,13 +680,13 @@ mod tests {
         });
         assert_eq!(verdict, Ok(Verdict::Agree));
         assert_eq!(value, Value::ZERO);
-        assert_eq!(env.limits.total_steps, Some(12));
+        assert_eq!(env.limits.total_steps(), Some(12));
         assert_eq!(
             env.sink.messages,
             ["molang: evaluation stopped after its budget of 12 steps"]
         );
         let (_, value, env) = observe(&case(program));
-        assert_eq!(env.limits.total_steps, Some(5000));
+        assert_eq!(env.limits.total_steps(), Some(5000));
         assert!(
             env.sink.messages.iter().all(|m| !m.contains("budget")),
             "{:?}",
@@ -714,7 +714,7 @@ mod tests {
         });
         assert_eq!(verdict, Ok(Verdict::Agree));
         assert_eq!(value, Value::Float(3.0));
-        assert_eq!(env.limits.loop_iterations, Some(3));
+        assert_eq!(env.limits.loop_iterations(), Some(3));
         assert_eq!(
             env.sink.messages,
             ["molang: loop stopped after its budget of 3 iterations"]
@@ -748,11 +748,11 @@ mod tests {
             Value::ZERO,
             "the third member does not fit: the whole structure was two wide already"
         );
-        assert_eq!(env.limits.struct_members, Some(2));
+        assert_eq!(env.limits.struct_members(), Some(2));
         let (_, value, env) = observe(&case(program));
         assert_eq!(value, Value::Float(7.0), "n(5) is the pool's 7");
         assert_eq!(
-            env.limits.struct_members,
+            env.limits.struct_members(),
             Some(EvalLimits::DEFAULT_STRUCT_MEMBERS)
         );
     }
@@ -761,10 +761,10 @@ mod tests {
     fn the_depth_budget_is_the_default_whatever_the_case() {
         let (_, _, env) = observe(&simple(Ex::Bin(BinOp::Add, b(x()), b(n(2)))));
         assert_eq!(
-            env.limits.struct_depth,
+            env.limits.struct_depth(),
             Some(EvalLimits::DEFAULT_STRUCT_DEPTH)
         );
-        assert_eq!(env.limits.struct_depth, Some(32));
+        assert_eq!(env.limits.struct_depth(), Some(32));
     }
 
     #[test]
@@ -776,7 +776,7 @@ mod tests {
         });
         assert_eq!(verdict, Ok(Verdict::Agree));
         assert_eq!(value, Value::ZERO);
-        assert_eq!(env.limits.query_depth, Some(1));
+        assert_eq!(env.limits.query_depth(), Some(1));
         assert_eq!(
             env.sink.messages,
             [

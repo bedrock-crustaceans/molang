@@ -753,7 +753,7 @@ mod tests {
         b.this = 99.0;
         b.world.alive = 0;
         b.subject = None;
-        b.limits.total_steps = Some(1);
+        b.limits = b.limits.with_total_steps(Some(1));
         assert_eq!(state_difference(&a, &b), None);
     }
 

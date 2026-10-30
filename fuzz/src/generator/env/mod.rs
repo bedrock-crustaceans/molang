@@ -660,13 +660,12 @@ mod tests {
 
     #[test]
     fn the_limits_and_the_random_source_are_the_ones_given() {
-        let limits = EvalLimits {
-            loop_iterations: Some(3),
-            total_steps: Some(77),
-            struct_depth: Some(4),
-            struct_members: Some(5),
-            query_depth: Some(6),
-        };
+        let limits = EvalLimits::NONE
+            .with_loop_iterations(Some(3))
+            .with_total_steps(Some(77))
+            .with_struct_depth(Some(4))
+            .with_struct_members(Some(5))
+            .with_query_depth(Some(6));
         let env = FuzzEnv::new(
             Subject::Detached,
             TempLifetime::PerEvaluation,
@@ -821,10 +820,7 @@ mod tests {
         );
         assert!(matches!(cx.temps, Temps::PerEvaluation));
         assert_eq!(cx.limits, EvalLimits::DEFAULT);
-        let limits = EvalLimits {
-            total_steps: Some(9),
-            ..EvalLimits::DEFAULT
-        };
+        let limits = EvalLimits::DEFAULT.with_total_steps(Some(9));
         let mut detached = FuzzEnv::new(
             Subject::Detached,
             TempLifetime::Persistent,
@@ -840,7 +836,7 @@ mod tests {
             }
         );
         assert!(matches!(cx.temps, Temps::Kept(_)));
-        assert_eq!(cx.limits.total_steps, Some(9));
+        assert_eq!(cx.limits.total_steps(), Some(9));
     }
 
     #[test]

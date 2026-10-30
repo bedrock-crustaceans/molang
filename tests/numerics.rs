@@ -2102,10 +2102,7 @@ mod platforms {
             let mut env = NoHostEnv::new();
             env.variables.set(VariableName::new("n"), Value::Float(3e9));
             let mut cx = env.cx();
-            cx.limits = EvalLimits {
-                total_steps: Some(1_000),
-                ..EvalLimits::NONE
-            };
+            cx.limits = EvalLimits::NONE.with_total_steps(Some(1_000));
             assert_eq!(expr.eval_f32(&mut cx), 0.0, "{platform:?}");
             let stopped = env.sink.take().len() == 1;
             assert_eq!(stopped, platform == Platform::AndroidArm64, "{platform:?}");

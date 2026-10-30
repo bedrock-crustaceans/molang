@@ -608,7 +608,7 @@ mod evaluation {
             .find(|&steps| {
                 let mut env = env_with_x(0.5);
                 env.variables.set(VariableName::new("y"), Value::Float(1.0));
-                env.limits.total_steps = Some(steps);
+                env.limits = env.limits.with_total_steps(Some(steps));
                 expr.eval(&mut env.cx());
                 env.sink.is_empty()
             })

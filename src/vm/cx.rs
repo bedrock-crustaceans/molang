@@ -1137,10 +1137,7 @@ mod tests {
 
     #[test]
     fn each_builder_replaces_one_part_and_keeps_the_rest() {
-        let limits = EvalLimits {
-            loop_iterations: Some(7),
-            ..EvalLimits::DEFAULT
-        };
+        let limits = EvalLimits::DEFAULT.with_loop_iterations(Some(7));
         let mut queries = QueryTable::new(stdlib::queries(Side::Server));
         queries.set(query::IS_BABY, zero).unwrap();
         let mut base = HostEnv::<TestHost>::new(queries);

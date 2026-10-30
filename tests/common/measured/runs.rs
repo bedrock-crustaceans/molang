@@ -287,11 +287,9 @@ impl LoopCapRow {
         {
             let fresh = || {
                 let mut env = Env::reference();
-                env.limits = EvalLimits {
-                    loop_iterations: None,
-                    total_steps: Some(STEP_BUDGET),
-                    ..EvalLimits::NONE
-                };
+                env.limits = EvalLimits::NONE
+                    .with_loop_iterations(None)
+                    .with_total_steps(Some(STEP_BUDGET));
                 env
             };
             let mut env = fresh();

@@ -753,7 +753,7 @@ impl ServerRun {
         let mut env = Env::new();
         if platform != release.platform() {
             // A count another platform converts to `i32::MAX` would roll or loop for minutes.
-            env.limits.total_steps = Some(OTHER_PLATFORM_STEPS);
+            env.limits = env.limits.with_total_steps(Some(OTHER_PLATFORM_STEPS));
         }
         let mut rng = Xorshift128::new();
         let mut entered: Option<Vec<String>> = None;

@@ -338,10 +338,7 @@ mod tests {
                     .unwrap_or_else(|| panic!("{src:?}"));
                 (0..200u64)
                     .find(|&budget| {
-                        let limits = EvalLimits {
-                            total_steps: Some(budget),
-                            ..EvalLimits::DEFAULT
-                        };
+                        let limits = EvalLimits::DEFAULT.with_total_steps(Some(budget));
                         let mut env = FuzzEnv::new(
                             Subject::Actor,
                             TempLifetime::PerEvaluation,
