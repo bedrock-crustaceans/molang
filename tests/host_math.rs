@@ -37,10 +37,7 @@ fn catalog() -> MathCatalog {
 }
 
 fn options(math: &MathCatalog) -> CompileOptions {
-    CompileOptions {
-        math: Some(math.clone()),
-        ..CompileOptions::server(MolangVersion::LATEST)
-    }
+    CompileOptions::server(MolangVersion::LATEST).with_math(Some(math.clone()))
 }
 
 /// The diagnostics of a compile as `(code, severity, text)`.
@@ -256,10 +253,7 @@ fn a_host_function_overrides_a_built_in_one_of_its_name() {
 #[test]
 fn the_allowed_operations_treat_an_override_as_a_host_call() {
     let math = overrides();
-    let block = CompileOptions {
-        allowed_ops: OpSet::all().without_assignments_or_random(),
-        ..options(&math)
-    };
+    let block = options(&math).with_allowed_ops(OpSet::all().without_assignments_or_random());
     assert_eq!(compile("math.random(v.x, 2)", &block).failure(), None);
     assert_eq!(
         texts("math.random_integer(v.x, 2)", &block),
@@ -267,18 +261,12 @@ fn the_allowed_operations_treat_an_override_as_a_host_call() {
             "Expression uses operation Volatile Host Math Function 'math.random_integer' which is not allowed in this context"
         ]
     );
-    let without_math = CompileOptions {
-        math: None,
-        ..block
-    };
+    let without_math = block.with_math(None);
     assert_eq!(
         compile("math.random(v.x, 2)", &without_math).failure(),
         Some(CompileFailure::Rejected)
     );
-    let no_host = CompileOptions {
-        allowed_ops: OpSet::all().without(ExpressionOp::HostMath),
-        ..options(&math)
-    };
+    let no_host = options(&math).with_allowed_ops(OpSet::all().without(ExpressionOp::HostMath));
     assert_eq!(
         texts("math.sin(v.x)", &no_host),
         [
@@ -338,10 +326,7 @@ fn the_allowed_operations_cover_host_functions() {
     let not_allowed = |name: &str| {
         format!("Expression uses operation {name} which is not allowed in this context")
     };
-    let no_host = CompileOptions {
-        allowed_ops: OpSet::all().without(ExpressionOp::HostMath),
-        ..options(&math)
-    };
+    let no_host = options(&math).with_allowed_ops(OpSet::all().without(ExpressionOp::HostMath));
     let compiled = compile("math.twice(v.x)", &no_host);
     assert_eq!(compiled.failure(), Some(CompileFailure::Rejected));
     assert_eq!(
@@ -360,10 +345,7 @@ fn the_allowed_operations_cover_host_functions() {
     );
     assert_eq!(compile("math.draw(v.x)", &no_host).failure(), None);
 
-    let block = CompileOptions {
-        allowed_ops: OpSet::all().without_assignments_or_random(),
-        ..options(&math)
-    };
+    let block = options(&math).with_allowed_ops(OpSet::all().without_assignments_or_random());
     let volatile = compile("math.draw(v.x)", &block);
     assert_eq!(volatile.failure(), Some(CompileFailure::Rejected));
     assert_eq!(

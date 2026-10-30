@@ -159,7 +159,7 @@ struct Inner {
 }
 
 /// An immutable set of host math functions, passed to the compiler in
-/// [`CompileOptions::math`](crate::compile::CompileOptions::math).
+/// [`CompileOptions::with_math`](crate::compile::CompileOptions::with_math).
 ///
 /// Cheap to clone (a shared handle). Compared and hashed by **identity**: clones are equal, two
 /// catalogues with equal declarations are not. A compiled expression keeps its catalogue.

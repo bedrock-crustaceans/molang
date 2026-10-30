@@ -19,10 +19,8 @@ use molang::version::{MolangVersion, RawVersion};
 const SAMPLE: &str = include_str!("compile_sample.txt");
 
 fn options(version: i16) -> CompileOptions {
-    CompileOptions {
-        admission: QueryAdmission::Sets(QuerySetMask::BUILTIN),
-        ..CompileOptions::from_raw_version(queries(Side::Client).clone(), RawVersion(version))
-    }
+    CompileOptions::from_raw_version(queries(Side::Client).clone(), RawVersion(version))
+        .with_admission(QueryAdmission::Sets(QuerySetMask::BUILTIN))
 }
 
 fn sample(c: &mut Criterion) {

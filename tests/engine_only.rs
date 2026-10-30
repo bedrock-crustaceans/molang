@@ -125,10 +125,8 @@ mod evaluation {
     /// `src` compiled against the host catalogue and evaluated with `query.double` installed.
     fn eval_with(src: &str, math: Option<&MathCatalog>, mut rng: FixedRng) -> f32 {
         let catalog: QueryCatalog = super::catalog();
-        let options = CompileOptions {
-            math: math.cloned(),
-            ..CompileOptions::new(catalog.clone(), MolangVersion::LATEST)
-        };
+        let options =
+            CompileOptions::new(catalog.clone(), MolangVersion::LATEST).with_math(math.cloned());
         let (expr, _) = compile(src, &options)
             .into_result()
             .unwrap_or_else(|error| panic!("{src}: {error}"));

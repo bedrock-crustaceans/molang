@@ -18,9 +18,7 @@ fn wall_clock(millis: u64) -> std::time::Duration {
 
 mod hostile_input {
     use crate::common::compile_support::{at, client_at, messages};
-    use molang::compile::{
-        CompileFailure, CompileOptions, Deviations, Expr, MAX_DEPTH, MAX_SOURCE_LEN, compile,
-    };
+    use molang::compile::{CompileFailure, Deviations, Expr, MAX_DEPTH, MAX_SOURCE_LEN, compile};
     use molang::diag::{DiagCode, Severity};
 
     const DEPTH: &str = "Error: Expression could not be parsed due to stack depth overflow (too many sub-expressions)";
@@ -160,10 +158,7 @@ mod hostile_input {
 
         let no_deviations = compile(
             &padding(MAX_SOURCE_LEN + 1),
-            &CompileOptions {
-                deviations: Deviations::NONE,
-                ..client_at(13)
-            },
+            &client_at(13).with_deviations(Deviations::NONE),
         );
         assert_eq!(no_deviations.failure(), None);
     }
@@ -297,13 +292,7 @@ mod hostile_input {
             for version in [-1, 4, 13] {
                 for deviations in [Deviations::ALL, Deviations::NONE] {
                     let started = std::time::Instant::now();
-                    let compiled = compile(
-                        source,
-                        &CompileOptions {
-                            deviations,
-                            ..client_at(version)
-                        },
-                    );
+                    let compiled = compile(source, &client_at(version).with_deviations(deviations));
                     #[cfg(feature = "vm")]
                     if let Some(expr) = compiled.expr().filter(|_| compiled.is_success()) {
                         std::hint::black_box(expr.eval(&mut molang::vm::NoHostEnv::new().cx()));
@@ -689,10 +678,7 @@ mod eval_budgets {
         fn expr(source: &str) -> Expr {
             compile(
                 source,
-                &CompileOptions {
-                    deviations: Deviations::NONE,
-                    ..CompileOptions::server(MolangVersion::LATEST)
-                },
+                &CompileOptions::server(MolangVersion::LATEST).with_deviations(Deviations::NONE),
             )
             .expr()
             .cloned()

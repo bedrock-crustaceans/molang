@@ -43,12 +43,10 @@ pub const EXPERIMENTAL_TEST: &str = "query.experimental_test";
 /// [`math`].
 #[cfg(feature = "compiler")]
 pub fn options(raw_version: i16) -> CompileOptions {
-    CompileOptions {
-        admission: ADMISSION,
-        experiments: EXPERIMENTS,
-        math: Some(math().clone()),
-        ..CompileOptions::from_raw_version(catalog().clone(), RawVersion(raw_version))
-    }
+    CompileOptions::from_raw_version(catalog().clone(), RawVersion(raw_version))
+        .with_admission(ADMISSION)
+        .with_experiments(EXPERIMENTS)
+        .with_math(Some(math().clone()))
 }
 
 /// The pure `math.helper_mix(a, b)` (half the larger, less a quarter of `b`), the pure

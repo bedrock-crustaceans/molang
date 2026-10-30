@@ -99,13 +99,11 @@ fn corpus() -> Option<Vec<Pair>> {
 /// The corpus mixes every field of every pack family, so every query set is admitted; per-field
 /// restrictions are the loader's.
 fn options(version: i16) -> CompileOptions {
-    CompileOptions {
-        admission: QueryAdmission::Sets(QuerySetMask::BUILTIN),
-        ..CompileOptions::from_raw_version(
-            molang::stdlib::queries(Side::Client).clone(),
-            RawVersion(version),
-        )
-    }
+    CompileOptions::from_raw_version(
+        molang::stdlib::queries(Side::Client).clone(),
+        RawVersion(version),
+    )
+    .with_admission(QueryAdmission::Sets(QuerySetMask::BUILTIN))
 }
 
 struct Flipper(u64);

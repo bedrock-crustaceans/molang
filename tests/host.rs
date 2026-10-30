@@ -168,10 +168,9 @@ mod queries {
     #[test]
     fn query_lints_are_switchable() {
         let lint = |deviations: Deviations, side: Side, source: &str, code: DiagCode| {
-            let options = CompileOptions {
-                deviations,
-                ..CompileOptions::new(molang::stdlib::queries(side).clone(), MolangVersion::LATEST)
-            };
+            let options =
+                CompileOptions::new(molang::stdlib::queries(side).clone(), MolangVersion::LATEST)
+                    .with_deviations(deviations);
             compile(source, &options)
                 .diagnostics()
                 .iter()
@@ -690,10 +689,8 @@ mod query_misuse {
     type Result = std::result::Result<Value<NoHost>, QueryError>;
 
     fn compiled(source: &str) -> Expr {
-        let options = CompileOptions {
-            deviations: Deviations::NONE,
-            ..CompileOptions::client(MolangVersion::LATEST)
-        };
+        let options =
+            CompileOptions::client(MolangVersion::LATEST).with_deviations(Deviations::NONE);
         compile_expr(source, &options)
     }
 
@@ -3161,10 +3158,7 @@ mod render_controller_arrays {
     }
 
     fn client(src: &str, platform: Platform) -> Expr {
-        let options = CompileOptions {
-            platform,
-            ..CompileOptions::client(MolangVersion::LATEST)
-        };
+        let options = CompileOptions::client(MolangVersion::LATEST).with_platform(platform);
         compile(src, &options).expr().cloned().expect("compiles")
     }
 

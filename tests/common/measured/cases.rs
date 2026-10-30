@@ -666,11 +666,8 @@ impl EvalCase {
                 Row::HasDisallowedQueries { expected, items } => {
                     let allowed_only = |options: CompileOptions| {
                         let allowed =
-                            QueryAllowList::new(&options.catalog, ALLOWED).expect("declared");
-                        CompileOptions {
-                            admission: QueryAdmission::Only(allowed),
-                            ..options
-                        }
+                            QueryAllowList::new(options.catalog(), ALLOWED).expect("declared");
+                        options.with_admission(QueryAdmission::Only(allowed))
                     };
                     let helpers = allowed_only(reference_options(13));
                     let client = allowed_only(client_at(13));
@@ -750,15 +747,13 @@ impl EvalCase {
         failures: &mut Vec<String>,
     ) {
         let parses = matches!(expected, ParseExpectation::Parses);
-        let options = CompileOptions {
-            admission: self.admission(),
-            experiments: if experiment {
+        let options = reference_options(version)
+            .with_admission(self.admission())
+            .with_experiments(if experiment {
                 reference_experiments()
             } else {
                 ExperimentMask::empty()
-            },
-            ..reference_options(version)
-        };
+            });
         let compiled = compile(expr, &options);
         if compiled.parses_cleanly() != parses {
             failures.push(format!(
@@ -799,7 +794,11 @@ impl EvalCase {
             let names = query_names(expr);
             let resolve = names.iter().all(|query| {
                 decl(query)
-                    .resolve(RawVersion(version), &options.admission, options.experiments)
+                    .resolve(
+                        RawVersion(version),
+                        options.admission(),
+                        options.experiments(),
+                    )
                     .is_some()
             });
             if names.is_empty() || resolve != (reason == ParseFailure::StringOperand) {
@@ -874,10 +873,8 @@ impl EvalCase {
 
     #[cfg(feature = "vm")]
     fn check_evaluation(&self, failures: &mut Vec<String>) {
-        let options = |version: i16| CompileOptions {
-            experiments: reference_experiments(),
-            ..reference_options(version)
-        };
+        let options =
+            |version: i16| reference_options(version).with_experiments(reference_experiments());
         let mut state = CaseState::new(self);
         for (index, row) in self.rows.iter().enumerate() {
             let name = self.name(index, row);
@@ -1101,10 +1098,8 @@ impl CaseState {
 /// Temps are not kept; a value within `tolerance` or with the same bits passes.
 #[cfg(feature = "vm")]
 fn fresh_state_failure(expr: &str, expected: f32, tolerance: f32) -> Option<String> {
-    let options = CompileOptions {
-        experiments: reference_experiments(),
-        ..reference_options(MolangVersion::LATEST.to_i16())
-    };
+    let options =
+        reference_options(MolangVersion::LATEST.to_i16()).with_experiments(reference_experiments());
     let compiled = compile(expr, &options);
     let fresh = || {
         let mut env = Env::reference();
@@ -1124,10 +1119,8 @@ fn fresh_state_failure(expr: &str, expected: f32, tolerance: f32) -> Option<Stri
 }
 
 fn reference_options(version: i16) -> CompileOptions {
-    CompileOptions {
-        admission: QueryAdmission::Sets(REFERENCE_SETS),
-        ..CompileOptions::from_raw_version(reference_catalog().clone(), RawVersion(version))
-    }
+    CompileOptions::from_raw_version(reference_catalog().clone(), RawVersion(version))
+        .with_admission(QueryAdmission::Sets(REFERENCE_SETS))
 }
 
 fn owned(items: &[&str]) -> Vec<String> {

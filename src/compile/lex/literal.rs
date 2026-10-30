@@ -155,16 +155,13 @@ fn float(value: f32, end: usize) -> Lexeme {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compile::{CompileOptions, Deviations, ast::Payload, lex::test_support::*};
+    use crate::compile::{Deviations, ast::Payload, lex::test_support::*};
     use crate::diag::Severity;
     use proptest::prelude::*;
 
     #[test]
     fn a_zero_scaled_by_an_infinite_power_is_the_invalid_operation_nan() {
-        let android = CompileOptions {
-            platform: Platform::AndroidArm64,
-            ..client()
-        };
+        let android = client().with_platform(Platform::AndroidArm64);
         for source in ["0e400", "0.0e999", "0e400f"] {
             assert_eq!(float_bits(source), 0xffc0_0000, "{source}");
             let tokens = run_with(source, &android)
@@ -487,10 +484,8 @@ mod tests {
 
     #[test]
     fn without_the_deviation_a_boolean_prefix_takes_the_length_of_the_full_word() {
-        let opts = CompileOptions {
-            deviations: Deviations::ALL.difference(Deviations::TRUE_FALSE_PREFIX_ADVANCE),
-            ..client()
-        };
+        let opts = client()
+            .with_deviations(Deviations::ALL.difference(Deviations::TRUE_FALSE_PREFIX_ADVANCE));
         let r = run_with("tr*5", &opts);
         assert_eq!(
             r.tokens.unwrap(),
@@ -521,10 +516,8 @@ mod tests {
 
     #[test]
     fn the_full_words_take_their_own_length() {
-        let opts = CompileOptions {
-            deviations: Deviations::ALL.difference(Deviations::TRUE_FALSE_PREFIX_ADVANCE),
-            ..client()
-        };
+        let opts = client()
+            .with_deviations(Deviations::ALL.difference(Deviations::TRUE_FALSE_PREFIX_ADVANCE));
         for (src, end) in [("true", 4), ("false", 5), ("true;", 4), ("false;", 5)] {
             assert_eq!(
                 run_with(src, &opts).tokens.unwrap()[0].2,

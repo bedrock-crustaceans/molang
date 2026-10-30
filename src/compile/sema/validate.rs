@@ -747,17 +747,12 @@ mod tests {
             Op::Conditional,
             vec![entity("c"), bad_pointer(), float(1.0)],
         );
-        let no_deviations = CompileOptions {
-            deviations: Deviations::NONE,
-            ..client(13)
-        };
+        let no_deviations = client(13).with_deviations(Deviations::NONE);
         let (failed, log, _) = validate_tree(&root, &no_deviations);
         assert!(!failed);
         assert_eq!(log, [("E41", Severity::Error, (0, 1))]);
-        let only = CompileOptions {
-            deviations: Deviations::ALL.difference(Deviations::VALIDATE_NESTED),
-            ..client(13)
-        };
+        let only =
+            client(13).with_deviations(Deviations::ALL.difference(Deviations::VALIDATE_NESTED));
         assert_eq!(
             validate_tree(&root, &only).1,
             [("E41", Severity::Error, (0, 1))]
@@ -782,10 +777,7 @@ mod tests {
             validated("t.x.y=1;"),
             (false, vec![("E39", Severity::Warning, (0, 3))])
         );
-        let no_deviations = CompileOptions {
-            deviations: Deviations::NONE,
-            ..client(13)
-        };
+        let no_deviations = client(13).with_deviations(Deviations::NONE);
         assert_eq!(
             validated_with("t.x.y=1;", &no_deviations),
             (false, vec![("E39", Severity::Error, (0, 3))])

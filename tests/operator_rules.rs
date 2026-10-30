@@ -64,7 +64,7 @@ mod rules {
     //! Rules that compile text, at the latest version unless a gate says otherwise.
 
     use crate::common::compile_support::{client_at, message_ids, messages_at};
-    use molang::compile::{CompileFailure, CompileOptions, Compiled, Expr, compile};
+    use molang::compile::{CompileFailure, Compiled, Expr, compile};
 
     use molang::ops::ExpressionOp::{self, *};
 
@@ -118,14 +118,12 @@ mod rules {
     #[test]
     fn side_effect_ops_are_rejected_where_side_effects_are_disallowed() {
         let options = client_at(13);
-        let no_assignments = CompileOptions {
-            allowed_ops: options.allowed_ops.without_assignments(),
-            ..options.clone()
-        };
-        let nothing_random = CompileOptions {
-            allowed_ops: options.allowed_ops.without_assignments_or_random(),
-            ..options.clone()
-        };
+        let no_assignments = options
+            .clone()
+            .with_allowed_ops(options.allowed_ops().without_assignments());
+        let nothing_random = options
+            .clone()
+            .with_allowed_ops(options.allowed_ops().without_assignments_or_random());
         for source in ["math.random(0, 1)", "math.random_integer(0, 1)"] {
             assert!(
                 compile(source, &no_assignments).parses_cleanly(),

@@ -60,24 +60,18 @@ fn options(version: u8, flags: u8) -> CompileOptions {
     };
     let base = CompileOptions::from_raw_version(molang::stdlib::queries(side).clone(), raw_version);
     let allowed_ops = match (flags & 16 != 0, flags & 32 != 0) {
-        (false, _) => base.allowed_ops,
-        (true, false) => base.allowed_ops.without_assignments(),
-        (true, true) => base.allowed_ops.without_assignments_or_random(),
+        (false, _) => base.allowed_ops(),
+        (true, false) => base.allowed_ops().without_assignments(),
+        (true, true) => base.allowed_ops().without_assignments_or_random(),
     };
-    CompileOptions {
-        deviations: if flags & 4 != 0 {
-            Deviations::NONE
-        } else {
-            base.deviations
-        },
-        admission: if flags & 8 != 0 {
-            QueryAdmission::Sets(QuerySetMask::BUILTIN)
-        } else {
-            base.admission
-        },
-        allowed_ops,
-        ..base
+    let mut options = base.with_allowed_ops(allowed_ops);
+    if flags & 4 != 0 {
+        options = options.with_deviations(Deviations::NONE);
     }
+    if flags & 8 != 0 {
+        options = options.with_admission(QueryAdmission::Sets(QuerySetMask::BUILTIN));
+    }
+    options
 }
 
 #[cfg(test)]
@@ -96,7 +90,7 @@ mod tests {
         assert_eq!(options(17, 0), base(15, Side::Server));
         assert_eq!(options(18, 0), base(-2, Side::Server));
         assert_eq!(
-            options(255, 0).raw_version,
+            options(255, 0).raw_version(),
             RawVersion(i16::from(255 % 18_u8) - 2)
         );
     }
@@ -108,42 +102,34 @@ mod tests {
         assert_eq!(options(15, 2), server);
         assert_eq!(
             options(15, 4),
-            CompileOptions {
-                deviations: Deviations::NONE,
-                ..server.clone()
-            }
+            server.clone().with_deviations(Deviations::NONE)
         );
         assert_eq!(
             options(15, 8),
-            CompileOptions {
-                admission: QueryAdmission::Sets(QuerySetMask::BUILTIN),
-                ..server.clone()
-            }
+            server
+                .clone()
+                .with_admission(QueryAdmission::Sets(QuerySetMask::BUILTIN))
         );
         assert_eq!(
             options(15, 16),
-            CompileOptions {
-                allowed_ops: OpSet::all().without_assignments(),
-                ..server.clone()
-            }
+            server
+                .clone()
+                .with_allowed_ops(OpSet::all().without_assignments())
         );
         assert_eq!(
             options(15, 48),
-            CompileOptions {
-                allowed_ops: OpSet::all().without_assignments_or_random(),
-                ..server.clone()
-            }
+            server
+                .clone()
+                .with_allowed_ops(OpSet::all().without_assignments_or_random())
         );
         // Without bit 16, bit 32 changes nothing.
         assert_eq!(options(15, 32), server);
         assert_eq!(
             options(15, 1 | 2 | 4 | 8 | 16),
-            CompileOptions {
-                deviations: Deviations::NONE,
-                admission: QueryAdmission::Sets(QuerySetMask::BUILTIN),
-                allowed_ops: OpSet::all().without_assignments(),
-                ..base(13, Side::Client)
-            }
+            base(13, Side::Client)
+                .with_deviations(Deviations::NONE)
+                .with_admission(QueryAdmission::Sets(QuerySetMask::BUILTIN))
+                .with_allowed_ops(OpSet::all().without_assignments())
         );
     }
 

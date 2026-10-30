@@ -246,10 +246,7 @@ pub fn on(
     platform: molang::numeric::Platform,
     options: molang::compile::CompileOptions,
 ) -> molang::compile::CompileOptions {
-    molang::compile::CompileOptions {
-        platform,
-        ..options
-    }
+    options.with_platform(platform)
 }
 
 /// Bitwise equality, any NaN matching any NaN: for expectations that record only "a NaN".

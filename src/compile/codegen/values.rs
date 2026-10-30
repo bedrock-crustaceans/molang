@@ -703,10 +703,7 @@ mod tests {
     }
 
     fn from_host(raw: i16) -> crate::compile::CompileOptions {
-        crate::compile::CompileOptions {
-            arrays: crate::compile::ArrayAccess::FromHost,
-            ..opts(raw)
-        }
+        opts(raw).with_arrays(crate::compile::ArrayAccess::FromHost)
     }
 
     #[test]

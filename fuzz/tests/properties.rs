@@ -178,14 +178,12 @@ mod vm_host {
     }
 
     fn options(case: &FuzzCase) -> CompileOptions {
-        CompileOptions {
-            admission: QueryAdmission::Sets(reference_catalog::SETS),
-            experiments: reference_catalog::EXPERIMENTS,
-            ..CompileOptions::from_raw_version(
-                reference_catalog::catalog().clone(),
-                RawVersion(case.version),
-            )
-        }
+        CompileOptions::from_raw_version(
+            reference_catalog::catalog().clone(),
+            RawVersion(case.version),
+        )
+        .with_admission(QueryAdmission::Sets(reference_catalog::SETS))
+        .with_experiments(reference_catalog::EXPERIMENTS)
     }
 
     fn check(case: &FuzzCase) -> Result<(), TestCaseError> {

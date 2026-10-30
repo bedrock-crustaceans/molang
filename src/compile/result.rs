@@ -757,10 +757,7 @@ mod tests {
         assert!(!expr.is_rejected());
         assert_eq!(diagnostics, logged);
 
-        let no_deviations = CompileOptions {
-            deviations: Deviations::NONE,
-            ..opts()
-        };
+        let no_deviations = opts().with_deviations(Deviations::NONE);
         let kept = compile("loop(2, {break; v.x = 1;});", &no_deviations);
         assert!(kept.is_success());
         let logged = kept.diagnostics().to_vec();
@@ -778,10 +775,7 @@ mod tests {
         let math =
             MathCatalog::new([MathDecl::pure("math.f", Arity::exactly(1), |_, a| a[0]).unwrap()])
                 .unwrap();
-        let options = CompileOptions {
-            math: Some(math.clone()),
-            ..opts()
-        };
+        let options = opts().with_math(Some(math.clone()));
         for source in ["v.x", "1 + 2", "1 +"] {
             let compiled = compile(source, &options);
             let expr = compiled.expr_or_zero().expect("an expression");
@@ -803,16 +797,10 @@ mod tests {
             (5, MolangVersion::V5),
         ] {
             for source in ["1", "v.x", "1 +"] {
-                let expr = compile(
-                    source,
-                    &CompileOptions {
-                        raw_version: RawVersion(raw),
-                        ..opts()
-                    },
-                )
-                .expr_or_zero()
-                .cloned()
-                .expect("an expression");
+                let expr = compile(source, &opts().with_raw_version(RawVersion(raw)))
+                    .expr_or_zero()
+                    .cloned()
+                    .expect("an expression");
                 assert_eq!(
                     (expr.raw_version(), expr.version()),
                     (RawVersion(raw), version),
@@ -839,36 +827,15 @@ mod tests {
     fn source_is_kept_only_on_request() {
         assert_eq!(expr_of("v.x + 1", &opts()).source(), None);
         assert_eq!(
-            expr_of(
-                "v.x + 1",
-                &CompileOptions {
-                    keep_source: true,
-                    ..opts()
-                }
-            )
-            .source(),
+            expr_of("v.x + 1", &opts().with_keep_source(true)).source(),
             Some("v.x + 1")
         );
         assert_eq!(
-            expr_of(
-                "1 +",
-                &CompileOptions {
-                    keep_source: true,
-                    ..opts()
-                }
-            )
-            .source(),
+            expr_of("1 +", &opts().with_keep_source(true)).source(),
             Some("1 +")
         );
         assert_eq!(
-            expr_of(
-                "",
-                &CompileOptions {
-                    keep_source: true,
-                    ..opts()
-                }
-            )
-            .source(),
+            expr_of("", &opts().with_keep_source(true)).source(),
             Some("")
         );
     }
@@ -938,13 +905,7 @@ mod tests {
 
     #[test]
     fn a_cloned_expression_shares_the_compiled_state() {
-        let expr = expr_of(
-            "v.x*2",
-            &CompileOptions {
-                keep_source: true,
-                ..opts()
-            },
-        );
+        let expr = expr_of("v.x*2", &opts().with_keep_source(true));
         let copy = expr.clone();
         assert_eq!(copy.source(), expr.source());
         assert_eq!(copy.version(), expr.version());

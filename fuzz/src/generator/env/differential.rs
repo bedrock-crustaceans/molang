@@ -4,7 +4,7 @@ use super::FuzzEnv;
 use super::compare::{same_value, state_difference};
 use crate::generator::FuzzCase;
 use crate::tree_walker;
-use molang::compile::{CompileOptions, compile};
+use molang::compile::compile;
 use molang::internals::reference_catalog;
 
 /// What [`differential`] concluded about one case (when the VM and the tree walker do not simply
@@ -29,10 +29,7 @@ pub enum Verdict {
 /// variable's value, access and public snapshot), the temps, the messages and the random source.
 pub fn differential(case: &FuzzCase) -> Result<Verdict, String> {
     let source = case.source();
-    let options = CompileOptions {
-        platform: case.platform,
-        ..reference_catalog::options(case.version)
-    };
+    let options = reference_catalog::options(case.version).with_platform(case.platform);
     let compiled = compile(&source, &options);
     // A rejected text is compared too: both sides evaluate the constant 0.
     let Some(expr) = compiled.expr_or_zero() else {
@@ -137,7 +134,7 @@ mod tests {
         env::{FuzzActor, FuzzRng, Subject, TempLifetime, test_support::*},
     };
     use molang::catalog::Side;
-    use molang::compile::compile;
+    use molang::compile::{CompileOptions, compile};
     use molang::internals::Xorshift128;
     use molang::numeric::Platform;
     use molang::rng::{FixedRng, RandomSource};

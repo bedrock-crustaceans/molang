@@ -63,18 +63,14 @@ fn main() {
         show("version gate", "", &CompileOptions::server(version));
     }
 
-    let read_only = CompileOptions {
-        allowed_ops: OpSet::all().without_assignments(),
-        ..latest.clone()
-    };
+    let read_only = latest
+        .clone()
+        .with_allowed_ops(OpSet::all().without_assignments());
     show("reject (allow-list)", "v.x = 1;", &read_only);
 
     // The crate's own lints (`language_message: None`) only warn or inform and never reject a valid
     // text; `Deviations::NONE` switches them off.
-    let no_deviations = CompileOptions {
-        deviations: Deviations::NONE,
-        ..latest.clone()
-    };
+    let no_deviations = latest.clone().with_deviations(Deviations::NONE);
     show("lint (arity)", "query.armor_color_slot(1)", &latest);
     show(
         "lint (arity, no deviations)",

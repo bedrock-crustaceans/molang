@@ -59,10 +59,7 @@ fn two(src: &str, a: &CompileOptions, b: &CompileOptions) -> (Arc<Compiled>, Arc
 #[test]
 fn the_platform_is_part_of_the_key() {
     use molang::numeric::Platform;
-    let windows = CompileOptions {
-        platform: Platform::BdsWindows,
-        ..server_at(13)
-    };
+    let windows = server_at(13).with_platform(Platform::BdsWindows);
     let (linux, windows) = two("math.copy_sign(1, math.ln(-1))", &server_at(13), &windows);
     assert_eq!(
         (constant(&linux), constant(&windows)),
@@ -73,10 +70,7 @@ fn the_platform_is_part_of_the_key() {
         Some(Platform::BdsWindows)
     );
     let source = MolangSource::string_without_context("math.copy_sign(1, math.sqrt(-1))");
-    let android = CompileOptions {
-        platform: Platform::AndroidArm64,
-        ..server_at(13)
-    };
+    let android = server_at(13).with_platform(Platform::AndroidArm64);
     let cache = CompileCache::new();
     let (servers, android) = (
         cache.compile_source(&source, &server_at(13)),
@@ -184,10 +178,7 @@ fn the_options_version_wins_when_the_source_version_is_ignored() {
 fn key_version() {
     let (x, y) = two(
         GROUPING,
-        &CompileOptions {
-            raw_version: MolangVersion::V4.into(),
-            ..server_at(13)
-        },
+        &server_at(13).with_raw_version(MolangVersion::V4.into()),
         &server_at(6),
     );
     assert_eq!((constant(&x), constant(&y)), (Some(3.0), Some(1.0)));
@@ -209,10 +200,7 @@ fn key_query_sets() {
     let (x, y) = two(
         "query.any_tag('minecraft:stone')",
         &server_at(13),
-        &CompileOptions {
-            admission: QueryAdmission::Sets(QuerySetMask::TAGS),
-            ..server_at(13)
-        },
+        &server_at(13).with_admission(QueryAdmission::Sets(QuerySetMask::TAGS)),
     );
     assert_eq!(
         language_messages(&x).first(),
@@ -226,10 +214,7 @@ fn key_allowed_ops() {
     let (x, y) = two(
         "v.x = 1;",
         &server_at(13),
-        &CompileOptions {
-            allowed_ops: OpSet::all().without_assignments_or_random(),
-            ..server_at(13)
-        },
+        &server_at(13).with_allowed_ops(OpSet::all().without_assignments_or_random()),
     );
     assert_eq!(x.failure(), None);
     assert_eq!(y.failure(), Some(CompileFailure::Rejected));
@@ -238,13 +223,10 @@ fn key_allowed_ops() {
 #[test]
 fn key_allow_list() {
     fn only(list: &QueryAllowList) -> CompileOptions {
-        CompileOptions {
-            admission: QueryAdmission::Only(list.clone()),
-            ..server_at(13)
-        }
+        server_at(13).with_admission(QueryAdmission::Only(list.clone()))
     }
     let list =
-        |names: &[&str]| QueryAllowList::new(&server_at(13).catalog, names).expect("declared");
+        |names: &[&str]| QueryAllowList::new(server_at(13).catalog(), names).expect("declared");
     let (block_state, is_baby) = (list(&[query::BLOCK_STATE]), list(&[query::IS_BABY]));
     let (x, y) = two("query.is_baby", &only(&block_state), &only(&is_baby));
     assert_eq!(
@@ -274,28 +256,16 @@ fn key_allow_list() {
 fn key_experiments() {
     // No standard query is experiment-gated; the helper catalogue makes the difference visible.
     let on = ExperimentMask::empty().with(Experiment::new(3).expect("experiment 3"));
-    let (x, y) = two(
-        "1",
-        &server_at(13),
-        &CompileOptions {
-            experiments: on,
-            ..server_at(13)
-        },
-    );
+    let (x, y) = two("1", &server_at(13), &server_at(13).with_experiments(on));
     assert_eq!((constant(&x), constant(&y)), (Some(1.0), Some(1.0)));
     {
-        let tests = CompileOptions {
-            catalog: common::reference_catalog().clone(),
-            admission: QueryAdmission::Sets(common::REFERENCE_SETS),
-            ..server_at(13)
-        };
+        let tests = server_at(13)
+            .with_catalog(common::reference_catalog().clone())
+            .with_admission(QueryAdmission::Sets(common::REFERENCE_SETS));
         let (x, y) = two(
             "query.experimental_test",
             &tests.clone(),
-            &CompileOptions {
-                experiments: common::reference_experiments(),
-                ..tests
-            },
+            &tests.with_experiments(common::reference_experiments()),
         );
         assert_eq!(
             language_messages(&x).first(),
@@ -310,10 +280,7 @@ fn key_keep_source() {
     let (x, y) = two(
         "1 + v.x",
         &server_at(13),
-        &CompileOptions {
-            keep_source: true,
-            ..server_at(13)
-        },
+        &server_at(13).with_keep_source(true),
     );
     assert_eq!(x.expr().and_then(Expr::source), None);
     assert_eq!(y.expr().and_then(Expr::source), Some("1 + v.x"));
@@ -324,14 +291,8 @@ fn key_side() {
     // The server catalogue lacks `query.is_on_screen`.
     let (x, y) = two(
         "query.is_on_screen",
-        &CompileOptions {
-            catalog: molang::stdlib::queries(Side::Server).clone(),
-            ..server_at(13)
-        },
-        &CompileOptions {
-            catalog: molang::stdlib::queries(Side::Client).clone(),
-            ..server_at(13)
-        },
+        &server_at(13).with_catalog(molang::stdlib::queries(Side::Server).clone()),
+        &server_at(13).with_catalog(molang::stdlib::queries(Side::Client).clone()),
     );
     assert_eq!(
         language_messages(&x).first(),
@@ -346,10 +307,7 @@ fn key_deviations() {
     let (x, y) = two(
         "1",
         &server_at(-1),
-        &CompileOptions {
-            deviations: Deviations::NONE,
-            ..server_at(-1)
-        },
+        &server_at(-1).with_deviations(Deviations::NONE),
     );
     assert_eq!((x.diagnostics().len(), y.diagnostics().len()), (1, 0));
 }

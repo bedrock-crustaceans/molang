@@ -309,10 +309,7 @@ pub(crate) mod test_support {
     }
 
     pub(super) fn folded_on(platform: crate::numeric::Platform, mut root: Node) -> Node {
-        let opts = CompileOptions {
-            platform,
-            ..client(13)
-        };
+        let opts = client(13).with_platform(platform);
         let (ok, log, texts) = optimise_node(&mut root, &opts);
         assert!(ok && log.is_empty(), "{texts:?}");
         root

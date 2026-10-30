@@ -624,7 +624,7 @@ mod compiled_sources {
         let options =
             CompileOptions::for_source(molang::stdlib::queries(Side::Server).clone(), source)
                 .expect("a source with a version");
-        assert_eq!(options.raw_version, RawVersion(-1));
+        assert_eq!(options.raw_version(), RawVersion(-1));
         let compiled = compile(source.as_str(), &options);
         assert_eq!(compiled.failure(), None);
         assert!(compiled.parses_cleanly());
@@ -634,13 +634,7 @@ mod compiled_sources {
             .map(|d| (d.code(), d.severity(), d.language_message().is_some()))
             .collect();
         assert_eq!(ours, [(DiagCode::InvalidVersion, Severity::Info, false)]);
-        let no_deviations = compile(
-            source.as_str(),
-            &CompileOptions {
-                deviations: Deviations::NONE,
-                ..options
-            },
-        );
+        let no_deviations = compile(source.as_str(), &options.with_deviations(Deviations::NONE));
         assert_eq!(no_deviations.failure(), None);
         assert!(
             no_deviations.diagnostics().is_empty(),

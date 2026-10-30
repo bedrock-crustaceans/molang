@@ -29,7 +29,7 @@ use std::collections::BTreeMap;
 use common::PLATFORMS;
 use common::compile_support::client_at;
 use molang::catalog::{QueryAdmission, QuerySetMask};
-use molang::compile::{CompileFailure, CompileOptions, Deviations, compile};
+use molang::compile::{CompileFailure, Deviations, compile};
 use molang::diag::{Effect, LanguageMessage, Severity};
 use molang::numeric::Platform;
 
@@ -262,12 +262,10 @@ fn check(
     tree_differs: bool,
 ) -> Result<(), String> {
     let has_bytes = row.get("input_bytes_hex").and_then(Value::as_str).is_some();
-    let options = CompileOptions {
-        admission: QueryAdmission::Sets(QuerySetMask::empty()),
-        deviations,
-        platform,
-        ..client_at(version(row))
-    };
+    let options = client_at(version(row))
+        .with_admission(QueryAdmission::Sets(QuerySetMask::empty()))
+        .with_deviations(deviations)
+        .with_platform(platform);
     let compiled = compile(&source(row), &options);
 
     let all: Vec<(String, &str, String)> = compiled

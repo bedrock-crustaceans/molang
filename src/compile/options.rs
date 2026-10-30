@@ -87,6 +87,8 @@ pub enum ArrayAccess {
 /// [`MolangSource`] with [`compile_source`](super::compile_source), which applies the source's
 /// version to the field's options.
 ///
+/// Each setting has a getter and a consuming `with_*` setter.
+///
 /// Equality is the compile cache's key: a new field must compare unequal whenever it can change a
 /// compile's result.
 ///
@@ -100,11 +102,9 @@ pub enum ArrayAccess {
 /// use molang::version::MolangVersion;
 ///
 /// let list = QueryAllowList::new(stdlib::queries(Side::Server), [query::BLOCK_STATE])?;
-/// let block = CompileOptions {
-///     admission: QueryAdmission::Only(list),
-///     allowed_ops: OpSet::all().without_assignments_or_random(),
-///     ..CompileOptions::server(MolangVersion::LATEST)
-/// };
+/// let block = CompileOptions::server(MolangVersion::LATEST)
+///     .with_admission(QueryAdmission::Only(list))
+///     .with_allowed_ops(OpSet::all().without_assignments_or_random());
 /// assert!(compile("q.block_state('facing') == 'west'", &block).is_success());
 /// assert_eq!(compile("q.is_baby", &block).failure(), Some(CompileFailure::Rejected));
 /// # }
@@ -114,29 +114,29 @@ pub enum ArrayAccess {
 pub struct CompileOptions {
     /// The catalogue queries resolve against. An allow-list in `admission` admits the queries of
     /// this catalogue that it names.
-    pub catalog: QueryCatalog,
+    pub(crate) catalog: QueryCatalog,
     /// The raw version queries resolve with. Parser gates use
     /// [`RawVersion::effective`](crate::version::RawVersion::effective) of it; above 13 it gates
     /// like 13 and resolves no query.
-    pub raw_version: RawVersion,
+    pub(crate) raw_version: RawVersion,
     /// Which queries of the catalogue may be called: query sets (by default `default`) or an
     /// allow-list.
-    pub admission: QueryAdmission,
+    pub(crate) admission: QueryAdmission,
     /// The allowed operations (by default all).
-    pub allowed_ops: OpSet,
+    pub(crate) allowed_ops: OpSet,
     /// The enabled experiments (by default none). No standard query is experiment-gated.
-    pub experiments: ExperimentMask,
+    pub(crate) experiments: ExperimentMask,
     /// The host's own `math.*` functions (by default none), callable like the standard ones.
-    pub math: Option<MathCatalog>,
+    pub(crate) math: Option<MathCatalog>,
     /// Whether the compiled expression keeps the source text (by default not).
-    pub keep_source: bool,
+    pub(crate) keep_source: bool,
     /// The active deviations (by default [`Deviations::DEFAULT`], every one on).
-    pub deviations: Deviations,
+    pub(crate) deviations: Deviations,
     /// The platform whose float behaviour constant folding and evaluation reproduce (by default
     /// [`Platform::default`]).
-    pub platform: Platform,
+    pub(crate) platform: Platform,
     /// What `array.<name>[index]` compiles to (by default [`ArrayAccess::Unresolved`]).
-    pub arrays: ArrayAccess,
+    pub(crate) arrays: ArrayAccess,
 }
 
 impl CompileOptions {
@@ -179,6 +179,133 @@ impl CompileOptions {
     pub const fn version(&self) -> MolangVersion {
         self.raw_version.effective()
     }
+
+    /// The catalogue queries resolve against. An allow-list in
+    /// [`admission`](Self::admission) admits the queries of this catalogue that it names.
+    pub const fn catalog(&self) -> &QueryCatalog {
+        &self.catalog
+    }
+
+    /// The raw version queries resolve with. Parser gates use
+    /// [`RawVersion::effective`](crate::version::RawVersion::effective) of it; above 13 it gates
+    /// like 13 and resolves no query.
+    pub const fn raw_version(&self) -> RawVersion {
+        self.raw_version
+    }
+
+    /// Which queries of the catalogue may be called: query sets (by default `default`) or an
+    /// allow-list.
+    pub const fn admission(&self) -> &QueryAdmission {
+        &self.admission
+    }
+
+    /// The allowed operations (by default all).
+    pub const fn allowed_ops(&self) -> OpSet {
+        self.allowed_ops
+    }
+
+    /// The enabled experiments (by default none). No standard query is experiment-gated.
+    pub const fn experiments(&self) -> ExperimentMask {
+        self.experiments
+    }
+
+    /// The host's own `math.*` functions (by default none), callable like the standard ones.
+    pub const fn math(&self) -> Option<&MathCatalog> {
+        self.math.as_ref()
+    }
+
+    /// Whether the compiled expression keeps the source text (by default not).
+    pub const fn keep_source(&self) -> bool {
+        self.keep_source
+    }
+
+    /// The active deviations (by default [`Deviations::DEFAULT`], every one on).
+    pub const fn deviations(&self) -> Deviations {
+        self.deviations
+    }
+
+    /// The platform whose float behaviour constant folding and evaluation reproduce (by default
+    /// [`Platform::default`]).
+    pub const fn platform(&self) -> Platform {
+        self.platform
+    }
+
+    /// What `array.<name>[index]` compiles to (by default [`ArrayAccess::Unresolved`]).
+    pub const fn arrays(&self) -> ArrayAccess {
+        self.arrays
+    }
+
+    /// These options against another [catalogue](Self::catalog).
+    #[must_use]
+    pub fn with_catalog(self, catalog: QueryCatalog) -> Self {
+        Self { catalog, ..self }
+    }
+
+    /// These options at another [raw version](Self::raw_version).
+    #[must_use]
+    pub fn with_raw_version(self, raw_version: RawVersion) -> Self {
+        Self {
+            raw_version,
+            ..self
+        }
+    }
+
+    /// These options with other [admitted queries](Self::admission).
+    #[must_use]
+    pub fn with_admission(self, admission: QueryAdmission) -> Self {
+        Self { admission, ..self }
+    }
+
+    /// These options with other [allowed operations](Self::allowed_ops).
+    #[must_use]
+    pub fn with_allowed_ops(self, allowed_ops: OpSet) -> Self {
+        Self {
+            allowed_ops,
+            ..self
+        }
+    }
+
+    /// These options with other [experiments](Self::experiments).
+    #[must_use]
+    pub fn with_experiments(self, experiments: ExperimentMask) -> Self {
+        Self {
+            experiments,
+            ..self
+        }
+    }
+
+    /// These options with other [host math functions](Self::math); `None` for none.
+    #[must_use]
+    pub fn with_math(self, math: Option<MathCatalog>) -> Self {
+        Self { math, ..self }
+    }
+
+    /// These options keeping the source text or not ([`keep_source`](Self::keep_source)).
+    #[must_use]
+    pub fn with_keep_source(self, keep_source: bool) -> Self {
+        Self {
+            keep_source,
+            ..self
+        }
+    }
+
+    /// These options with other [deviations](Self::deviations).
+    #[must_use]
+    pub fn with_deviations(self, deviations: Deviations) -> Self {
+        Self { deviations, ..self }
+    }
+
+    /// These options for another [platform](Self::platform).
+    #[must_use]
+    pub fn with_platform(self, platform: Platform) -> Self {
+        Self { platform, ..self }
+    }
+
+    /// These options with another [array access](Self::arrays).
+    #[must_use]
+    pub fn with_arrays(self, arrays: ArrayAccess) -> Self {
+        Self { arrays, ..self }
+    }
 }
 
 #[cfg(feature = "stdlib")]
@@ -192,10 +319,8 @@ impl CompileOptions {
     /// [`CompileOptions::new`] against the standard library's client queries, with
     /// [`ArrayAccess::FromHost`].
     pub fn client(version: MolangVersion) -> Self {
-        Self {
-            arrays: ArrayAccess::FromHost,
-            ..Self::new(crate::stdlib::queries(Side::Client).clone(), version)
-        }
+        Self::new(crate::stdlib::queries(Side::Client).clone(), version)
+            .with_arrays(ArrayAccess::FromHost)
     }
 }
 
@@ -265,10 +390,7 @@ mod tests {
     #[test]
     fn options_for_another_platform_compare_unequal() {
         let o = CompileOptions::server(MolangVersion::LATEST);
-        let windows = CompileOptions {
-            platform: Platform::BdsWindows,
-            ..o.clone()
-        };
+        let windows = o.clone().with_platform(Platform::BdsWindows);
         assert_ne!(o, windows);
         assert_eq!(windows.platform, Platform::BdsWindows);
     }
@@ -298,10 +420,7 @@ mod tests {
             let o = CompileOptions::from_raw_version(server().clone(), RawVersion(raw));
             assert_eq!(o.version(), gate, "raw {raw}");
             assert_eq!(o.raw_version, RawVersion(raw), "raw {raw}");
-            let set = CompileOptions {
-                raw_version: RawVersion(raw),
-                ..opts()
-            };
+            let set = opts().with_raw_version(RawVersion(raw));
             assert_eq!(set, o, "raw {raw}");
             assert_eq!(set.version(), RawVersion(raw).effective(), "raw {raw}");
         }
@@ -354,25 +473,14 @@ mod tests {
         let own = server()
             .extended([QueryDecl::new("query.mine", QueryShape::DEFAULT).unwrap()])
             .unwrap();
-        let o = CompileOptions {
-            catalog: own.clone(),
-            admission: QueryAdmission::Only(list),
-            ..opts()
-        };
+        let o = opts()
+            .with_catalog(own.clone())
+            .with_admission(QueryAdmission::Only(list));
         assert_eq!(o.catalog, own);
-        assert_ne!(
-            o,
-            CompileOptions {
-                catalog: server().clone(),
-                ..o.clone()
-            }
-        );
+        assert_ne!(o, o.clone().with_catalog(server().clone()));
         assert_eq!(
             CompileOptions::from_raw_version(own, RawVersion(13)),
-            CompileOptions {
-                admission: opts().admission,
-                ..o
-            }
+            o.with_admission(opts().admission)
         );
     }
 
@@ -405,36 +513,24 @@ mod tests {
         let math =
             MathCatalog::new([MathDecl::pure("math.f", Arity::exactly(1), |_, a| a[0]).unwrap()])
                 .unwrap();
-        let o = CompileOptions {
-            math: Some(math.clone()),
-            ..opts()
-        };
+        let o = opts().with_math(Some(math.clone()));
         assert_eq!(o.math.as_ref(), Some(&math));
         assert_ne!(o, opts());
         let copy =
             MathCatalog::new([MathDecl::pure("math.f", Arity::exactly(1), |_, a| a[0]).unwrap()])
                 .unwrap();
-        assert_ne!(
-            o,
-            CompileOptions {
-                math: Some(copy),
-                ..o.clone()
-            },
-            "compared by identity"
-        );
+        assert_ne!(o, o.clone().with_math(Some(copy)), "compared by identity");
     }
 
     #[test]
     fn struct_update_sets_only_the_fields_it_names() {
         let experiments =
             ExperimentMask::empty().with(Experiment::new(5).expect("a valid experiment"));
-        let o = CompileOptions {
-            catalog: client().clone(),
-            deviations: Deviations::NONE,
-            experiments,
-            keep_source: true,
-            ..opts()
-        };
+        let o = opts()
+            .with_catalog(client().clone())
+            .with_deviations(Deviations::NONE)
+            .with_experiments(experiments)
+            .with_keep_source(true);
         assert_eq!(o.catalog.side(), Side::Client);
         assert_eq!(
             (o.deviations, o.experiments, o.keep_source),

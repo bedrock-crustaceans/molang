@@ -107,10 +107,7 @@ mod tests {
     fn an_allow_list_admits_only_its_queries() {
         let list =
             crate::catalog::QueryAllowList::new(&client().catalog, [query::IS_BABY]).unwrap();
-        let opts = CompileOptions {
-            admission: QueryAdmission::Only(list),
-            ..client()
-        };
+        let opts = client().with_admission(QueryAdmission::Only(list));
         assert!(run_with("q.is_baby", &opts).tokens.is_some());
         let r = run_with("q.is_first_person", &opts);
         assert!(r.tokens.is_none());
@@ -119,10 +116,7 @@ mod tests {
 
     #[test]
     fn an_empty_query_set_admits_no_query() {
-        let opts = CompileOptions {
-            admission: QueryAdmission::Sets(QuerySetMask::empty()),
-            ..client()
-        };
+        let opts = client().with_admission(QueryAdmission::Sets(QuerySetMask::empty()));
         let r = run_with("q.is_baby", &opts);
         assert!(r.tokens.is_none());
         assert_eq!(r.log[0].0, "E05");
@@ -147,13 +141,11 @@ mod tests {
 
     #[test]
     fn the_miss_lint_is_off_with_the_deviation() {
-        let opts = CompileOptions {
-            deviations: Deviations::ALL.difference(Deviations::QUERY_CLIENT_ONLY),
-            ..CompileOptions::from_raw_version(
-                crate::stdlib::queries(Side::Client).clone(),
-                RawVersion(14),
-            )
-        };
+        let opts = CompileOptions::from_raw_version(
+            crate::stdlib::queries(Side::Client).clone(),
+            RawVersion(14),
+        )
+        .with_deviations(Deviations::ALL.difference(Deviations::QUERY_CLIENT_ONLY));
         let r = run_with("q.is_baby", &opts);
         assert_eq!(
             r.log.iter().map(|l| l.0).collect::<Vec<_>>(),
@@ -200,10 +192,7 @@ mod tests {
 
     #[test]
     fn experiments_do_not_change_a_query_without_one() {
-        let opts = CompileOptions {
-            experiments: ExperimentMask::empty(),
-            ..client()
-        };
+        let opts = client().with_experiments(ExperimentMask::empty());
         assert!(run_with("q.is_baby", &opts).tokens.is_some());
     }
 }

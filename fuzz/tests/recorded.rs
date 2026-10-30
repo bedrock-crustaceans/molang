@@ -8,7 +8,7 @@ mod common;
 use common::differential::Tally;
 use common::host::Env;
 use molang::catalog::{QueryAdmission, QuerySetMask};
-use molang::compile::{CompileOptions, compile};
+use molang::compile::compile;
 use molang::internals::Xorshift128;
 use molang::vm::{EvalLimits, Value, VariableName};
 use molang_fuzz::generator::env::FuzzRng;
@@ -50,10 +50,8 @@ fn vm_equals_tree_walker_on_every_accepted_parse_row() {
                 || row["expr"].as_str().expect("expr").to_owned(),
                 common::hex_to_string,
             );
-        let options = CompileOptions {
-            admission: QueryAdmission::Sets(QuerySetMask::empty()),
-            ..common::client_at(version(row))
-        };
+        let options = common::client_at(version(row))
+            .with_admission(QueryAdmission::Sets(QuerySetMask::empty()));
         let mut env = Env::reference();
         env.temps = None;
         env.limits = EvalLimits::DEFAULT;

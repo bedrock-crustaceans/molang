@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn array_elements_agree_with_the_vm_on_every_platform() {
-        use molang::compile::{ArrayAccess, CompileOptions, compile};
+        use molang::compile::{ArrayAccess, compile};
         let mut start = Env::new();
         start.arrays.set(
             ArrayName::new("a"),
@@ -216,10 +216,7 @@ mod tests {
         );
         start.arrays.set(ArrayName::new("empty"), []);
         for platform in PLATFORMS {
-            let options = CompileOptions {
-                arrays: ArrayAccess::FromHost,
-                ..on(platform, 13)
-            };
+            let options = on(platform, 13).with_arrays(ArrayAccess::FromHost);
             for src in [
                 "array.a[v.x]",
                 "array.a[-v.x]",

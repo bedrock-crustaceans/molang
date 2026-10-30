@@ -316,18 +316,16 @@ mod compiler {
         let list = QueryAllowList::new(molang::stdlib::queries(Side::Server), [query::IS_BABY])
             .expect("a standard query");
         let host = Host {
-            options: CompileOptions {
-                admission: QueryAdmission::Only(list),
-                math: Some(math.clone()),
-                ..CompileOptions::server(MolangVersion::LATEST)
-            },
+            options: CompileOptions::server(MolangVersion::LATEST)
+                .with_admission(QueryAdmission::Only(list))
+                .with_math(Some(math.clone())),
         };
         let sent = std::thread::spawn(move || host.options)
             .join()
             .expect("the thread finishes");
         assert_eq!(sent.clone(), sent);
         assert_eq!(compile("math.twice(q.is_baby)", &sent).failure(), None);
-        assert_eq!(sent.math, Some(math));
+        assert_eq!(sent.math(), Some(&math));
     }
 
     #[test]
@@ -395,12 +393,10 @@ mod compiler {
         use molang::version::RawVersion;
         let list = QueryAllowList::new(molang::stdlib::queries(Side::Server), [query::BLOCK_STATE])
             .expect("a standard query");
-        let block = CompileOptions {
-            admission: QueryAdmission::Only(list),
-            allowed_ops: OpSet::all().without_assignments_or_random(),
-            deviations: Deviations::DEFAULT.difference(Deviations::VALIDATE_NESTED),
-            ..CompileOptions::server(MolangVersion::LATEST)
-        };
+        let block = CompileOptions::server(MolangVersion::LATEST)
+            .with_admission(QueryAdmission::Only(list))
+            .with_allowed_ops(OpSet::all().without_assignments_or_random())
+            .with_deviations(Deviations::DEFAULT.difference(Deviations::VALIDATE_NESTED));
         assert_eq!(
             compile("q.block_state('facing') == 'west'", &block).failure(),
             None
@@ -413,18 +409,12 @@ mod compiler {
             compile("v.x = 1", &block).failure(),
             Some(CompileFailure::Rejected)
         );
-        let raw = CompileOptions {
-            raw_version: RawVersion(99),
-            ..block
-        };
+        let raw = block.with_raw_version(RawVersion(99));
         assert_eq!(
-            (raw.version(), raw.raw_version),
+            (raw.version(), raw.raw_version()),
             (MolangVersion::LATEST, RawVersion(99))
         );
-        let windows = CompileOptions {
-            platform: molang::numeric::Platform::BdsWindows,
-            ..raw
-        };
+        let windows = raw.with_platform(molang::numeric::Platform::BdsWindows);
         assert_eq!(
             compile("1", &windows).expr().map(Expr::platform),
             Some(molang::numeric::Platform::BdsWindows)
@@ -464,14 +454,11 @@ mod compiler {
         let empty = MathCatalog::new([]).expect("an empty catalogue");
         assert!(empty.is_empty() && !math.is_empty());
         assert_eq!(empty.len(), 0);
-        let options = CompileOptions {
-            math: Some(math.clone()),
-            ..CompileOptions::server(MolangVersion::LATEST)
-        };
+        let options = CompileOptions::server(MolangVersion::LATEST).with_math(Some(math.clone()));
         let compiled = compile("math.twice(21)", &options);
         assert_eq!(compiled.expr().and_then(Expr::as_constant), Some(42.0));
         assert_eq!(compiled.expr().and_then(Expr::math), Some(&math));
-        assert_eq!(CompileOptions::server(MolangVersion::LATEST).math, None);
+        assert_eq!(CompileOptions::server(MolangVersion::LATEST).math(), None);
     }
 
     #[test]
@@ -742,17 +729,15 @@ mod vm {
             ArrayName, ArrayProvider, ArrayTable, NoArrays, ResourceRef, RuntimeMsg, namespace,
         };
         assert_eq!(
-            CompileOptions::server(MolangVersion::LATEST).arrays,
+            CompileOptions::server(MolangVersion::LATEST).arrays(),
             ArrayAccess::Unresolved
         );
         assert_eq!(ArrayAccess::default(), ArrayAccess::Unresolved);
-        let options = CompileOptions {
-            arrays: ArrayAccess::FromHost,
-            ..CompileOptions::server(MolangVersion::LATEST)
-        };
+        let options =
+            CompileOptions::server(MolangVersion::LATEST).with_arrays(ArrayAccess::FromHost);
         assert_eq!(
-            options.arrays,
-            CompileOptions::client(MolangVersion::LATEST).arrays
+            options.arrays(),
+            CompileOptions::client(MolangVersion::LATEST).arrays()
         );
         let skins: molang::vm::Name<namespace::Array> = ArrayName::new("skins");
         assert_eq!(ArrayName::parse("array.skins"), Some(skins));
@@ -953,13 +938,11 @@ mod vm {
         let catalog = molang::stdlib::queries(Side::Client);
         for decl in catalog {
             let version = decl.shape().ranges.as_slice()[0].first().to_i16();
-            let options = CompileOptions {
-                admission: QueryAdmission::Sets(QuerySetMask::BUILTIN),
-                ..CompileOptions::from_raw_version(
-                    catalog.clone(),
-                    molang::version::RawVersion(version),
-                )
-            };
+            let options = CompileOptions::from_raw_version(
+                catalog.clone(),
+                molang::version::RawVersion(version),
+            )
+            .with_admission(QueryAdmission::Sets(QuerySetMask::BUILTIN));
             let compiled = compile(decl.name(), &options);
             assert_eq!(
                 compiled.failure(),
@@ -1049,10 +1032,7 @@ mod cache {
         assert_eq!(first.failure(), None);
         let other = cache.compile(
             "1 + 2",
-            &CompileOptions {
-                raw_version: molang::version::RawVersion(5),
-                ..options
-            },
+            &options.with_raw_version(molang::version::RawVersion(5)),
         );
         assert!(!Arc::ptr_eq(&first, &other));
         assert_eq!((cache.len(), cache.hits(), cache.misses()), (2, 1, 2));

@@ -87,14 +87,12 @@ impl ParseGroup {
         for row in &self.rows {
             let theirs: Vec<String> = row.lines.iter().map(|line| first_line_only(line)).collect();
             for deviations in [Deviations::ALL, Deviations::NONE] {
-                let options = CompileOptions {
-                    admission: QueryAdmission::Sets(QuerySetMask::empty()),
-                    deviations,
-                    ..CompileOptions::from_raw_version(
-                        molang::stdlib::queries(Side::Client).clone(),
-                        RawVersion(row.version),
-                    )
-                };
+                let options = CompileOptions::from_raw_version(
+                    molang::stdlib::queries(Side::Client).clone(),
+                    RawVersion(row.version),
+                )
+                .with_admission(QueryAdmission::Sets(QuerySetMask::empty()))
+                .with_deviations(deviations);
                 let compiled = compile(&row.expr, &options);
                 let ours: Vec<String> = compiled
                     .diagnostics()

@@ -84,10 +84,7 @@ fn bad_exponents_share_one_copy_of_the_source() {
     let src = "1e;".repeat(21_845);
     assert!(src.len() <= MAX_SOURCE_LEN);
     for deviations in [Deviations::ALL, Deviations::NONE] {
-        let opts = CompileOptions {
-            deviations,
-            ..CompileOptions::server(MolangVersion::LATEST)
-        };
+        let opts = CompileOptions::server(MolangVersion::LATEST).with_deviations(deviations);
         let cost = measure(&src, &opts);
         let compiled = &cost.compiled;
         assert_eq!(compiled.failure(), None, "{deviations:?}");

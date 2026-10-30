@@ -253,10 +253,7 @@ pub(crate) mod test_support {
 
     /// [`opts`] at the raw version `raw`.
     pub(crate) fn opts_at(raw: i16) -> CompileOptions {
-        CompileOptions {
-            raw_version: RawVersion(raw),
-            ..opts()
-        }
+        opts().with_raw_version(RawVersion(raw))
     }
 
     pub(crate) fn codes(compiled: &Compiled) -> Vec<DiagCode> {
@@ -296,10 +293,7 @@ pub(crate) mod test_support {
 
     /// [`opts`] with [`host_math`].
     pub(crate) fn math_opts() -> CompileOptions {
-        CompileOptions {
-            math: Some(host_math().clone()),
-            ..opts()
-        }
+        opts().with_math(Some(host_math().clone()))
     }
 
     /// Whole-pipeline helpers for tests that assert the optimised tree or the language messages,
@@ -497,22 +491,10 @@ mod tests {
     fn the_version_warning_can_be_switched_off() {
         let off = Deviations::ALL.difference(Deviations::OBJECT_VERSION_WARNING);
         for raw in [-2, -1, 14] {
-            let compiled = compile(
-                "1",
-                &CompileOptions {
-                    deviations: off,
-                    ..opts_at(raw)
-                },
-            );
+            let compiled = compile("1", &opts_at(raw).with_deviations(off));
             assert!(compiled.diagnostics().is_empty(), "raw {raw}");
         }
-        let no_deviations = compile(
-            "1",
-            &CompileOptions {
-                deviations: Deviations::NONE,
-                ..opts_at(14)
-            },
-        );
+        let no_deviations = compile("1", &opts_at(14).with_deviations(Deviations::NONE));
         assert!(no_deviations.diagnostics().is_empty());
     }
 
@@ -522,10 +504,7 @@ mod tests {
         for deviations in [Deviations::ALL, Deviations::NONE] {
             let compiled = compile_source(
                 &unresolved,
-                &CompileOptions {
-                    deviations,
-                    ..CompileOptions::server(MolangVersion::LATEST)
-                },
+                &CompileOptions::server(MolangVersion::LATEST).with_deviations(deviations),
             );
             assert_eq!(codes(&compiled), [DiagCode::InvalidVersion]);
             assert_eq!(compiled.diagnostics()[0].severity(), Severity::Warning);
@@ -595,22 +574,13 @@ mod tests {
     #[test]
     fn with_the_length_deviation_off_a_long_source_compiles() {
         let src = format!("1{}", " ".repeat(MAX_SOURCE_LEN));
-        let off = CompileOptions {
-            deviations: Deviations::ALL.difference(Deviations::SOURCE_LENGTH_LIMIT),
-            ..opts()
-        };
+        let off =
+            opts().with_deviations(Deviations::ALL.difference(Deviations::SOURCE_LENGTH_LIMIT));
         let compiled = compile(&src, &off);
         assert_eq!(compiled.failure(), None);
         assert!(compiled.diagnostics().is_empty());
         assert_eq!(
-            compile(
-                &src,
-                &CompileOptions {
-                    deviations: Deviations::NONE,
-                    ..opts()
-                }
-            )
-            .failure(),
+            compile(&src, &opts().with_deviations(Deviations::NONE)).failure(),
             None
         );
     }
@@ -657,10 +627,7 @@ mod tests {
 
     #[test]
     fn a_disallowed_operation_is_logged_once_per_op_and_rejects() {
-        let no_assignment = CompileOptions {
-            allowed_ops: OpSet::all().without_assignments(),
-            ..opts()
-        };
+        let no_assignment = opts().with_allowed_ops(OpSet::all().without_assignments());
         let compiled = compile("v.x=1;", &no_assignment);
         assert_eq!(compiled.failure(), Some(CompileFailure::Rejected));
         assert!(
@@ -688,10 +655,7 @@ mod tests {
 
     #[test]
     fn disallowing_random_rejects_random_but_not_the_dice() {
-        let strict = CompileOptions {
-            allowed_ops: OpSet::all().without_assignments_or_random(),
-            ..opts()
-        };
+        let strict = opts().with_allowed_ops(OpSet::all().without_assignments_or_random());
         assert_eq!(
             compile("math.random(0,1)", &strict).failure(),
             Some(CompileFailure::Rejected)
@@ -704,10 +668,7 @@ mod tests {
         assert_eq!(
             compile(
                 "math.random(0,1)",
-                &CompileOptions {
-                    allowed_ops: OpSet::all().without_assignments(),
-                    ..opts()
-                }
+                &opts().with_allowed_ops(OpSet::all().without_assignments())
             )
             .failure(),
             None
@@ -719,10 +680,7 @@ mod tests {
         assert_eq!(compile("q.is_baby", &opts()).failure(), None);
         let none = compile(
             "q.is_baby",
-            &CompileOptions {
-                admission: QueryAdmission::Sets(QuerySetMask::empty()),
-                ..opts()
-            },
+            &opts().with_admission(QueryAdmission::Sets(QuerySetMask::empty())),
         );
         assert_eq!(none.failure(), Some(CompileFailure::Rejected));
         assert_eq!(
@@ -740,10 +698,7 @@ mod tests {
     #[test]
     fn the_allow_list_decides_what_resolves() {
         let list = QueryAllowList::new(&opts().catalog, [query::IS_BABY]).unwrap();
-        let only_baby = CompileOptions {
-            admission: QueryAdmission::Only(list),
-            ..opts()
-        };
+        let only_baby = opts().with_admission(QueryAdmission::Only(list));
         assert_eq!(compile("q.is_baby", &only_baby).failure(), None);
         assert_eq!(
             compile("q.is_on_ground", &only_baby).failure(),
@@ -755,11 +710,9 @@ mod tests {
     fn an_allow_list_restricts_a_compile_against_any_catalogue() {
         let client = crate::stdlib::queries(Side::Client);
         let list = QueryAllowList::new(&opts().catalog, [query::BLOCK_STATE]).unwrap();
-        let o = CompileOptions {
-            catalog: client.clone(),
-            admission: QueryAdmission::Only(list),
-            ..opts()
-        };
+        let o = opts()
+            .with_catalog(client.clone())
+            .with_admission(QueryAdmission::Only(list));
         assert_eq!(
             compile("q.is_baby", &o).failure(),
             Some(CompileFailure::Rejected)
@@ -774,10 +727,7 @@ mod tests {
             .extended([QueryDecl::new("query.mine", QueryShape::DEFAULT).unwrap()])
             .unwrap();
         let mine = QueryAllowList::new(&own, ["query.mine"]).unwrap();
-        let o = CompileOptions {
-            admission: QueryAdmission::Only(mine),
-            ..opts()
-        };
+        let o = opts().with_admission(QueryAdmission::Only(mine));
         for src in ["q.is_baby", "q.block_state('facing')", "q.mine"] {
             assert_eq!(
                 compile(src, &o).failure(),
@@ -786,18 +736,11 @@ mod tests {
             );
         }
         assert_eq!(
-            compile(
-                "q.mine",
-                &CompileOptions {
-                    catalog: own.clone(),
-                    ..o.clone()
-                }
-            )
-            .failure(),
+            compile("q.mine", &o.clone().with_catalog(own.clone())).failure(),
             None
         );
         assert_eq!(
-            compile("q.is_baby", &CompileOptions { catalog: own, ..o }).failure(),
+            compile("q.is_baby", &o.with_catalog(own)).failure(),
             Some(CompileFailure::Rejected)
         );
     }
@@ -846,11 +789,9 @@ mod tests {
 
     #[test]
     fn compile_source_keeps_the_rest_of_the_field_options() {
-        let field = CompileOptions {
-            catalog: crate::stdlib::queries(Side::Client).clone(),
-            keep_source: true,
-            ..opts()
-        };
+        let field = opts()
+            .with_catalog(crate::stdlib::queries(Side::Client).clone())
+            .with_keep_source(true);
         let compiled = compile_source(&MolangSource::string("q.is_on_screen", 13), &field);
         assert_eq!(compiled.failure(), None);
         let expr = compiled.expr().cloned().expect("an expression");
@@ -860,13 +801,7 @@ mod tests {
     #[test]
     fn compile_source_equals_compile_with_the_version_applied() {
         let source = MolangSource::string("v.x*2+1", 5);
-        let direct = compile(
-            "v.x*2+1",
-            &CompileOptions {
-                raw_version: RawVersion(5),
-                ..opts()
-            },
-        );
+        let direct = compile("v.x*2+1", &opts().with_raw_version(RawVersion(5)));
         let through = compile_source(&source, &opts());
         assert_eq!(direct.failure(), through.failure());
         assert_eq!(direct.diagnostics(), through.diagnostics());
@@ -941,13 +876,7 @@ mod tests {
     #[test]
     fn the_compile_failed_message_prints_the_text_up_to_a_nul_byte() {
         for preserve in [false, true] {
-            let compiled = compile(
-                "v.x->v.y=1;\0junk",
-                &CompileOptions {
-                    keep_source: preserve,
-                    ..opts()
-                },
-            );
+            let compiled = compile("v.x->v.y=1;\0junk", &opts().with_keep_source(preserve));
             let last = compiled.diagnostics().last().expect("a message");
             assert_eq!(
                 last.message(),

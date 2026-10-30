@@ -44,7 +44,7 @@ mod lexing {
     //! The lexer: case folding, whitespace, numbers, strings, names, and what is no token.
 
     use crate::common::compile_support::{at, client_at, constant, messages, messages_at};
-    use molang::compile::{CompileFailure, CompileOptions, Deviations, Expr, compile};
+    use molang::compile::{CompileFailure, Deviations, Expr, compile};
     use molang::ops::{ExpressionOp, OpSet};
     #[cfg(feature = "vm")]
     use molang::vm::NoHostEnv;
@@ -300,10 +300,7 @@ mod lexing {
     fn true_false_advance_deviation() {
         assert_eq!(constant("tr*5"), 5.0);
         assert_eq!(constant("t + 1"), 2.0);
-        let no_deviations = CompileOptions {
-            deviations: Deviations::NONE,
-            ..client_at(13)
-        };
+        let no_deviations = client_at(13).with_deviations(Deviations::NONE);
         let value = |source: &str| {
             compile(source, &no_deviations)
                 .expr()
@@ -462,12 +459,11 @@ mod lexing {
     /// The allowed-operation check names each used operation once, and never an unused one.
     #[test]
     fn used_operations_are_a_set() {
-        let no_assignment = CompileOptions {
-            allowed_ops: OpSet::all()
+        let no_assignment = client_at(13).with_allowed_ops(
+            OpSet::all()
                 .without(ExpressionOp::Assignment)
                 .without(ExpressionOp::Mul),
-            ..client_at(13)
-        };
+        );
         assert_eq!(
             messages(&compile("v.x = 1; v.y = 2; v.z = 3;", &no_assignment)),
             ["Expression uses operation Assignment '=' which is not allowed in this context"]
@@ -989,7 +985,7 @@ mod parsing {
 
     use crate::common::compile_support::{at, client_at, constant, messages, messages_at};
     use molang::catalog::{QueryAdmission, QueryDecl, QuerySetMask, Side};
-    use molang::compile::{CompileFailure, CompileOptions, Expr, compile};
+    use molang::compile::{CompileFailure, Expr, compile};
     use molang::ops::{ExpressionOp, OpSet};
     use molang::version::{ExperimentMask, RawVersion};
     #[cfg(feature = "vm")]
@@ -1026,10 +1022,7 @@ mod parsing {
     /// failure hides what a later one would report.
     #[test]
     fn core_parse_stage_order() {
-        let no_min = CompileOptions {
-            allowed_ops: OpSet::all().without(ExpressionOp::Min),
-            ..client_at(13)
-        };
+        let no_min = client_at(13).with_allowed_ops(OpSet::all().without(ExpressionOp::Min));
         // Tree building before the allowed-operation check.
         assert_eq!(
             messages(&compile("math.min(1, 2) + ", &no_min)),
@@ -1717,22 +1710,19 @@ mod restrictions {
     fn default_options() {
         let options = CompileOptions::server(MolangVersion::LATEST);
         assert_eq!(
-            options.admission,
+            *options.admission(),
             QueryAdmission::Sets(QuerySetMask::DEFAULT)
         );
-        assert_eq!(options.allowed_ops, OpSet::all());
-        assert_eq!(options.raw_version, RawVersion(13));
-        assert_eq!(options.catalog.side(), Side::Server);
-        assert!(!options.keep_source);
+        assert_eq!(options.allowed_ops(), OpSet::all());
+        assert_eq!(options.raw_version(), RawVersion(13));
+        assert_eq!(options.catalog().side(), Side::Server);
+        assert!(!options.keep_source());
     }
 
     #[test]
     fn query_sets() {
         let default = CompileOptions::server(MolangVersion::LATEST);
-        let in_sets = |sets| CompileOptions {
-            admission: QueryAdmission::Sets(sets),
-            ..default.clone()
-        };
+        let in_sets = |sets| default.clone().with_admission(QueryAdmission::Sets(sets));
         assert_eq!(compile("query.is_baby", &default).failure(), None);
         // `query.noise` is in `world_gen` only, `query.any_tag` in `tags` only.
         assert_eq!(
@@ -1771,12 +1761,10 @@ mod restrictions {
         // `without_assignments_or_random` keeps the dice allowed.
         let server = molang::stdlib::queries(Side::Server);
         let allowed = QueryAllowList::new(server, [query::BLOCK_STATE]).expect("declared");
-        let block = CompileOptions {
-            admission: QueryAdmission::Only(allowed.clone()),
-            allowed_ops: OpSet::all().without_assignments_or_random(),
-            ..CompileOptions::server(MolangVersion::LATEST)
-        };
-        assert_eq!(block.admission, QueryAdmission::Only(allowed));
+        let block = CompileOptions::server(MolangVersion::LATEST)
+            .with_admission(QueryAdmission::Only(allowed.clone()))
+            .with_allowed_ops(OpSet::all().without_assignments_or_random());
+        assert_eq!(*block.admission(), QueryAdmission::Only(allowed));
         assert_eq!(
             compile("query.block_state('facing') == 'west'", &block).failure(),
             None
@@ -1796,11 +1784,9 @@ mod restrictions {
         );
 
         let allowed = QueryAllowList::new(server, [query::HAD_COMPONENT_GROUP]).expect("declared");
-        let property = CompileOptions {
-            admission: QueryAdmission::Only(allowed.clone()),
-            allowed_ops: OpSet::all().without_assignments(),
-            ..CompileOptions::server(MolangVersion::LATEST)
-        };
+        let property = CompileOptions::server(MolangVersion::LATEST)
+            .with_admission(QueryAdmission::Only(allowed.clone()))
+            .with_allowed_ops(OpSet::all().without_assignments());
         assert_eq!(
             compile(
                 "q.had_component_group('minecraft:baby') ? 1 : math.random(0, 1)",
@@ -1814,10 +1800,8 @@ mod restrictions {
             ["Expression uses operation Assignment '=' which is not allowed in this context"]
         );
         // The allow-listed query still has to exist at the version.
-        let old = CompileOptions {
-            admission: QueryAdmission::Only(allowed),
-            ..CompileOptions::from_raw_version(server.clone(), RawVersion(-1))
-        };
+        let old = CompileOptions::from_raw_version(server.clone(), RawVersion(-1))
+            .with_admission(QueryAdmission::Only(allowed));
         assert_eq!(
             compile("q.had_component_group('x')", &old).failure(),
             Some(CompileFailure::Rejected)
@@ -1827,10 +1811,8 @@ mod restrictions {
     /// Checked before anything is optimised.
     #[test]
     fn operation_mask() {
-        let no_loops = CompileOptions {
-            allowed_ops: OpSet::all().without(molang::ops::ExpressionOp::Loop),
-            ..CompileOptions::server(MolangVersion::LATEST)
-        };
+        let no_loops = CompileOptions::server(MolangVersion::LATEST)
+            .with_allowed_ops(OpSet::all().without(molang::ops::ExpressionOp::Loop));
         assert_eq!(
             messages(&compile("loop(2, {v.x = 1;});", &no_loops)),
             ["Expression uses operation Loop 'loop' which is not allowed in this context"]
@@ -1854,7 +1836,7 @@ mod restrictions {
     fn raw_version() {
         for raw in [-1_i16, -7, 14, 200] {
             let options = client_at(raw);
-            assert_eq!(options.raw_version, RawVersion(raw));
+            assert_eq!(options.raw_version(), RawVersion(raw));
             let compiled = compile("query.is_baby", &options);
             assert_eq!(
                 messages(&compiled),
@@ -1881,7 +1863,7 @@ mod restrictions {
         assert_eq!(
             CompileOptions::for_source(molang::stdlib::queries(Side::Server).clone(), &source)
                 .expect("a source with a version")
-                .raw_version,
+                .raw_version(),
             RawVersion(9)
         );
         assert_eq!(
@@ -1922,10 +1904,9 @@ mod restrictions {
     #[test]
     fn side() {
         let server = CompileOptions::server(MolangVersion::LATEST);
-        let client = CompileOptions {
-            catalog: molang::stdlib::queries(Side::Client).clone(),
-            ..server.clone()
-        };
+        let client = server
+            .clone()
+            .with_catalog(molang::stdlib::queries(Side::Client).clone());
         let on_server = compile("q.is_on_screen", &server);
         assert_eq!(
             messages(&on_server),
@@ -1944,10 +1925,7 @@ mod restrictions {
                 .message()
                 .contains("not registered on the dedicated server")
         );
-        let lenient = CompileOptions {
-            deviations: Deviations::NONE,
-            ..server.clone()
-        };
+        let lenient = server.clone().with_deviations(Deviations::NONE);
         let no_deviations = compile("q.is_on_screen", &lenient);
         assert!(
             no_deviations
@@ -1958,10 +1936,9 @@ mod restrictions {
         );
         assert_eq!(compile("q.is_on_screen", &client).failure(), None);
         // A query the server lacks that does not resolve on the client either gets no such lint.
-        let no_sets = CompileOptions {
-            admission: QueryAdmission::Sets(QuerySetMask::empty()),
-            ..server.clone()
-        };
+        let no_sets = server
+            .clone()
+            .with_admission(QueryAdmission::Sets(QuerySetMask::empty()));
         let elsewhere = compile("q.is_on_screen", &no_sets);
         assert!(
             elsewhere
@@ -2015,10 +1992,7 @@ mod restrictions {
             (DiagCode::QueryArity, Severity::Warning)
         );
         assert!(compile("q.log(7)", &options).diagnostics().is_empty());
-        let no_deviations = CompileOptions {
-            deviations: Deviations::NONE,
-            ..options
-        };
+        let no_deviations = options.with_deviations(Deviations::NONE);
         assert!(
             compile("q.log(7, 8)", &no_deviations)
                 .diagnostics()
@@ -2037,13 +2011,7 @@ mod restrictions {
                 .source(),
             None
         );
-        let kept = compile(
-            "V.X + 1",
-            &CompileOptions {
-                keep_source: true,
-                ..options
-            },
-        );
+        let kept = compile("V.X + 1", &options.with_keep_source(true));
         assert_eq!(
             kept.expr().cloned().expect("expr").source(),
             Some("V.X + 1")
@@ -2105,15 +2073,13 @@ mod queries {
     fn every_miss_is_message_5() {
         let latest = CompileOptions::server(MolangVersion::LATEST);
         let block_list =
-            QueryAllowList::new(&latest.catalog, [query::BLOCK_STATE]).expect("declared");
-        let world_gen = CompileOptions {
-            admission: QueryAdmission::Sets(QuerySetMask::WORLD_GEN),
-            ..latest.clone()
-        };
-        let listed = CompileOptions {
-            admission: QueryAdmission::Only(block_list),
-            ..latest.clone()
-        };
+            QueryAllowList::new(latest.catalog(), [query::BLOCK_STATE]).expect("declared");
+        let world_gen = latest
+            .clone()
+            .with_admission(QueryAdmission::Sets(QuerySetMask::WORLD_GEN));
+        let listed = latest
+            .clone()
+            .with_admission(QueryAdmission::Only(block_list));
         let cases: Vec<(&str, CompileOptions)> = vec![
             ("q.no_such_query", latest.clone()),
             ("q.noise(1, 2)", latest.clone()),
@@ -2143,27 +2109,22 @@ mod queries {
 
     #[test]
     fn experiment_off_is_message_5() {
-        let options = CompileOptions {
-            admission: QueryAdmission::Sets(common::REFERENCE_SETS),
-            ..CompileOptions::new(common::reference_catalog().clone(), MolangVersion::LATEST)
-        };
+        let options =
+            CompileOptions::new(common::reference_catalog().clone(), MolangVersion::LATEST)
+                .with_admission(QueryAdmission::Sets(common::REFERENCE_SETS));
         let off = compile("query.experimental_test", &options);
         assert_eq!(off.failure(), Some(CompileFailure::Rejected));
         assert_eq!(message_ids(&off), ["E05", "E02"]);
-        let enabled = CompileOptions {
-            experiments: common::reference_experiments(),
-            ..options
-        };
+        let enabled = options.with_experiments(common::reference_experiments());
         let on = compile("query.experimental_test", &enabled);
         assert_eq!(on.failure(), None);
     }
 
     #[test]
     fn an_enabled_experiment_is_not_blamed_for_a_set_miss() {
-        let options = CompileOptions {
-            experiments: common::reference_experiments(),
-            ..CompileOptions::new(common::reference_catalog().clone(), MolangVersion::LATEST)
-        };
+        let options =
+            CompileOptions::new(common::reference_catalog().clone(), MolangVersion::LATEST)
+                .with_experiments(common::reference_experiments());
         let compiled = compile("query.experimental_test", &options);
         assert_eq!(compiled.failure(), Some(CompileFailure::Rejected));
         assert_eq!(message_ids(&compiled), ["E05", "E02"]);
@@ -2176,11 +2137,8 @@ mod queries {
             compiled.diagnostics()
         );
         assert_eq!(compiled.diagnostics().len(), 2);
-        let disabled = CompileOptions {
-            experiments: ExperimentMask::empty(),
-            ..options
-        };
-        assert_eq!(ExperimentMask::empty(), disabled.experiments);
+        let disabled = options.with_experiments(ExperimentMask::empty());
+        assert_eq!(ExperimentMask::empty(), disabled.experiments());
     }
 
     #[test]
@@ -2356,10 +2314,8 @@ mod compile_source {
 
     #[test]
     fn compile_source_keeps_the_field_restrictions() {
-        let field = CompileOptions {
-            allowed_ops: OpSet::all().without_assignments(),
-            ..CompileOptions::server(MolangVersion::LATEST)
-        };
+        let field = CompileOptions::server(MolangVersion::LATEST)
+            .with_allowed_ops(OpSet::all().without_assignments());
         let compiled = compile_source(&MolangSource::string("v.x = 1;", 2), &field);
         assert_eq!(compiled.failure(), Some(CompileFailure::Rejected));
         assert_eq!(
@@ -2374,22 +2330,18 @@ mod compile_source {
 
     #[test]
     fn the_version_pair_cannot_disagree() {
-        let opts = CompileOptions {
-            raw_version: MolangVersion::V2.into(),
-            ..CompileOptions::server(MolangVersion::LATEST)
-        };
+        let opts = CompileOptions::server(MolangVersion::LATEST)
+            .with_raw_version(MolangVersion::V2.into());
         assert_eq!(
-            (opts.version(), opts.raw_version),
+            (opts.version(), opts.raw_version()),
             (MolangVersion::V2, RawVersion(2))
         );
         assert_eq!(compile(STRING_MATH, &opts).failure(), None);
         for raw in [-7_i16, -1, 0, 5, 13, 14, 200] {
-            let opts = CompileOptions {
-                raw_version: RawVersion(raw),
-                ..CompileOptions::server(MolangVersion::LATEST)
-            };
+            let opts =
+                CompileOptions::server(MolangVersion::LATEST).with_raw_version(RawVersion(raw));
             assert_eq!(
-                (opts.version(), opts.raw_version),
+                (opts.version(), opts.raw_version()),
                 (RawVersion(raw).effective(), RawVersion(raw))
             );
             assert_eq!(opts, server_at(raw));
@@ -2405,10 +2357,7 @@ mod compile_source {
     fn an_unresolved_source_says_so() {
         let src = MolangSource::string_without_context("query.is_baby");
         for deviations in [Deviations::ALL, Deviations::NONE] {
-            let field = CompileOptions {
-                deviations,
-                ..CompileOptions::server(MolangVersion::LATEST)
-            };
+            let field = CompileOptions::server(MolangVersion::LATEST).with_deviations(deviations);
             let compiled = compile_source(&src, &field);
             let first = &compiled.diagnostics()[0];
             assert_eq!(
@@ -2464,13 +2413,7 @@ mod compile_source {
         ] {
             let source = MolangSource::object(text, version);
             let via_source = compile_source(&source, &field);
-            let direct = compile(
-                text,
-                &CompileOptions {
-                    raw_version: RawVersion(version),
-                    ..field.clone()
-                },
-            );
+            let direct = compile(text, &field.clone().with_raw_version(RawVersion(version)));
             assert_eq!(
                 via_source.failure(),
                 direct.failure(),
@@ -2519,20 +2462,13 @@ mod deviations {
 
     use crate::common::compile_support::{messages, server_at};
     use molang::compile::{
-        CompileFailure, CompileOptions, Compiled, Deviations, Expr, MAX_DIAGNOSTICS,
-        MAX_SOURCE_LEN, compile,
+        CompileFailure, Compiled, Deviations, Expr, MAX_DIAGNOSTICS, MAX_SOURCE_LEN, compile,
     };
     use molang::diag::{DiagCode, Severity};
     use molang::version::RawVersion;
 
     fn under(source: &str, raw_version: i16, deviations: Deviations) -> Compiled {
-        compile(
-            source,
-            &CompileOptions {
-                deviations,
-                ..server_at(raw_version)
-            },
-        )
+        compile(source, &server_at(raw_version).with_deviations(deviations))
     }
 
     fn constant(compiled: &Compiled) -> Option<f32> {
@@ -2616,24 +2552,15 @@ mod deviations {
                     .iter()
                     .any(|d| d.code() == DiagCode::InvalidVersion)
             );
-            let options = CompileOptions {
-                deviations: Deviations::NONE,
-                ..server_at(raw)
-            };
-            assert_eq!(options.raw_version, RawVersion(raw));
+            let options = server_at(raw).with_deviations(Deviations::NONE);
+            assert_eq!(options.raw_version(), RawVersion(raw));
         }
     }
 
     #[test]
     fn each_switch_changes_exactly_its_own_behaviour() {
         let run = |text: &str, raw: i16, deviations: Deviations| {
-            compile(
-                text,
-                &CompileOptions {
-                    deviations,
-                    ..server_at(raw)
-                },
-            )
+            compile(text, &server_at(raw).with_deviations(deviations))
         };
         let codes = |compiled: &Compiled| {
             compiled
@@ -2881,23 +2808,27 @@ mod options {
         let new = CompileOptions::server(MolangVersion::LATEST);
         // One value behind two getters.
         assert_eq!(
-            (new.version(), new.raw_version),
+            (new.version(), new.raw_version()),
             (MolangVersion::LATEST, RawVersion(13))
         );
-        assert_eq!(new.admission, QueryAdmission::Sets(QuerySetMask::DEFAULT));
-        assert_eq!(new.allowed_ops, OpSet::all());
-        assert_eq!(new.experiments, ExperimentMask::empty());
-        assert!(!new.keep_source);
-        assert_eq!(new.catalog, molang::stdlib::queries(Side::Server).clone());
-        assert_eq!(new.deviations, Deviations::ALL);
-        assert_eq!(new.allowed_ops.len(), 111);
+        assert_eq!(
+            *new.admission(),
+            QueryAdmission::Sets(QuerySetMask::DEFAULT)
+        );
+        assert_eq!(new.allowed_ops(), OpSet::all());
+        assert_eq!(new.experiments(), ExperimentMask::empty());
+        assert!(!new.keep_source());
+        assert_eq!(
+            *new.catalog(),
+            molang::stdlib::queries(Side::Server).clone()
+        );
+        assert_eq!(new.deviations(), Deviations::ALL);
+        assert_eq!(new.allowed_ops().len(), 111);
         assert_eq!(compile("v.x = math.random(0, 1);", &new).failure(), None);
-        let allow_list = QueryAllowList::new(&new.catalog, [query::BLOCK_STATE]).expect("declared");
-        let restricted = CompileOptions {
-            admission: QueryAdmission::Only(allow_list.clone()),
-            ..new
-        };
-        assert_eq!(restricted.admission, QueryAdmission::Only(allow_list));
+        let allow_list =
+            QueryAllowList::new(new.catalog(), [query::BLOCK_STATE]).expect("declared");
+        let restricted = new.with_admission(QueryAdmission::Only(allow_list.clone()));
+        assert_eq!(*restricted.admission(), QueryAdmission::Only(allow_list));
     }
 
     #[test]
@@ -2917,16 +2848,10 @@ mod options {
         assert!(flags("v.a->v.b").contains(ProgramFlags::USES_ARROW));
         assert!(!flags("v.a->v.b").contains(ProgramFlags::FLOAT_ONLY));
         assert!(!flags("v.x * 2").contains(ProgramFlags::HAS_ASSIGNMENT));
-        let expr = compile(
-            "V.X",
-            &CompileOptions {
-                keep_source: true,
-                ..options
-            },
-        )
-        .expr()
-        .cloned()
-        .expect("expr");
+        let expr = compile("V.X", &options.with_keep_source(true))
+            .expr()
+            .cloned()
+            .expect("expr");
         assert_eq!(
             (expr.version(), expr.source()),
             (MolangVersion::LATEST, Some("V.X"))
@@ -2949,16 +2874,10 @@ mod fields {
     #[test]
     fn a_version_sets_the_gates_and_the_raw_version() {
         let base = CompileOptions::server(MolangVersion::LATEST);
-        let v4 = CompileOptions {
-            raw_version: MolangVersion::V4.into(),
-            ..base.clone()
-        };
-        let v5 = CompileOptions {
-            raw_version: MolangVersion::V5.into(),
-            ..base.clone()
-        };
+        let v4 = base.clone().with_raw_version(MolangVersion::V4.into());
+        let v5 = base.clone().with_raw_version(MolangVersion::V5.into());
         assert_eq!(
-            (v4.version(), v4.raw_version),
+            (v4.version(), v4.raw_version()),
             (MolangVersion::V4, RawVersion(4))
         );
         assert_eq!(
@@ -2978,12 +2897,9 @@ mod fields {
     #[test]
     fn a_raw_version_gates_with_the_effective_version_and_resolves_with_the_raw_one() {
         let base = CompileOptions::server(MolangVersion::LATEST);
-        let above = CompileOptions {
-            raw_version: RawVersion(14),
-            ..base.clone()
-        };
+        let above = base.clone().with_raw_version(RawVersion(14));
         assert_eq!(
-            (above.version(), above.raw_version),
+            (above.version(), above.raw_version()),
             (MolangVersion::LATEST, RawVersion(14))
         );
         assert_eq!(
@@ -2996,12 +2912,9 @@ mod fields {
             2,
             "no query resolves at a raw 14"
         );
-        let below = CompileOptions {
-            raw_version: RawVersion(-7),
-            ..base.clone()
-        };
+        let below = base.clone().with_raw_version(RawVersion(-7));
         assert_eq!(
-            (below.version(), below.raw_version),
+            (below.version(), below.raw_version()),
             (MolangVersion::Invalid, RawVersion(-7))
         );
         assert_eq!(
@@ -3015,10 +2928,7 @@ mod fields {
     #[test]
     fn query_sets_decide_what_resolves() {
         let base = CompileOptions::server(MolangVersion::LATEST);
-        let in_sets = |sets| CompileOptions {
-            admission: QueryAdmission::Sets(sets),
-            ..base.clone()
-        };
+        let in_sets = |sets| base.clone().with_admission(QueryAdmission::Sets(sets));
         assert_eq!(
             compile("query.noise(1, 2)", &base).failure(),
             Some(CompileFailure::Rejected)
@@ -3040,10 +2950,9 @@ mod fields {
     #[test]
     fn allowed_ops_reject_the_operations_outside_the_mask() {
         let base = CompileOptions::server(MolangVersion::LATEST);
-        let no_random = CompileOptions {
-            allowed_ops: OpSet::all().without(ExpressionOp::Random),
-            ..base.clone()
-        };
+        let no_random = base
+            .clone()
+            .with_allowed_ops(OpSet::all().without(ExpressionOp::Random));
         assert_eq!(compile("math.random(0, 1)", &base).failure(), None);
         let compiled = compile("math.random(0, 1) + math.random(2, 3)", &no_random);
         assert_eq!(compiled.failure(), Some(CompileFailure::Rejected));
@@ -3062,10 +2971,8 @@ mod fields {
     fn an_allow_list_admits_only_the_listed_queries() {
         let allowed = QueryAllowList::new(molang::stdlib::queries(Side::Server), [query::IS_BABY])
             .expect("declared");
-        let listed = CompileOptions {
-            admission: QueryAdmission::Only(allowed),
-            ..CompileOptions::server(MolangVersion::LATEST)
-        };
+        let listed = CompileOptions::server(MolangVersion::LATEST)
+            .with_admission(QueryAdmission::Only(allowed));
         assert_eq!(compile("q.is_baby", &listed).failure(), None);
         assert_eq!(
             compile("q.variant", &listed).failure(),
@@ -3089,12 +2996,11 @@ mod fields {
         let client = molang::stdlib::queries(Side::Client);
         let list = QueryAllowList::new(server, [query::BLOCK_STATE]).expect("declared");
         let base = CompileOptions::server(MolangVersion::LATEST);
-        let o = CompileOptions {
-            catalog: client.clone(),
-            admission: QueryAdmission::Only(list),
-            ..base.clone()
-        };
-        assert_eq!(o.catalog, client.clone());
+        let o = base
+            .clone()
+            .with_catalog(client.clone())
+            .with_admission(QueryAdmission::Only(list));
+        assert_eq!(*o.catalog(), client.clone());
         assert_eq!(
             compile("q.is_baby", &o).failure(),
             Some(CompileFailure::Rejected)
@@ -3110,12 +3016,11 @@ mod fields {
             ])
             .expect("new");
         let mine = QueryAllowList::new(&own, ["query.mine"]).expect("declared");
-        let o = CompileOptions {
-            catalog: own.clone(),
-            admission: QueryAdmission::Only(mine.clone()),
-            ..base.clone()
-        };
-        assert_eq!(o.catalog, own);
+        let o = base
+            .clone()
+            .with_catalog(own.clone())
+            .with_admission(QueryAdmission::Only(mine.clone()));
+        assert_eq!(*o.catalog(), own);
         assert_eq!(compile("q.mine", &o).failure(), None);
         assert_eq!(
             compile("q.is_baby", &o).failure(),
@@ -3123,10 +3028,7 @@ mod fields {
         );
         // The same list against the standard catalogue, which does not declare the name, admits
         // nothing.
-        let elsewhere = CompileOptions {
-            admission: QueryAdmission::Only(mine),
-            ..base
-        };
+        let elsewhere = base.with_admission(QueryAdmission::Only(mine));
         assert_eq!(
             compile("q.mine", &elsewhere).failure(),
             Some(CompileFailure::Rejected)
@@ -3140,19 +3042,17 @@ mod fields {
     #[test]
     fn the_side_effect_masks_remove_the_assignment_and_optionally_the_random_functions() {
         let base = CompileOptions::server(MolangVersion::LATEST);
-        let no_assignment = CompileOptions {
-            allowed_ops: base.allowed_ops.without_assignments(),
-            ..base.clone()
-        };
+        let no_assignment = base
+            .clone()
+            .with_allowed_ops(base.allowed_ops().without_assignments());
         assert_eq!(
             compile("v.x = 1;", &no_assignment).failure(),
             Some(CompileFailure::Rejected)
         );
         assert_eq!(compile("math.random(0, 1)", &no_assignment).failure(), None);
-        let no_effects = CompileOptions {
-            allowed_ops: base.allowed_ops.without_assignments_or_random(),
-            ..base.clone()
-        };
+        let no_effects = base
+            .clone()
+            .with_allowed_ops(base.allowed_ops().without_assignments_or_random());
         assert_eq!(
             compile("math.random(0, 1)", &no_effects).failure(),
             Some(CompileFailure::Rejected)
@@ -3168,11 +3068,9 @@ mod fields {
     #[test]
     fn experiments_change_nothing_for_the_built_in_queries() {
         let base = CompileOptions::server(MolangVersion::LATEST);
-        let enabled = CompileOptions {
-            experiments: ExperimentMask::empty()
-                .with(Experiment::new(5).expect("an experiment id")),
-            ..base.clone()
-        };
+        let enabled = base.clone().with_experiments(
+            ExperimentMask::empty().with(Experiment::new(5).expect("an experiment id")),
+        );
         for source in ["q.is_baby", "q.variant", "v.x + 1", "math.pi"] {
             let (a, b) = (compile(source, &base), compile(source, &enabled));
             assert_eq!(
@@ -3186,15 +3084,14 @@ mod fields {
     #[test]
     fn the_catalog_selects_the_catalogue() {
         let base = CompileOptions::server(MolangVersion::LATEST);
-        assert_eq!(base.catalog.side(), Side::Server);
+        assert_eq!(base.catalog().side(), Side::Server);
         assert_eq!(
             compile("q.is_on_screen", &base).failure(),
             Some(CompileFailure::Rejected)
         );
-        let client = CompileOptions {
-            catalog: molang::stdlib::queries(Side::Client).clone(),
-            ..base.clone()
-        };
+        let client = base
+            .clone()
+            .with_catalog(molang::stdlib::queries(Side::Client).clone());
         assert_eq!(compile("q.is_on_screen", &client).failure(), None);
         assert_eq!(compile("q.is_baby", &base).failure(), None);
     }
@@ -3202,10 +3099,7 @@ mod fields {
     #[test]
     fn keep_source_keeps_the_text_as_written() {
         let base = CompileOptions::server(MolangVersion::LATEST);
-        let kept = CompileOptions {
-            keep_source: true,
-            ..base.clone()
-        };
+        let kept = base.clone().with_keep_source(true);
         assert_eq!(
             compile("V.X * 2", &base)
                 .expr()
@@ -3223,17 +3117,11 @@ mod fields {
             Some("V.X * 2")
         );
         assert_eq!(
-            compile(
-                "V.X * 2",
-                &CompileOptions {
-                    keep_source: false,
-                    ..kept
-                }
-            )
-            .expr()
-            .cloned()
-            .expect("expr")
-            .source(),
+            compile("V.X * 2", &kept.with_keep_source(false))
+                .expr()
+                .cloned()
+                .expect("expr")
+                .source(),
             None
         );
     }
@@ -3247,10 +3135,7 @@ mod fields {
             (Platform::BdsWindows, -1.0),
             (Platform::AndroidArm64, 1.0),
         ] {
-            let options = CompileOptions {
-                platform,
-                ..CompileOptions::server(MolangVersion::LATEST)
-            };
+            let options = CompileOptions::server(MolangVersion::LATEST).with_platform(platform);
             let folded = compile("math.copy_sign(1, math.ln(-1))", &options)
                 .expr()
                 .cloned()
@@ -3263,18 +3148,12 @@ mod fields {
     #[test]
     fn deviations_switch_the_behaviour() {
         let base = CompileOptions::server(MolangVersion::LATEST);
-        assert_eq!(base.deviations, Deviations::ALL);
+        assert_eq!(base.deviations(), Deviations::ALL);
         let folded = |deviations| {
-            compile(
-                "tr*5",
-                &CompileOptions {
-                    deviations,
-                    ..base.clone()
-                },
-            )
-            .expr()
-            .cloned()
-            .and_then(|e| e.as_constant())
+            compile("tr*5", &base.clone().with_deviations(deviations))
+                .expr()
+                .cloned()
+                .and_then(|e| e.as_constant())
         };
         assert_eq!(folded(Deviations::ALL), Some(5.0));
         assert_eq!(folded(Deviations::NONE), Some(1.0));

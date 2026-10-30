@@ -365,7 +365,7 @@ fn fold_host_math(cx: &mut Cx<'_>, node: &mut Node) -> Pass {
 mod tests {
     use super::*;
     use crate::compile::ast::Span;
-    use crate::compile::{CompileOptions, Deviations, sema::test_support::*};
+    use crate::compile::{Deviations, sema::test_support::*};
     use crate::diag::Severity;
     use crate::hash::HashedStr;
     use crate::numeric::test_support::{LINUX, PLATFORMS};
@@ -654,13 +654,7 @@ mod tests {
             ]
         );
         for src in ["q.is_name_any", "q.ride_body_x_rotation(1)"] {
-            let no_deviations = optimise_with(
-                src,
-                &CompileOptions {
-                    deviations: Deviations::NONE,
-                    ..client(13)
-                },
-            );
+            let no_deviations = optimise_with(src, &client(13).with_deviations(Deviations::NONE));
             assert!(no_deviations.ok && no_deviations.log.is_empty(), "{src}");
         }
     }

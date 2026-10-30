@@ -39,10 +39,9 @@ impl OptionsKey {
 
     /// The key of `field_opts` at the source version `version`, as `compile_at` applies it.
     fn new(field_opts: &CompileOptions, version: Option<RawVersion>) -> Self {
-        let opts = CompileOptions {
-            raw_version: version.unwrap_or(MolangVersion::Invalid.into()),
-            ..field_opts.clone()
-        };
+        let opts = field_opts
+            .clone()
+            .with_raw_version(version.unwrap_or(MolangVersion::Invalid.into()));
         Self {
             opts,
             raw_version: version,
@@ -188,31 +187,19 @@ mod tests {
     use std::hash::{Hash, Hasher};
 
     fn at(raw: i16) -> CompileOptions {
-        CompileOptions {
-            raw_version: RawVersion(raw),
-            ..base()
-        }
+        base().with_raw_version(RawVersion(raw))
     }
 
     fn sets(sets: QuerySetMask) -> CompileOptions {
-        CompileOptions {
-            admission: QueryAdmission::Sets(sets),
-            ..base()
-        }
+        base().with_admission(QueryAdmission::Sets(sets))
     }
 
     fn only(list: &QueryAllowList) -> CompileOptions {
-        CompileOptions {
-            admission: QueryAdmission::Only(list.clone()),
-            ..base()
-        }
+        base().with_admission(QueryAdmission::Only(list.clone()))
     }
 
     fn ops(allowed_ops: OpSet) -> CompileOptions {
-        CompileOptions {
-            allowed_ops,
-            ..base()
-        }
+        base().with_allowed_ops(allowed_ops)
     }
 
     fn base() -> CompileOptions {
@@ -246,12 +233,10 @@ mod tests {
     fn equal_options_have_equal_keys_and_equal_hashes() {
         assert!(key_of(&base()) == key_of(&base()));
         assert_eq!(hash_of(&key_of(&base())), hash_of(&key_of(&base())));
-        let busy = CompileOptions {
-            raw_version: RawVersion(5),
-            catalog: queries(Side::Client).clone(),
-            keep_source: true,
-            ..base()
-        };
+        let busy = base()
+            .with_raw_version(RawVersion(5))
+            .with_catalog(queries(Side::Client).clone())
+            .with_keep_source(true);
         assert!(key_of(&busy) == key_of(&busy));
         assert_eq!(hash_of(&key_of(&busy)), hash_of(&key_of(&busy)));
     }
@@ -260,10 +245,7 @@ mod tests {
     fn the_raw_version_is_part_of_the_key() {
         for raw in [-1, 0, 1, 12, 13, 14, 99, i16::MIN, i16::MAX] {
             let a = at(raw);
-            let b = CompileOptions {
-                raw_version: RawVersion(raw.wrapping_add(1)),
-                ..base()
-            };
+            let b = base().with_raw_version(RawVersion(raw.wrapping_add(1)));
             assert_keys_differ(&a, &b);
         }
     }
@@ -278,10 +260,7 @@ mod tests {
 
     #[test]
     fn the_gate_version_is_a_function_of_the_raw_version_and_adds_nothing() {
-        let by_enum = CompileOptions {
-            raw_version: MolangVersion::V1.into(),
-            ..base()
-        };
+        let by_enum = base().with_raw_version(MolangVersion::V1.into());
         let by_raw = at(1);
         assert!(key_of(&by_enum) == key_of(&by_raw));
         assert_eq!(key_of(&base()).raw_version, Some(RawVersion(13)));
@@ -295,13 +274,7 @@ mod tests {
             "the options' version does not count"
         );
         assert!(unapplied != OptionsKey::new(&base(), Some(RawVersion(-1))));
-        assert!(
-            unapplied
-                != key_of(&CompileOptions {
-                    raw_version: MolangVersion::Invalid.into(),
-                    ..base()
-                })
-        );
+        assert!(unapplied != key_of(&base().with_raw_version(MolangVersion::Invalid.into())));
         assert_eq!(unapplied.raw_version, None);
     }
 
@@ -393,10 +366,7 @@ mod tests {
                 .unwrap()
         };
         let (one, other) = (catalog(), catalog());
-        let with = |math: &MathCatalog| CompileOptions {
-            math: Some(math.clone()),
-            ..base()
-        };
+        let with = |math: &MathCatalog| base().with_math(Some(math.clone()));
         assert_keys_differ(&base(), &with(&one));
         assert_keys_differ(&with(&one), &with(&other));
         let clone = one.clone();
@@ -410,32 +380,12 @@ mod tests {
     #[test]
     fn the_catalogue_is_part_of_the_key_by_identity() {
         let copy = queries(Side::Server).extended([]).unwrap();
-        assert_keys_differ(
-            &base(),
-            &CompileOptions {
-                catalog: copy.clone(),
-                ..base()
-            },
-        );
+        assert_keys_differ(&base(), &base().with_catalog(copy.clone()));
         let clone = copy.clone();
-        assert!(
-            key_of(&CompileOptions {
-                catalog: copy.clone(),
-                ..base()
-            }) == key_of(&CompileOptions {
-                catalog: clone,
-                ..base()
-            })
-        );
+        assert!(key_of(&base().with_catalog(copy.clone())) == key_of(&base().with_catalog(clone)));
         let cache = CompileCache::new();
         let first = cache.compile("q.is_baby", &base());
-        let other = cache.compile(
-            "q.is_baby",
-            &CompileOptions {
-                catalog: copy,
-                ..base()
-            },
-        );
+        let other = cache.compile("q.is_baby", &base().with_catalog(copy));
         assert!(!Arc::ptr_eq(&first, &other));
         assert_eq!((cache.len(), cache.misses()), (2, 2));
     }
@@ -444,22 +394,10 @@ mod tests {
     fn the_experiments_are_part_of_the_key() {
         let five = ExperimentMask::empty().with(Experiment::new(5).expect("an experiment"));
         let six = ExperimentMask::empty().with(Experiment::new(6).expect("an experiment"));
+        assert_keys_differ(&base(), &base().with_experiments(five));
         assert_keys_differ(
-            &base(),
-            &CompileOptions {
-                experiments: five,
-                ..base()
-            },
-        );
-        assert_keys_differ(
-            &CompileOptions {
-                experiments: five,
-                ..base()
-            },
-            &CompileOptions {
-                experiments: six,
-                ..base()
-            },
+            &base().with_experiments(five),
+            &base().with_experiments(six),
         );
     }
 
@@ -475,13 +413,7 @@ mod tests {
             all.difference(Deviations::OBJECT_VERSION_WARNING),
             all.difference(Deviations::DIAGNOSTIC_LIMIT),
         ] {
-            assert_keys_differ(
-                &base(),
-                &CompileOptions {
-                    deviations: changed,
-                    ..base()
-                },
-            );
+            assert_keys_differ(&base(), &base().with_deviations(changed));
         }
     }
 
@@ -494,19 +426,10 @@ mod tests {
             sets(QuerySetMask::TAGS),
             ops(OpSet::empty()),
             only(&list),
-            CompileOptions {
-                experiments: five,
-                ..base()
-            },
-            CompileOptions {
-                keep_source: true,
-                ..base()
-            },
+            base().with_experiments(five),
+            base().with_keep_source(true),
             client(),
-            CompileOptions {
-                deviations: Deviations::NONE,
-                ..base()
-            },
+            base().with_deviations(Deviations::NONE),
         ];
         for (index, a) in variants.iter().enumerate() {
             assert_keys_differ(&base(), a);

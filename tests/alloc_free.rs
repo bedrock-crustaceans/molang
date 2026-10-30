@@ -149,7 +149,7 @@ fn float_only_evaluation_does_not_allocate() {
                 allocations() - before,
                 0,
                 "{:?} with {queries:?}",
-                options.catalog
+                options.catalog()
             );
             assert_eq!((value, float), (Value::Float(0.0), 0.0));
         }
@@ -186,13 +186,13 @@ fn float_only_evaluation_does_not_allocate() {
         let before = allocations();
         let value = expr.eval(&mut cx);
         let float = expr.eval_f32(&mut cx);
-        assert_eq!(allocations() - before, 0, "{:?}", options.catalog);
+        assert_eq!(allocations() - before, 0, "{:?}", options.catalog());
         // 1 + (3.5 + 1) * 2 + 0: `q.life_time` is a stub.
         assert_eq!(
             (value, float),
             (Value::Float(10.0), 10.0),
             "{:?}",
-            options.catalog
+            options.catalog()
         );
     }
 
@@ -264,10 +264,7 @@ fn a_host_math_call_does_not_allocate() {
         .expect("a declaration"),
     ])
     .expect("a catalogue");
-    let options = CompileOptions {
-        math: Some(math),
-        ..CompileOptions::server(MolangVersion::LATEST)
-    };
+    let options = CompileOptions::server(MolangVersion::LATEST).with_math(Some(math));
     let mut vars = VariableMap::<NoHost>::new();
     vars.set(VariableName::new("x"), Value::Float(3.5));
     let mut host = NoHost;

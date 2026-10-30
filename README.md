@@ -142,7 +142,7 @@ fn main() -> Result<(), molang::compile::CompileError> {
 
 ## Render-controller arrays
 
-`array.<name>[index]` reads an element of one of a render controller's arrays: its `geometries`, `textures` or `materials`. With `CompileOptions::client` (`arrays: ArrayAccess::FromHost`) it compiles to a read at evaluation. The index is truncated toward zero as the platform converts a float to an int, a negative index is 0, and the index wraps by the array's length. An x86-64 platform converts as the servers do, since only the arm64 client's conversion was observed (the crate's choice).
+`array.<name>[index]` reads an element of one of a render controller's arrays: its `geometries`, `textures` or `materials`. With `CompileOptions::client` (`ArrayAccess::FromHost`) it compiles to a read at evaluation. The index is truncated toward zero as the platform converts a float to an int, a negative index is 0, and the index wraps by the array's length. An x86-64 platform converts as the servers do, since only the arm64 client's conversion was observed (the crate's choice).
 
 The element is a `Value::Resource`. Math on it is the compile error `MathOnArray` at the root; below the root it is only a diagnostic, the expression compiles and the element reads as 0. `NoHostEnv` and the default `HostEnv` hold an `ArrayTable`; `HostEnv::with_arrays` swaps in any `ArrayProvider`. An unknown array reads as 0 and logs a `molang:` message; so does an empty one (the crate's choice: what an empty array gives is unknown).
 
@@ -168,7 +168,7 @@ fn main() -> Result<(), molang::compile::CompileError> {
 
 ## Math functions of your own
 
-Declare them in a `MathCatalog` and pass it in `CompileOptions::math`; `math.<name>(…)` then calls them like the standard functions, with float arguments (at most `MAX_MATH_ARGS`) and the argument count checked at compile time. A pure function must be deterministic: a call of constants is folded at compile time and equal calls are merged. A volatile function gets the evaluation's random source (`&mut dyn RandomSource`; its `sample()` draws a sample as the standard functions do), is never folded or merged, and is forbidden by `OpSet::without_assignments_or_random`. A function must not panic. A function may take a standard function's name (all but the constant `math.pi`) and then replaces the standard function while the catalogue is in the options, as an ordinary host call.
+Declare them in a `MathCatalog` and pass it with `CompileOptions::with_math`; `math.<name>(…)` then calls them like the standard functions, with float arguments (at most `MAX_MATH_ARGS`) and the argument count checked at compile time. A pure function must be deterministic: a call of constants is folded at compile time and equal calls are merged. A volatile function gets the evaluation's random source (`&mut dyn RandomSource`; its `sample()` draws a sample as the standard functions do), is never folded or merged, and is forbidden by `OpSet::without_assignments_or_random`. A function must not panic. A function may take a standard function's name (all but the constant `math.pi`) and then replaces the standard function while the catalogue is in the options, as an ordinary host call.
 
 ```rust
 use molang::catalog::{Arity, MathCatalog, MathDecl};
@@ -181,10 +181,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         MathDecl::pure("math.hypot", Arity::exactly(2), |_, a| a[0].hypot(a[1]))?,
         MathDecl::volatile("math.jitter", Arity::exactly(1), |_, rng, a| a[0] * rng.sample())?,
     ])?;
-    let options = CompileOptions {
-        math: Some(math),
-        ..CompileOptions::server(MolangVersion::LATEST)
-    };
+    let options = CompileOptions::server(MolangVersion::LATEST).with_math(Some(math));
     let hypot = compile("math.hypot(3, 4)", &options);
     assert_eq!(hypot.expr().and_then(|e| e.as_constant()), Some(5.0));
     let (expr, _) = compile("math.jitter(10) + math.hypot(v.x ?? 3, 4)", &options).into_result()?;
@@ -209,9 +206,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Compile options
 
-`CompileOptions` is a plain struct: start from `new`, `server` or `client` and name the fields you change.
+Start from `CompileOptions::new`, `server` or `client` and change a setting with its `with_*` setter (`with_catalog`, `with_deviations`, …); each setting has a getter of the same name.
 
-| Field | Meaning | Default |
+| Setting | Meaning | Default |
 | --- | --- | --- |
 | `catalog` | The `QueryCatalog` queries resolve against. | Given to the constructor. |
 | `raw_version` | The `RawVersion` queries resolve with; parser gates use its effective value. | Given to the constructor. |
@@ -238,27 +235,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 use molang::compile::{CompileOptions, Deviations};
 use molang::version::MolangVersion;
 
-let options = CompileOptions {
-    keep_source: true,
-    deviations: Deviations::DEFAULT.difference(Deviations::VALIDATE_NESTED),
-    ..CompileOptions::server(MolangVersion::LATEST)
-};
+let options = CompileOptions::server(MolangVersion::LATEST)
+    .with_keep_source(true)
+    .with_deviations(Deviations::DEFAULT.difference(Deviations::VALIDATE_NESTED));
 assert_eq!(options.version(), MolangVersion::LATEST);
 ```
 
 ## Float behaviour
 
-The host chooses whose float behaviour an expression reproduces with `CompileOptions::platform`, a `numeric::Platform`: `BdsLinux` (by release), `BdsWindows` or `AndroidArm64`. The default is `BdsLinux` at its latest release. The compiled expression records it, constant folding and evaluation both follow it, and the same expression gives the same bits on every host.
+The host chooses whose float behaviour an expression reproduces with `CompileOptions::with_platform`, a `numeric::Platform`: `BdsLinux` (by release), `BdsWindows` or `AndroidArm64`. The default is `BdsLinux` at its latest release. The compiled expression records it, constant folding and evaluation both follow it, and the same expression gives the same bits on every host.
 
 ```rust
 use molang::compile::{CompileOptions, compile};
 use molang::numeric::Platform;
 use molang::version::MolangVersion;
 
-let options = CompileOptions {
-    platform: Platform::BdsWindows,
-    ..CompileOptions::server(MolangVersion::LATEST)
-};
+let options = CompileOptions::server(MolangVersion::LATEST).with_platform(Platform::BdsWindows);
 let expr = compile("math.copy_sign(1, math.ln(-1))", &options).into_result().unwrap().0;
 assert_eq!(expr.platform(), Platform::BdsWindows);
 assert_eq!(expr.as_constant(), Some(-1.0));

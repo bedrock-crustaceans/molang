@@ -874,10 +874,7 @@ impl ServerRun {
                 for deviations in [Deviations::ALL, Deviations::NONE] {
                     let compiled = compile(
                         &probe.expr,
-                        &CompileOptions {
-                            deviations,
-                            ..CompileOptions::server(MolangVersion::LATEST)
-                        },
+                        &CompileOptions::server(MolangVersion::LATEST).with_deviations(deviations),
                     );
                     let ours = messages(&compiled);
                     if ours != theirs {

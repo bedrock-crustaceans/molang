@@ -339,10 +339,7 @@ mod control_flow {
 
     #[test]
     fn expr_api() {
-        let options = CompileOptions {
-            keep_source: true,
-            ..CompileOptions::server(MolangVersion::LATEST)
-        };
+        let options = CompileOptions::server(MolangVersion::LATEST).with_keep_source(true);
         let expr = compile("v.x = 2; return v.x * 3;", &options)
             .expr()
             .cloned()

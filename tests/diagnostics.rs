@@ -686,10 +686,7 @@ fn depth_overflow() {
 
 #[test]
 fn operation_not_allowed() {
-    let no_assignment = CompileOptions {
-        allowed_ops: OpSet::all().without_assignments(),
-        ..client_at(13)
-    };
+    let no_assignment = client_at(13).with_allowed_ops(OpSet::all().without_assignments());
     let compiled = compile("v.x = math.random(0, 1);", &no_assignment);
     assert_eq!(
         messages(&compiled),
@@ -698,10 +695,8 @@ fn operation_not_allowed() {
     assert_eq!(compiled.failure(), Some(CompileFailure::Rejected));
     assert_eq!(compiled.diagnostics()[0].code(), DiagCode::InvalidOperation);
 
-    let nothing_random = CompileOptions {
-        allowed_ops: OpSet::all().without_assignments_or_random(),
-        ..client_at(13)
-    };
+    let nothing_random =
+        client_at(13).with_allowed_ops(OpSet::all().without_assignments_or_random());
     let compiled = compile(
         "v.x = math.random(0, 1) + math.random_integer(0, 1);",
         &nothing_random,
@@ -836,13 +831,7 @@ fn severities() {
     assert_eq!(root.failure(), Some(CompileFailure::Rejected));
     assert_eq!(root.diagnostics()[0].severity(), Severity::Error);
 
-    let no_deviations = compile(
-        "break;",
-        &CompileOptions {
-            deviations: Deviations::NONE,
-            ..client_at(13)
-        },
-    );
+    let no_deviations = compile("break;", &client_at(13).with_deviations(Deviations::NONE));
     assert_eq!(no_deviations.failure(), None);
     assert_eq!(no_deviations.diagnostics()[0].severity(), Severity::Error);
 }
@@ -928,10 +917,7 @@ fn own_diagnostics() {
         (DiagCode::InvalidVersion, Severity::Warning)
     );
 
-    let silent = CompileOptions {
-        deviations: Deviations::NONE,
-        ..server_at(14)
-    };
+    let silent = server_at(14).with_deviations(Deviations::NONE);
     assert!(compile("1", &silent).diagnostics().is_empty());
 }
 
@@ -994,10 +980,9 @@ fn own_diagnostics_have_no_language_message_text() {
     assert_eq!(
         ours(
             "q.is_on_screen",
-            &CompileOptions {
-                catalog: molang::stdlib::queries(Side::Server).clone(),
-                ..latest.clone()
-            },
+            &latest
+                .clone()
+                .with_catalog(molang::stdlib::queries(Side::Server).clone()),
             DiagCode::QueryClientOnly
         ),
         [Severity::Info]
@@ -1048,10 +1033,7 @@ fn arithmetic_on_statements() {
         for source in ["v.y = {v.x = 1;} + 1;", "v.y = -{v.x = 1;};"] {
             let compiled = compile(
                 source,
-                &CompileOptions {
-                    deviations: Deviations::NONE,
-                    ..client_at(version)
-                },
+                &client_at(version).with_deviations(Deviations::NONE),
             );
             assert_eq!(compiled.failure(), None, "{source:?} at version {version}");
             assert!(
@@ -1191,10 +1173,7 @@ fn the_diagnostic_limit_keeps_the_first_and_counts_the_rest() {
 
     let no_deviations = compile(
         &src,
-        &CompileOptions {
-            deviations: Deviations::NONE,
-            ..CompileOptions::server(MolangVersion::LATEST)
-        },
+        &CompileOptions::server(MolangVersion::LATEST).with_deviations(Deviations::NONE),
     );
     assert_eq!(no_deviations.diagnostics().len(), 21_845);
     assert_eq!(
@@ -1263,10 +1242,8 @@ mod own_lints {
 
     #[test]
     fn the_arity_lint_can_be_switched_off() {
-        let off = CompileOptions {
-            deviations: Deviations::ALL.difference(Deviations::QUERY_ARITY_LINT),
-            ..client_at(13)
-        };
+        let off =
+            client_at(13).with_deviations(Deviations::ALL.difference(Deviations::QUERY_ARITY_LINT));
         assert!(
             compile("q.ride_body_x_rotation(1)", &off)
                 .diagnostics()
@@ -1275,10 +1252,7 @@ mod own_lints {
         assert!(
             compile(
                 "q.ride_body_x_rotation(1)",
-                &CompileOptions {
-                    deviations: Deviations::NONE,
-                    ..client_at(13)
-                }
+                &client_at(13).with_deviations(Deviations::NONE)
             )
             .diagnostics()
             .is_empty()
@@ -1358,22 +1332,13 @@ mod own_lints {
     #[test]
     fn with_the_length_deviation_off_a_long_source_compiles() {
         let src = format!("1{}", " ".repeat(MAX_SOURCE_LEN));
-        let off = CompileOptions {
-            deviations: Deviations::ALL.difference(Deviations::SOURCE_LENGTH_LIMIT),
-            ..client_at(13)
-        };
+        let off = client_at(13)
+            .with_deviations(Deviations::ALL.difference(Deviations::SOURCE_LENGTH_LIMIT));
         let compiled = compile(&src, &off);
         assert_eq!(compiled.failure(), None);
         assert!(compiled.diagnostics().is_empty());
         assert_eq!(
-            compile(
-                &src,
-                &CompileOptions {
-                    deviations: Deviations::NONE,
-                    ..client_at(13)
-                }
-            )
-            .failure(),
+            compile(&src, &client_at(13).with_deviations(Deviations::NONE)).failure(),
             None
         );
     }
@@ -1425,22 +1390,10 @@ mod own_lints {
     fn the_version_warning_can_be_switched_off() {
         let off = Deviations::ALL.difference(Deviations::OBJECT_VERSION_WARNING);
         for raw in [-2, -1, 14] {
-            let compiled = compile(
-                "1",
-                &CompileOptions {
-                    deviations: off,
-                    ..server_at(raw)
-                },
-            );
+            let compiled = compile("1", &server_at(raw).with_deviations(off));
             assert!(compiled.diagnostics().is_empty(), "raw {raw}");
         }
-        let no_deviations = compile(
-            "1",
-            &CompileOptions {
-                deviations: Deviations::NONE,
-                ..server_at(14)
-            },
-        );
+        let no_deviations = compile("1", &server_at(14).with_deviations(Deviations::NONE));
         assert!(no_deviations.diagnostics().is_empty());
     }
 
@@ -1450,10 +1403,7 @@ mod own_lints {
         for deviations in [Deviations::ALL, Deviations::NONE] {
             let compiled = compile_source(
                 &unresolved,
-                &CompileOptions {
-                    deviations,
-                    ..CompileOptions::server(MolangVersion::LATEST)
-                },
+                &CompileOptions::server(MolangVersion::LATEST).with_deviations(deviations),
             );
             assert_eq!(codes(&compiled), [DiagCode::InvalidVersion]);
             assert_eq!(compiled.diagnostics()[0].severity(), Severity::Warning);

@@ -923,11 +923,9 @@ mod tests {
 
     /// `array.a[v.i]` on `platform`, with `array.a` holding `len` textures (none: unknown).
     fn element(platform: Platform, index: f32, len: Option<usize>) -> (NV, Vec<String>) {
-        let options = CompileOptions {
-            platform,
-            arrays: crate::compile::ArrayAccess::FromHost,
-            ..CompileOptions::server(MolangVersion::LATEST)
-        };
+        let options = CompileOptions::server(MolangVersion::LATEST)
+            .with_platform(platform)
+            .with_arrays(crate::compile::ArrayAccess::FromHost);
         let expr = compile("array.a[v.i]", &options).expr().cloned().unwrap();
         let mut env = test_env();
         if let Some(len) = len {

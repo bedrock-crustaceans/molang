@@ -40,7 +40,7 @@
     doc = "[`QueryCatalog`] (`stdlib::queries` plus the host's own declarations) and runs through the"
 )]
 //! host's `vm::QueryTable`. A host adds `math.*` functions of its own in a `catalog::MathCatalog`
-//! passed in `CompileOptions::math`.
+//! passed with `CompileOptions::with_math`.
 //!
 //! # Compiling pack content
 //!

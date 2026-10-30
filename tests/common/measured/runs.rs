@@ -412,9 +412,7 @@ impl SmokeGroup {
 }
 
 fn run_options(platform: Platform, version: i16) -> CompileOptions {
-    CompileOptions {
-        deviations: Deviations::NONE,
-        platform,
-        ..server_at(version)
-    }
+    server_at(version)
+        .with_deviations(Deviations::NONE)
+        .with_platform(platform)
 }

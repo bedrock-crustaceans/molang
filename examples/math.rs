@@ -29,10 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a[0].max(a[1].min(a[2])).min(a[1].max(a[2]))
         })?,
     ])?;
-    let options = CompileOptions {
-        math: Some(catalog),
-        ..CompileOptions::server(MolangVersion::LATEST)
-    };
+    let options = CompileOptions::server(MolangVersion::LATEST).with_math(Some(catalog));
 
     let folded = compile("math.smooth_max(2, 10)", &options).into_result()?.0;
     println!("math.smooth_max(2, 10) folds to {:?}", folded.as_constant());

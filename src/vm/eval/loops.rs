@@ -291,10 +291,7 @@ mod tests {
     }
 
     fn run_on(platform: Platform, src: &str, count: f32) -> (NV, Vec<String>) {
-        let options = CompileOptions {
-            platform,
-            ..CompileOptions::server(MolangVersion::LATEST)
-        };
+        let options = CompileOptions::server(MolangVersion::LATEST).with_platform(platform);
         let expr = compile(src, &options).expr().cloned().expect("compiles");
         let mut env = server_env();
         set(&mut env, &[("c", count), ("n", 0.0)]);

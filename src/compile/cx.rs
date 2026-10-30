@@ -383,10 +383,7 @@ mod tests {
     }
 
     fn client() -> CompileOptions {
-        CompileOptions {
-            catalog: crate::stdlib::queries(Side::Client).clone(),
-            ..opts()
-        }
+        opts().with_catalog(crate::stdlib::queries(Side::Client).clone())
     }
 
     fn with_cx<R>(
@@ -698,10 +695,7 @@ mod tests {
 
     #[test]
     fn with_no_deviations_the_cap_is_off() {
-        let options = CompileOptions {
-            deviations: Deviations::NONE,
-            ..opts()
-        };
+        let options = opts().with_deviations(Deviations::NONE);
         let mut cx = Cx::for_test("source", &options);
         for index in 0..MAX_DIAGNOSTICS * 2 {
             cx.push(own_note(index));
@@ -718,10 +712,8 @@ mod tests {
 
     #[test]
     fn only_the_cap_deviation_switches_the_cap_off() {
-        let options = CompileOptions {
-            deviations: Deviations::ALL.difference(Deviations::DIAGNOSTIC_LIMIT),
-            ..opts()
-        };
+        let options =
+            opts().with_deviations(Deviations::ALL.difference(Deviations::DIAGNOSTIC_LIMIT));
         let mut cx = Cx::for_test("source", &options);
         for index in 0..MAX_DIAGNOSTICS + 5 {
             cx.push(own_note(index));
@@ -753,13 +745,7 @@ mod tests {
     #[test]
     fn the_same_compile_without_deviations_keeps_every_message() {
         let src = "1e;".repeat(300);
-        let compiled = compile(
-            &src,
-            &CompileOptions {
-                deviations: Deviations::NONE,
-                ..opts()
-            },
-        );
+        let compiled = compile(&src, &opts().with_deviations(Deviations::NONE));
         assert_eq!(compiled.diagnostics().len(), 300);
         assert!(
             compiled
@@ -788,10 +774,8 @@ mod tests {
 
     #[test]
     fn the_arity_lint_can_be_switched_off() {
-        let off = CompileOptions {
-            deviations: Deviations::ALL.difference(Deviations::QUERY_ARITY_LINT),
-            ..client()
-        };
+        let off =
+            client().with_deviations(Deviations::ALL.difference(Deviations::QUERY_ARITY_LINT));
         assert!(
             compile("q.ride_body_x_rotation(1)", &off)
                 .diagnostics()
@@ -800,10 +784,7 @@ mod tests {
         assert!(
             compile(
                 "q.ride_body_x_rotation(1)",
-                &CompileOptions {
-                    deviations: Deviations::NONE,
-                    ..client()
-                }
+                &client().with_deviations(Deviations::NONE)
             )
             .diagnostics()
             .is_empty()
@@ -849,10 +830,7 @@ mod tests {
         assert_eq!(log.len(), 1);
         assert_eq!(log[0].span(), 2..8);
         assert_eq!(log[0].code(), DiagCode::QueryArity);
-        let no_deviations = CompileOptions {
-            deviations: Deviations::NONE,
-            ..opts()
-        };
+        let no_deviations = opts().with_deviations(Deviations::NONE);
         assert!(lint(&no_deviations, query::RIDE_BODY_X_ROTATION).is_empty());
         assert!(
             lint(&opts(), query::IS_BABY).is_empty(),
@@ -880,18 +858,12 @@ mod tests {
                 .diagnostics()
                 .is_empty()
         );
-        let off = CompileOptions {
-            deviations: Deviations::ALL.difference(Deviations::QUERY_CLIENT_ONLY),
-            ..opts()
-        };
+        let off = opts().with_deviations(Deviations::ALL.difference(Deviations::QUERY_CLIENT_ONLY));
         assert!(compile("q.is_first_person", &off).diagnostics().is_empty());
         assert!(
             compile(
                 "q.is_first_person",
-                &CompileOptions {
-                    deviations: Deviations::NONE,
-                    ..opts()
-                }
+                &opts().with_deviations(Deviations::NONE)
             )
             .diagnostics()
             .is_empty()
@@ -949,10 +921,7 @@ mod tests {
 
     #[test]
     fn the_not_on_server_info_can_be_switched_off() {
-        let off = CompileOptions {
-            deviations: Deviations::ALL.difference(Deviations::QUERY_CLIENT_ONLY),
-            ..opts()
-        };
+        let off = opts().with_deviations(Deviations::ALL.difference(Deviations::QUERY_CLIENT_ONLY));
         let compiled = compile("q.is_on_screen", &off);
         assert_eq!(codes(&compiled), [DiagCode::UnknownQuery, DiagCode::Syntax]);
     }
@@ -965,10 +934,7 @@ mod tests {
         });
         assert_eq!(log.len(), 1);
         assert_eq!(log[0].severity(), Severity::Info);
-        let off = CompileOptions {
-            deviations: Deviations::NONE,
-            ..opts()
-        };
+        let off = opts().with_deviations(Deviations::NONE);
         assert!(
             with_cx("abcdef", &off, |cx| cx.lint_query_not_on_server(
                 decl(query::IS_ON_SCREEN),
@@ -984,11 +950,9 @@ mod tests {
         let quiet = Deviations::ALL.difference(Deviations::OBJECT_VERSION_WARNING);
         let compiled = compile(
             "q.is_first_person",
-            &CompileOptions {
-                raw_version: RawVersion(14),
-                deviations: quiet,
-                ..client()
-            },
+            &client()
+                .with_raw_version(RawVersion(14))
+                .with_deviations(quiet),
         );
         assert_eq!(
             codes(&compiled),
@@ -1005,12 +969,12 @@ mod tests {
                 .contains("exists, but not at MolangVersion 14")
         );
         assert_eq!(compiled.failure(), Some(CompileFailure::Rejected));
-        let off = CompileOptions {
-            raw_version: RawVersion(14),
-            deviations: Deviations::ALL
-                .difference(Deviations::QUERY_CLIENT_ONLY | Deviations::OBJECT_VERSION_WARNING),
-            ..client()
-        };
+        let off =
+            client()
+                .with_raw_version(RawVersion(14))
+                .with_deviations(Deviations::ALL.difference(
+                    Deviations::QUERY_CLIENT_ONLY | Deviations::OBJECT_VERSION_WARNING,
+                ));
         assert_eq!(
             codes(&compile("q.is_first_person", &off)),
             [DiagCode::UnknownQuery, DiagCode::Syntax]
@@ -1028,10 +992,7 @@ mod tests {
 
     #[test]
     fn a_query_behind_a_disabled_experiment_is_explained() {
-        let tests = CompileOptions {
-            experiments: ExperimentMask::empty(),
-            ..reference_catalog::options(13)
-        };
+        let tests = reference_catalog::options(13).with_experiments(ExperimentMask::empty());
         let compiled = compile("q.experimental_test", &tests);
         assert_eq!(
             codes(&compiled),
@@ -1050,10 +1011,8 @@ mod tests {
     #[test]
     fn an_enabled_experiment_is_not_blamed_for_a_query_set_miss() {
         // `query.experimental_test` is in the test set, which the default set does not admit.
-        let enabled = CompileOptions {
-            admission: QueryAdmission::Sets(QuerySetMask::DEFAULT),
-            ..reference_catalog::options(13)
-        };
+        let enabled = reference_catalog::options(13)
+            .with_admission(QueryAdmission::Sets(QuerySetMask::DEFAULT));
         let compiled = compile("q.experimental_test", &enabled);
         assert_eq!(codes(&compiled), [DiagCode::UnknownQuery, DiagCode::Syntax]);
         let test_decl = reference_catalog::catalog()

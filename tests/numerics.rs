@@ -12,7 +12,7 @@ mod math_functions {
     use crate::common::P;
     use crate::common::{Samples, assert_bits, compile_support::server_at};
     use molang::catalog::{QueryAdmission, QuerySetMask};
-    use molang::compile::{CompileFailure, CompileOptions, compile};
+    use molang::compile::{CompileFailure, compile};
     use molang::numeric::PostOp;
     use molang::ops::OpSet;
     use molang::stdlib::{MathFn, math};
@@ -125,10 +125,8 @@ mod math_functions {
                 format!("{}({arguments})", function.token())
             };
             for version in [-1_i16, 1, 13] {
-                let options = CompileOptions {
-                    admission: QueryAdmission::Sets(QuerySetMask::empty()),
-                    ..server_at(version)
-                };
+                let options =
+                    server_at(version).with_admission(QueryAdmission::Sets(QuerySetMask::empty()));
                 let compiled = compile(&source, &options);
                 assert_eq!(
                     compiled.failure(),
@@ -139,10 +137,7 @@ mod math_functions {
             }
         }
         // A query, by contrast, does not resolve without a set.
-        let options = CompileOptions {
-            admission: QueryAdmission::Sets(QuerySetMask::empty()),
-            ..server_at(13)
-        };
+        let options = server_at(13).with_admission(QueryAdmission::Sets(QuerySetMask::empty()));
         assert_eq!(
             compile("query.is_baby", &options).failure(),
             Some(CompileFailure::Rejected)
@@ -1425,14 +1420,8 @@ mod math_functions {
     /// `math.random_integer` are rejected, `math.die_roll*` never are.
     #[test]
     fn random_is_a_side_effect_die_roll_is_not() {
-        let strict = CompileOptions {
-            allowed_ops: OpSet::all().without_assignments_or_random(),
-            ..server_at(13)
-        };
-        let lenient = CompileOptions {
-            allowed_ops: OpSet::all().without_assignments(),
-            ..server_at(13)
-        };
+        let strict = server_at(13).with_allowed_ops(OpSet::all().without_assignments_or_random());
+        let lenient = server_at(13).with_allowed_ops(OpSet::all().without_assignments());
         for source in [
             "math.random(0, 1)",
             "math.random_integer(0, 1)",

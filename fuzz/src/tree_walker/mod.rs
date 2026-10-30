@@ -152,10 +152,7 @@ pub(crate) mod test_support {
 
     /// The options of `version` on `platform`.
     pub(crate) fn on(platform: Platform, version: i16) -> molang::compile::CompileOptions {
-        molang::compile::CompileOptions {
-            platform,
-            ..options(version)
-        }
+        options(version).with_platform(platform)
     }
     use molang::internals::Xorshift128;
     pub(crate) use molang::internals::tree;

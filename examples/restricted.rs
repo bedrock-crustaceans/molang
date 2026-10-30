@@ -24,10 +24,7 @@ fn check(source: &str, options: &CompileOptions) {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let latest = CompileOptions::server(MolangVersion::LATEST);
-    let in_sets = |sets| CompileOptions {
-        admission: QueryAdmission::Sets(sets),
-        ..latest.clone()
-    };
+    let in_sets = |sets| latest.clone().with_admission(QueryAdmission::Sets(sets));
 
     // The standard queries are in three sets; options admit `default` unless told otherwise.
     println!("query sets (default config uses the `default` set):");
@@ -48,12 +45,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("entity property default (allow-list [had_component_group], without_assignments()):");
     // An allow-list is built once against the catalogue; a name the catalogue does not declare
     // is an error here, not a list that silently admits less.
-    let property_queries = QueryAllowList::new(&latest.catalog, [query::HAD_COMPONENT_GROUP])?;
-    let property = CompileOptions {
-        admission: QueryAdmission::Only(property_queries),
-        allowed_ops: OpSet::all().without_assignments(),
-        ..latest.clone()
-    };
+    let property_queries = QueryAllowList::new(latest.catalog(), [query::HAD_COMPONENT_GROUP])?;
+    let property = latest
+        .clone()
+        .with_admission(QueryAdmission::Only(property_queries))
+        .with_allowed_ops(OpSet::all().without_assignments());
     check(
         "query.had_component_group('minecraft:baby') ? 1 : math.random(0, 1)",
         &property,
@@ -65,18 +61,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "block permutation condition (allow-list [block_state], without_assignments_or_random()):"
     );
-    let block_queries = QueryAllowList::new(&latest.catalog, [query::BLOCK_STATE])?;
-    let block = CompileOptions {
-        admission: QueryAdmission::Only(block_queries),
-        allowed_ops: OpSet::all().without_assignments_or_random(),
-        ..latest.clone()
-    };
+    let block_queries = QueryAllowList::new(latest.catalog(), [query::BLOCK_STATE])?;
+    let block = latest
+        .clone()
+        .with_admission(QueryAdmission::Only(block_queries))
+        .with_allowed_ops(OpSet::all().without_assignments_or_random());
     check("query.block_state('facing') == 'west'", &block);
     check("math.random(0, 1) > 0.5", &block);
     check("math.die_roll(1, 0, 1) > 0.5", &block);
 
     println!();
-    match block.admission {
+    match block.admission() {
         QueryAdmission::Sets(sets) => println!("the block condition admits the sets {sets:?}"),
         QueryAdmission::Only(list) => {
             println!("an allow-list replaces the query sets: only {list:?}")

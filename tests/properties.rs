@@ -887,7 +887,7 @@ mod query_ranges {
         fn the_compiler_resolves_exactly_when_resolve_does(index in query(), raw in raw_version(), sets in sets()) {
             let catalog = molang::stdlib::queries(Side::Client);
             let decl = catalog.iter().nth(index).expect("a declaration");
-            let options = CompileOptions { admission: QueryAdmission::Sets(sets), ..CompileOptions::from_raw_version(catalog.clone(), RawVersion(raw)) };
+            let options = CompileOptions::from_raw_version(catalog.clone(), RawVersion(raw)).with_admission(QueryAdmission::Sets(sets));
             let resolves = decl.resolve(RawVersion(raw), &QueryAdmission::Sets(sets), ExperimentMask::empty()).is_some();
             let compiled = compile(decl.name(), &options);
             prop_assert_eq!(compiled.is_success(), resolves, "{} at {}: {:?}", decl.name(), raw, compiled.diagnostics());

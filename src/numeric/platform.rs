@@ -3,7 +3,8 @@
 /// Whose float behaviour an expression reproduces: a dedicated server or a client, and where it
 /// matters the release.
 ///
-/// The host chooses it in [`CompileOptions::platform`](crate::compile::CompileOptions::platform);
+/// The host chooses it with
+/// [`CompileOptions::with_platform`](crate::compile::CompileOptions::with_platform);
 /// the compiled expression records it, and constant folding and evaluation both follow it, so a
 /// result is the same on every host. The default is [`Platform::BdsLinux`] at
 /// [`LinuxRelease::LATEST`].
@@ -57,10 +58,7 @@
 /// use molang::version::MolangVersion;
 ///
 /// let sign_of_nan = |platform| {
-///     let options = CompileOptions {
-///         platform,
-///         ..CompileOptions::server(MolangVersion::LATEST)
-///     };
+///     let options = CompileOptions::server(MolangVersion::LATEST).with_platform(platform);
 ///     let expr = compile("math.copy_sign(1, math.ln(-1))", &options).into_result().unwrap().0;
 ///     expr.as_constant()
 /// };
