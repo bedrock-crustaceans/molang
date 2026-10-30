@@ -549,11 +549,11 @@ mod tests {
             let index = ((radians * scale) as i32 & 0xffff) as f32;
             assert_eq!(
                 ease_out_sine(P, 0.0, 1.0, t, ID),
-                transcendental::sin(index / scale, NAN)
+                transcendental::sin(P, index / scale)
             );
             let eased = ease_out_sine(P, 0.0, 1.0, t, ID);
-            close(eased, transcendental::sin(radians, NAN), 1e-4);
-            differs_from_plain_sine |= eased != transcendental::sin(radians, NAN);
+            close(eased, transcendental::sin(P, radians), 1e-4);
+            differs_from_plain_sine |= eased != transcendental::sin(P, radians);
         }
         assert!(
             differs_from_plain_sine,

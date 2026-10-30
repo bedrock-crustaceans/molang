@@ -20,7 +20,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["stdlib"]
-stdlib = ["dep:libm"]
+stdlib = []
+strict-math = ["stdlib", "dep:libm"]
 compiler = []
 vm = ["compiler", "dep:smallvec", "dep:rustc-hash", "dep:nohash-hasher"]
 cache = ["compiler", "dep:dashmap"]
@@ -47,6 +48,7 @@ facet-json = "0.50.0-rc.7"
 rand_xorshift = "0.5"
 rand_core = { version = "0.10.1", default-features = false }
 rand_mt = { version = "6.1", default-features = false }
+libm = "0.2.16"
 
 [[example]]
 name = "cache"
@@ -92,7 +94,3 @@ required-features = ["vm", "stdlib"]
 name = "compile"
 harness = false
 required-features = ["compiler", "stdlib"]
-
-[[test]]
-name = "glibc_oracle"
-required-features = ["fuzz", "compiler"]

@@ -52,12 +52,9 @@ fn offset_first(platform: Platform, raw: f32, post: PostOp) -> f32 {
 }
 
 mod arithmetic;
-mod bionic;
-mod cmath;
 mod ease;
 pub(crate) mod fold;
 mod formula;
-pub(crate) mod glibc;
 mod interpolation;
 mod random;
 mod rounding;

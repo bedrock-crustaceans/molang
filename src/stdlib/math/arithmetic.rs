@@ -1,7 +1,7 @@
 //! `abs`, `copy_sign`, `exp`, `ln`, `max`, `min`, `mod`, `pow`, `sign` and `sqrt`.
 
-use super::{cmath, offset_first};
-use crate::numeric::{Platform, PostOp, arith, lt};
+use super::{offset_first, transcendental};
+use crate::numeric::{Platform, PostOp, arith, fpu, lt};
 
 /// `math.abs(x)`: `x` with its sign bit cleared.
 #[inline]
@@ -18,7 +18,7 @@ pub fn copy_sign(platform: Platform, a: f32, b: f32, post: PostOp) -> f32 {
 /// `math.exp(x)`: e^x.
 #[inline]
 pub fn exp(platform: Platform, x: f32, post: PostOp) -> f32 {
-    post.apply(platform, cmath::exp(platform, x))
+    post.apply(platform, transcendental::exp(platform, x))
 }
 
 /// `math.ln(x)`: the natural logarithm (`ln(0)` = −∞).
@@ -27,7 +27,7 @@ pub fn exp(platform: Platform, x: f32, post: PostOp) -> f32 {
 /// comes back quietened.
 #[inline]
 pub fn ln(platform: Platform, x: f32, post: PostOp) -> f32 {
-    post.apply(platform, cmath::ln(platform, x))
+    post.apply(platform, transcendental::ln(platform, x))
 }
 
 /// `math.max(a, b)`: see [`arith::max`].
@@ -59,19 +59,14 @@ pub fn mod_runtime(platform: Platform, a: f32, b: f32, post: PostOp) -> f32 {
 /// 0 gives the platform's NaN. Always applies the post-op.
 #[inline]
 pub fn mod_const(platform: Platform, a: f32, b: f32, post: PostOp) -> f32 {
-    arith::mul_add(
-        platform,
-        cmath::rem(platform, a, b),
-        post.scale,
-        post.offset,
-    )
+    arith::mul_add(platform, fpu::rem(platform, a, b), post.scale, post.offset)
 }
 
 /// `math.pow(a, b)`: `a` to the power `b`. A NaN `a` with an odd integer `b` gives that NaN with
 /// its sign bit cleared and its quiet bit set; an invalid operation gives the platform's NaN.
 #[inline]
 pub fn pow(platform: Platform, a: f32, b: f32, post: PostOp) -> f32 {
-    post.apply(platform, cmath::pow(platform, a, b))
+    post.apply(platform, transcendental::pow(platform, a, b))
 }
 
 /// `math.sign(x)`: `−(S + O)` when `x < 0`, else `S + O`; `sign(0)` = `sign(−0)` = `sign(NaN)` =
@@ -87,7 +82,7 @@ pub fn sign(platform: Platform, x: f32, post: PostOp) -> f32 {
 /// `math.sqrt(x)`: IEEE square root; a negative argument gives the platform's NaN.
 #[inline]
 pub fn sqrt(platform: Platform, x: f32, post: PostOp) -> f32 {
-    post.apply(platform, cmath::sqrt(platform, x))
+    post.apply(platform, fpu::sqrt(platform, x))
 }
 
 #[cfg(test)]
@@ -101,8 +96,7 @@ mod tests {
     #[test]
     fn ln_of_a_negative_number_is_the_nan_of_the_platform() {
         for (p, nan) in [
-            (LINUX, 0x7fc0_0000),
-            (LINUX_1_26_36, 0xffc0_0000),
+            (LINUX, 0xffc0_0000),
             (WINDOWS, 0xffc0_0000),
             (ANDROID, 0x7fc0_0000),
         ] {

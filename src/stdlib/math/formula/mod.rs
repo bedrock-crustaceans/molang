@@ -1,12 +1,12 @@
 //! The standard functions' formulas: every operation rounded on its own, in formula order, through
 //! the platform's arithmetic, so the platform chooses every NaN; the transcendentals come from
-//! [`cmath`](super::cmath).
+//! [`transcendental`](super::transcendental).
 
 mod ease;
 
 pub(crate) use ease::*;
 
-use super::{INVERSE_TRIG_TOLERANCE, RAD_TO_DEG, cmath};
+use super::{INVERSE_TRIG_TOLERANCE, RAD_TO_DEG, transcendental};
 use crate::numeric::fpu::{self, add, div, max, mul, sub, to_int};
 use crate::numeric::{Platform, PostOp};
 
@@ -44,7 +44,7 @@ pub(crate) enum Sort {
 /// `sin(i / SIN_INDEX_SCALE)`.
 #[inline]
 pub(crate) fn sin_table_entry(p: Platform, index: i32) -> f32 {
-    cmath::sin(p, (index & 0xffff) as f32 / SIN_INDEX_SCALE)
+    transcendental::sin(p, (index & 0xffff) as f32 / SIN_INDEX_SCALE)
 }
 
 /// Entry `trunc(x·SIN_INDEX_SCALE) mod 65536`.
@@ -168,7 +168,7 @@ pub(crate) fn inverse_lerp(p: Platform, a: f32, b: f32, v: f32) -> f32 {
 /// Wraps degrees into `[-180, 180)`.
 #[inline]
 pub(crate) fn wrap_angle(p: Platform, x: f32) -> f32 {
-    let r = cmath::rem(p, add(p, x, 180.0), 360.0);
+    let r = fpu::rem(p, add(p, x, 180.0), 360.0);
     sub(p, if r < 0.0 { add(p, r, 360.0) } else { r }, 180.0)
 }
 
@@ -416,20 +416,18 @@ mod tests {
             for p in PLATFORMS {
                 assert_bits(
                     sin_table_entry(p, index),
-                    cmath::sin(p, i / SIN_INDEX_SCALE),
+                    transcendental::sin(p, i / SIN_INDEX_SCALE),
                 );
             }
         }
     }
 
     #[test]
-    fn the_glibc_sine_table_differs_from_the_rounded_one_in_893_entries() {
-        let differing = (0..=0xffff)
-            .filter(|&i| sin_table_entry(LINUX, i) != sin_table_entry(WINDOWS, i))
-            .count();
-        assert_eq!(differing, 893);
-        for i in [1, 0x1234, 0xfffe] {
-            assert_bits(sin_table_entry(ANDROID, i), sin_table_entry(LINUX, i));
+    fn every_platform_reads_the_same_sine_table() {
+        for i in 0..=0xffff {
+            let linux = sin_table_entry(LINUX, i);
+            assert_bits(sin_table_entry(WINDOWS, i), linux);
+            assert_bits(sin_table_entry(ANDROID, i), linux);
         }
     }
 

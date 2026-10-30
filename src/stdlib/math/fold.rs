@@ -5,7 +5,7 @@ use crate::numeric::Platform;
 /// An all-constant `math.mod` is folded to the plain truncated remainder, without the post-op a
 /// run-time `math.mod` applies (which turns a −0 remainder into +0): `math.mod(-4, 2)` folds to −0.
 pub(crate) fn modulo(platform: Platform, a: f32, b: f32) -> f32 {
-    super::cmath::rem(platform, a, b)
+    crate::numeric::fpu::rem(platform, a, b)
 }
 
 #[cfg(test)]

@@ -136,6 +136,36 @@ pub(crate) fn trunc(x: f32) -> f32 {
     rounded(x, f32::trunc)
 }
 
+/// The square root; a negative `x` gives the platform's default NaN.
+#[cfg(feature = "stdlib")]
+#[inline]
+pub(crate) fn sqrt(p: Platform, x: f32) -> f32 {
+    let r = x.sqrt();
+    if r.is_nan() { first_nan(x, x, p) } else { r }
+}
+
+/// `a % b`, the remainder truncated toward zero; a zero `b` or an infinite `a` gives the
+/// platform's default NaN.
+#[cfg(feature = "stdlib")]
+#[inline]
+pub(crate) fn rem(p: Platform, a: f32, b: f32) -> f32 {
+    let r = a % b;
+    if r.is_nan() { first_nan(a, b, p) } else { r }
+}
+
+/// The first NaN of `a` and `b` quietened, on every platform; else the default NaN.
+#[cfg(feature = "stdlib")]
+#[cold]
+fn first_nan(a: f32, b: f32, p: Platform) -> f32 {
+    if a.is_nan() {
+        quiet(a)
+    } else if b.is_nan() {
+        quiet(b)
+    } else {
+        default_nan(p)
+    }
+}
+
 /// Truncating float-to-int. Out of range or NaN: `i32::MIN` on x86-64; saturated, NaN to 0, on
 /// arm64.
 #[inline]
@@ -242,6 +272,40 @@ mod tests {
         assert!(min(4.0, NAN).is_nan());
         assert_bits(max(0.0, -0.0), -0.0);
         assert_bits(min(-0.0, 0.0), 0.0);
+    }
+
+    #[cfg(feature = "stdlib")]
+    #[test]
+    fn sqrt_and_the_remainder_choose_their_nans() {
+        for p in PLATFORMS {
+            let invalid = default_nan(p);
+            for x in [-1.0, -1.0e-45, -INF] {
+                assert_eq!(bits(sqrt(p, x)), bits(invalid));
+            }
+            assert_bits(sqrt(p, -0.0), -0.0);
+            assert_eq!(bits(sqrt(p, NEGATIVE_SIGNALLING)), 0xffc0_0004);
+            for (a, b) in [
+                (5.0, 0.0),
+                (1.0, -0.0),
+                (INF, 3.0),
+                (-INF, INF),
+                (-INF, 0.0),
+            ] {
+                assert_eq!(bits(rem(p, a, b)), bits(invalid), "{a} % {b}");
+            }
+            for (first, second, expected) in [
+                (QUIET, NEGATIVE_QUIET, 0x7fc0_0001),
+                (NEGATIVE_SIGNALLING, QUIET, 0xffc0_0004),
+                (QUIET, SIGNALLING, 0x7fc0_0001),
+                (SIGNALLING, 0.0, 0x7fc0_0003),
+                (INF, NEGATIVE_SIGNALLING, 0xffc0_0004),
+            ] {
+                assert_eq!(bits(rem(p, first, second)), expected, "{p:?}");
+            }
+            assert_bits(rem(p, -4.0, 2.0), -0.0);
+            assert_bits(rem(p, 7.5, -2.0), 1.5);
+            assert_bits(rem(p, -3.0, INF), -3.0);
+        }
     }
 
     #[test]

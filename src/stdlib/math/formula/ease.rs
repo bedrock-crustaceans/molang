@@ -10,8 +10,8 @@ use super::{
     BOUNCE_T1, BOUNCE_T2, BOUNCE_T3, HALF_PI, table_cos, table_sin,
 };
 use crate::numeric::Platform;
-use crate::numeric::fpu::{add, div, mul, sub};
-use crate::stdlib::math::{PI, cmath};
+use crate::numeric::fpu::{self, add, div, mul, sub};
+use crate::stdlib::math::{PI, transcendental};
 
 /// 0.075, 2π and 0.3.
 const ELASTIC_SHIFT: f32 = f32::from_bits(0x3d99_999a);
@@ -229,7 +229,7 @@ pub(crate) fn in_expo(p: Platform, start: f32, end: f32, t: f32) -> f32 {
     let d = sub(p, end, start);
     add(
         p,
-        mul(p, cmath::exp2(p, mul(p, add(p, t, -1.0), 10.0)), d),
+        mul(p, transcendental::exp2(p, mul(p, add(p, t, -1.0), 10.0)), d),
         start,
     )
 }
@@ -240,7 +240,7 @@ pub(crate) fn out_expo(p: Platform, start: f32, end: f32, t: f32) -> f32 {
     let d = sub(p, end, start);
     add(
         p,
-        mul(p, sub(p, 1.0, cmath::exp2(p, mul(p, t, -10.0))), d),
+        mul(p, sub(p, 1.0, transcendental::exp2(p, mul(p, t, -10.0))), d),
         start,
     )
 }
@@ -252,11 +252,15 @@ pub(crate) fn in_out_expo(p: Platform, start: f32, end: f32, t: f32) -> f32 {
     let h = mul(p, sub(p, end, start), 0.5);
     let v = add(p, u, -1.0);
     if 1.0 > u {
-        plus_start(p, mul(p, cmath::exp2(p, mul(p, v, 10.0)), h), start)
+        plus_start(
+            p,
+            mul(p, transcendental::exp2(p, mul(p, v, 10.0)), h),
+            start,
+        )
     } else {
         plus_start(
             p,
-            mul(p, sub(p, 2.0, cmath::exp2(p, mul(p, v, -10.0))), h),
+            mul(p, sub(p, 2.0, transcendental::exp2(p, mul(p, v, -10.0))), h),
             start,
         )
     }
@@ -267,7 +271,7 @@ pub(crate) fn in_out_expo(p: Platform, start: f32, end: f32, t: f32) -> f32 {
 #[inline]
 pub(crate) fn in_circ(p: Platform, start: f32, end: f32, t: f32) -> f32 {
     let d = sub(p, end, start);
-    let q = add(p, cmath::sqrt(p, sub(p, 1.0, mul(p, t, t))), -1.0);
+    let q = add(p, fpu::sqrt(p, sub(p, 1.0, mul(p, t, t))), -1.0);
     if p.reorders_operands() {
         sub(p, start, mul(p, d, q))
     } else {
@@ -282,7 +286,7 @@ pub(crate) fn out_circ(p: Platform, start: f32, end: f32, t: f32) -> f32 {
     let x = mul(
         p,
         sub(p, end, start),
-        cmath::sqrt(p, sub(p, 1.0, mul(p, v, v))),
+        fpu::sqrt(p, sub(p, 1.0, mul(p, v, v))),
     );
     plus_start(p, x, start)
 }
@@ -301,7 +305,7 @@ pub(crate) fn in_out_circ(p: Platform, start: f32, end: f32, t: f32) -> f32 {
     let y = mul(
         p,
         factor,
-        add(p, k, cmath::sqrt(p, sub(p, 1.0, mul(p, x, x)))),
+        add(p, k, fpu::sqrt(p, sub(p, 1.0, mul(p, x, x)))),
     );
     plus_start(p, y, start)
 }
@@ -414,7 +418,7 @@ pub(crate) fn in_elastic(p: Platform, start: f32, end: f32, t: f32) -> f32 {
         return add(p, start, d);
     }
     let v = add(p, t, -1.0);
-    let scale = cmath::exp2(p, mul(p, 10.0, v));
+    let scale = transcendental::exp2(p, mul(p, 10.0, v));
     sub(
         p,
         start,
@@ -433,7 +437,7 @@ pub(crate) fn out_elastic(p: Platform, start: f32, end: f32, t: f32) -> f32 {
     if t == 1.0 {
         return add(p, start, d);
     }
-    let x = mul(p, cmath::exp2(p, mul(p, -10.0, t)), d);
+    let x = mul(p, transcendental::exp2(p, mul(p, -10.0, t)), d);
     add(
         p,
         start,
@@ -461,7 +465,7 @@ pub(crate) fn in_out_elastic(p: Platform, start: f32, end: f32, t: f32) -> f32 {
             start,
             mul(
                 p,
-                mul(p, mul(p, cmath::exp2(p, mul(p, v, 10.0)), d), s),
+                mul(p, mul(p, transcendental::exp2(p, mul(p, v, 10.0)), d), s),
                 -0.5,
             ),
         )
@@ -473,7 +477,7 @@ pub(crate) fn in_out_elastic(p: Platform, start: f32, end: f32, t: f32) -> f32 {
                 p,
                 mul(
                     p,
-                    mul(p, mul(p, cmath::exp2(p, mul(p, v, -10.0)), d), s),
+                    mul(p, mul(p, transcendental::exp2(p, mul(p, v, -10.0)), d), s),
                     0.5,
                 ),
                 d,
@@ -486,6 +490,7 @@ pub(crate) fn in_out_elastic(p: Platform, start: f32, end: f32, t: f32) -> f32 {
 mod tests {
     use super::*;
     use crate::numeric::test_support::*;
+    use crate::stdlib::math::transcendental::with_strict;
     use crate::stdlib::math::{self, formula::test_support::easing_bodies};
 
     /// The sign of the NaN each body returns (`+` clear, `-` set) with two NaNs of opposite sign in
@@ -542,19 +547,16 @@ mod tests {
         }
     }
 
-    /// Of the platforms' NaN rules only the order of the operands differs on Windows; the bodies
-    /// that call no C library function give the same values as on Linux.
+    /// Of the platforms' NaN rules only the order of the operands differs on Windows: the values
+    /// are those of Linux.
     #[test]
     fn windows_swaps_operands_without_changing_a_value() {
-        for ((name, body, _), (_, glibc, rounded)) in easing_bodies().into_iter().zip(SWEEP_HASHES)
-        {
-            if glibc == rounded {
-                assert_eq!(
-                    sweep_hash(|s, e, t| body(WINDOWS, s, e, t)),
-                    sweep_hash(|s, e, t| body(LINUX, s, e, t)),
-                    "{name}"
-                );
-            }
+        for (name, body, _) in easing_bodies() {
+            assert_eq!(
+                sweep_hash(|s, e, t| body(WINDOWS, s, e, t)),
+                sweep_hash(|s, e, t| body(LINUX, s, e, t)),
+                "{name}"
+            );
         }
     }
 
@@ -626,58 +628,73 @@ mod tests {
         }
     }
 
-    /// [`sweep_hash`] of each body, with glibc's functions and with the `f64`-rounded ones.
+    /// [`sweep_hash`] of each body on the `libm` crate, and the transcendental functions it calls:
+    /// on the host's C library it holds within [`HOST_ULPS`] per call of the hashed values.
     #[rustfmt::skip]
-    const SWEEP_HASHES: [(&str, u64, u64); 30] = [
-        ("in_quad", 0xa740_e060_0249_41dc, 0xa740_e060_0249_41dc),
-        ("out_quad", 0x6e0c_6154_a7e9_c7a7, 0x6e0c_6154_a7e9_c7a7),
-        ("in_out_quad", 0x909d_b438_fa55_cc6e, 0x909d_b438_fa55_cc6e),
-        ("in_cubic", 0x2675_f5d3_048b_14b3, 0x2675_f5d3_048b_14b3),
-        ("out_cubic", 0xe72e_5c82_74e7_6e21, 0xe72e_5c82_74e7_6e21),
-        ("in_out_cubic", 0x6efe_e071_ff47_524f, 0x6efe_e071_ff47_524f),
-        ("in_quart", 0x5263_6d29_b0e0_43ea, 0x5263_6d29_b0e0_43ea),
-        ("out_quart", 0x0d5e_0527_cbcf_b19c, 0x0d5e_0527_cbcf_b19c),
-        ("in_out_quart", 0x5daa_5531_b8de_0d2a, 0x5daa_5531_b8de_0d2a),
-        ("in_quint", 0xde79_6eb2_6dc0_3eee, 0xde79_6eb2_6dc0_3eee),
-        ("out_quint", 0x0ee9_154b_f207_c53f, 0x0ee9_154b_f207_c53f),
-        ("in_out_quint", 0x5850_494c_7ea1_be3a, 0x5850_494c_7ea1_be3a),
-        ("in_sine", 0xa1c0_60e3_fc6f_370e, 0x29f9_cdc7_1100_00d5),
-        ("out_sine", 0x1fba_dd33_ce09_11f3, 0x41a7_84c6_6dac_2635),
-        ("in_out_sine", 0xd621_6435_2549_411f, 0x837e_f434_6ff7_7055),
-        ("in_expo", 0x72ab_13a4_6ebb_c56c, 0xd0ae_d93f_7426_7609),
-        ("out_expo", 0x9fe0_608b_55e9_89e1, 0xf1b2_7628_cfa0_2f92),
-        ("in_out_expo", 0xb407_0512_2d45_c6e9, 0x0921_0b7b_a41f_2b8a),
-        ("in_circ", 0xc1a7_1232_d230_380f, 0xc1a7_1232_d230_380f),
-        ("out_circ", 0xc0d4_b980_a419_ea7c, 0xc0d4_b980_a419_ea7c),
-        ("in_out_circ", 0x99f6_d001_0c7e_a0cb, 0x99f6_d001_0c7e_a0cb),
-        ("in_bounce", 0x516e_7ceb_aeba_2db8, 0x516e_7ceb_aeba_2db8),
-        ("out_bounce", 0x1647_68d2_6ac7_8d43, 0x1647_68d2_6ac7_8d43),
-        ("in_out_bounce", 0x8950_180f_031f_c6dc, 0x8950_180f_031f_c6dc),
-        ("in_back", 0x6352_1748_d047_74d5, 0x6352_1748_d047_74d5),
-        ("out_back", 0x4f45_06bc_aced_9fb8, 0x4f45_06bc_aced_9fb8),
-        ("in_out_back", 0x5529_758c_e25a_e093, 0x5529_758c_e25a_e093),
-        ("in_elastic", 0x8ea3_02c2_d532_4677, 0x4766_1d3b_cf39_170c),
-        ("out_elastic", 0x85be_744f_a197_60e3, 0xa8e2_087c_0c08_285d),
-        ("in_out_elastic", 0x231c_c666_067f_f300, 0xb7bc_19af_bdc4_b912),
+    const SWEEP_HASHES: [(&str, u64, u32); 30] = [
+        ("in_quad", 0xa740_e060_0249_41dc, 0),
+        ("out_quad", 0x6e0c_6154_a7e9_c7a7, 0),
+        ("in_out_quad", 0x909d_b438_fa55_cc6e, 0),
+        ("in_cubic", 0x2675_f5d3_048b_14b3, 0),
+        ("out_cubic", 0xe72e_5c82_74e7_6e21, 0),
+        ("in_out_cubic", 0x6efe_e071_ff47_524f, 0),
+        ("in_quart", 0x5263_6d29_b0e0_43ea, 0),
+        ("out_quart", 0x0d5e_0527_cbcf_b19c, 0),
+        ("in_out_quart", 0x5daa_5531_b8de_0d2a, 0),
+        ("in_quint", 0xde79_6eb2_6dc0_3eee, 0),
+        ("out_quint", 0x0ee9_154b_f207_c53f, 0),
+        ("in_out_quint", 0x5850_494c_7ea1_be3a, 0),
+        ("in_sine", 0x06f1_143b_6b2b_7f9c, 1),
+        ("out_sine", 0x4039_7102_2baa_a718, 1),
+        ("in_out_sine", 0xea44_6b19_d375_b6cd, 1),
+        ("in_expo", 0xc96e_606d_4d2b_276a, 1),
+        ("out_expo", 0x9b20_79bb_01f3_8c8c, 1),
+        ("in_out_expo", 0x3658_a08a_433e_3afd, 1),
+        ("in_circ", 0xc1a7_1232_d230_380f, 0),
+        ("out_circ", 0xc0d4_b980_a419_ea7c, 0),
+        ("in_out_circ", 0x99f6_d001_0c7e_a0cb, 0),
+        ("in_bounce", 0x516e_7ceb_aeba_2db8, 0),
+        ("out_bounce", 0x1647_68d2_6ac7_8d43, 0),
+        ("in_out_bounce", 0x8950_180f_031f_c6dc, 0),
+        ("in_back", 0x6352_1748_d047_74d5, 0),
+        ("out_back", 0x4f45_06bc_aced_9fb8, 0),
+        ("in_out_back", 0x5529_758c_e25a_e093, 0),
+        ("in_elastic", 0x8a25_6ec9_78f8_7500, 2),
+        ("out_elastic", 0x7432_06cd_de1f_3d64, 2),
+        ("in_out_elastic", 0x31a9_561c_7193_d82e, 2),
     ];
 
     #[test]
     fn every_easing_keeps_the_bits_of_its_sweep_on_every_platform() {
+        let mut failures = Vec::new();
         for p in PLATFORMS {
-            for ((name, body, _), (hashed, glibc, rounded)) in
+            for ((name, body, _), (hashed, expected, calls)) in
                 easing_bodies().into_iter().zip(SWEEP_HASHES)
             {
                 assert_eq!(name, hashed);
-                let expected = match cmath::libm(p) {
-                    cmath::Libm::RoundedF64 => rounded,
-                    cmath::Libm::Glibc(_) | cmath::Libm::Bionic => glibc,
-                };
-                assert_eq!(
-                    sweep_hash(|s, e, t| body(p, s, e, t)),
-                    expected,
-                    "{p:?} {name}"
-                );
+                let strict = with_strict(|| sweep_hash(|s, e, t| body(p, s, e, t)));
+                if strict != expected {
+                    failures.push(format!("{p:?} {name}: {strict:#018x}"));
+                }
+                if calls == 0 {
+                    assert_eq!(
+                        sweep_hash(|s, e, t| body(p, s, e, t)),
+                        strict,
+                        "{p:?} {name}"
+                    );
+                    continue;
+                }
+                for (s, e) in SWEEP_RANGES {
+                    for t in sweep_ts() {
+                        let (host, strict) = (body(p, s, e, t), with_strict(|| body(p, s, e, t)));
+                        if !within_host_ulps_of(host, strict, s.abs().max(e.abs()), calls) {
+                            failures
+                                .push(format!("{p:?} {name}({s}, {e}, {t}): {host:e}, {strict:e}"));
+                        }
+                    }
+                }
             }
         }
+        assert!(failures.is_empty(), "{failures:#?}");
     }
 }

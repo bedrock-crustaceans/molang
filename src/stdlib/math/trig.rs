@@ -1,25 +1,25 @@
 //! Trigonometry in degrees: `sin`, `cos`, `asin`, `acos`, `atan` and `atan2`.
 
 use super::formula::{degrees, inverse_trig_argument};
-use super::{DEG_TO_RAD, cmath};
+use super::{DEG_TO_RAD, transcendental};
 use crate::numeric::{Platform, PostOp, arith};
 
-/// `math.acos(x)` in degrees: `acos(1.0005)` = 0, `acos(1.0006)` = the platform's NaN.
+/// `math.acos(x)` in degrees: `acos(1.0005)` = 0, `acos(1.0006)` = the positive NaN.
 #[inline]
 pub fn acos(platform: Platform, x: f32, post: PostOp) -> f32 {
     degrees(
         platform,
-        cmath::acos(platform, inverse_trig_argument(x)),
+        transcendental::acos(inverse_trig_argument(x)),
         post,
     )
 }
 
-/// `math.asin(x)` in degrees: `asin(1.0004)` = 90, `asin(1.001)` = the platform's NaN.
+/// `math.asin(x)` in degrees: `asin(1.0004)` = 90, `asin(1.001)` = the positive NaN.
 #[inline]
 pub fn asin(platform: Platform, x: f32, post: PostOp) -> f32 {
     degrees(
         platform,
-        cmath::asin(platform, inverse_trig_argument(x)),
+        transcendental::asin(inverse_trig_argument(x)),
         post,
     )
 }
@@ -27,14 +27,14 @@ pub fn asin(platform: Platform, x: f32, post: PostOp) -> f32 {
 /// `math.atan(x)` in degrees.
 #[inline]
 pub fn atan(platform: Platform, x: f32, post: PostOp) -> f32 {
-    degrees(platform, cmath::atan(platform, x), post)
+    degrees(platform, transcendental::atan(platform, x), post)
 }
 
-/// `math.atan2(y, x)` in degrees; `atan2(0, 0)` = 0. A NaN `y` comes back quietened, else a NaN
-/// `x`.
+/// `math.atan2(y, x)` in degrees; `atan2(0, 0)` = 0. Of NaN arguments the platform's NaN rule
+/// chooses (see [`Platform`]).
 #[inline]
 pub fn atan2(platform: Platform, y: f32, x: f32, post: PostOp) -> f32 {
-    degrees(platform, cmath::atan2(platform, y, x), post)
+    degrees(platform, transcendental::atan2(platform, y, x), post)
 }
 
 /// `math.cos(x)`, `x` in degrees; ±∞ gives the platform's NaN.
@@ -42,7 +42,7 @@ pub fn atan2(platform: Platform, y: f32, x: f32, post: PostOp) -> f32 {
 pub fn cos(platform: Platform, x: f32, post: PostOp) -> f32 {
     post.apply(
         platform,
-        cmath::cos(platform, arith::mul(platform, x, DEG_TO_RAD)),
+        transcendental::cos(platform, arith::mul(platform, x, DEG_TO_RAD)),
     )
 }
 
@@ -51,7 +51,7 @@ pub fn cos(platform: Platform, x: f32, post: PostOp) -> f32 {
 pub fn sin(platform: Platform, x: f32, post: PostOp) -> f32 {
     post.apply(
         platform,
-        cmath::sin(platform, arith::mul(platform, x, DEG_TO_RAD)),
+        transcendental::sin(platform, arith::mul(platform, x, DEG_TO_RAD)),
     )
 }
 
@@ -162,9 +162,9 @@ mod tests {
         ] {
             let x = 0.3_f32;
             let rad = if name == "asin" {
-                cmath::asin(P, x)
+                transcendental::asin(x)
             } else {
-                cmath::acos(P, x)
+                transcendental::acos(x)
             };
             assert_bits(f(P, x, post), (rad * RAD_TO_DEG) * post.scale + post.offset);
             assert_bits(f(P, x, ID), rad * RAD_TO_DEG);
@@ -172,27 +172,18 @@ mod tests {
     }
 
     #[test]
-    fn a_domain_error_is_the_nan_of_the_platform() {
-        for (p, nan) in [
-            (LINUX, 0x7fc0_0000),
-            (LINUX_1_26_36, 0x7fc0_0000),
-            (WINDOWS, 0xffc0_0000),
-            (ANDROID, 0x7fc0_0000),
-        ] {
+    fn a_domain_error_is_the_positive_nan_on_every_platform() {
+        for p in PLATFORMS {
             for x in [2.0, -2.0, 1.0006, INF, -INF] {
-                assert_eq!(asin(p, x, ID).to_bits(), nan, "{p:?} asin({x})");
-                assert_eq!(acos(p, x, ID).to_bits(), nan, "{p:?} acos({x})");
+                assert_eq!(asin(p, x, ID).to_bits(), 0x7fc0_0000, "{p:?} asin({x})");
+                assert_eq!(acos(p, x, ID).to_bits(), 0x7fc0_0000, "{p:?} acos({x})");
             }
         }
     }
 
     #[test]
-    fn a_domain_error_is_the_positive_nan_and_a_nan_operand_keeps_its_sign() {
+    fn a_nan_operand_keeps_its_sign() {
         let negative_nan = f32::from_bits(0xffc0_0000);
-        for x in [2.0, -2.0, 1.0006, INF, -INF] {
-            assert_eq!(asin(P, x, ID).to_bits(), 0x7fc0_0000, "asin(P, {x})");
-            assert_eq!(acos(P, x, ID).to_bits(), 0x7fc0_0000, "acos(P, {x})");
-        }
         assert_eq!(atan2(P, negative_nan, NAN, ID).to_bits(), 0xffc0_0000);
         assert_eq!(atan2(P, NAN, negative_nan, ID).to_bits(), 0x7fc0_0000);
         assert_eq!(atan2(P, 1.0, negative_nan, ID).to_bits(), 0xffc0_0000);
@@ -239,7 +230,7 @@ mod tests {
     fn atan_and_atan2_apply_the_post_op_after_the_conversion() {
         let post = PostOp::new(0.9, -0.4);
         let (y, x) = (0.8_f32, 1.9_f32);
-        let (angle, rad) = (cmath::atan2(P, y, x), cmath::atan(P, x));
+        let (angle, rad) = (transcendental::atan2(P, y, x), transcendental::atan(P, x));
         assert_bits(
             atan2(P, y, x, post),
             (angle * RAD_TO_DEG) * post.scale + post.offset,
@@ -287,8 +278,8 @@ mod tests {
     #[test]
     fn sin_and_cos_take_the_sine_of_the_f32_product_with_the_conversion_factor() {
         for deg in [1.0_f32, 17.5, 123.456, -300.0, 720.0, 1.0e6] {
-            assert_bits(sin(P, deg, ID), transcendental::sin(deg * DEG_TO_RAD, NAN));
-            assert_bits(cos(P, deg, ID), transcendental::cos(deg * DEG_TO_RAD, NAN));
+            assert_bits(sin(P, deg, ID), transcendental::sin(P, deg * DEG_TO_RAD));
+            assert_bits(cos(P, deg, ID), transcendental::cos(P, deg * DEG_TO_RAD));
         }
     }
 
@@ -299,7 +290,7 @@ mod tests {
         close(cos(P, 0.0, PostOp::new(-2.0, 1.1)), -0.9, 1e-6);
         assert_bits(cos(P, 0.0, PostOp::new(0.0, 4.0)), 4.0);
         let post = PostOp::new(3.0, -1.0);
-        let raw = transcendental::sin(33.0_f32 * DEG_TO_RAD, NAN);
+        let raw = transcendental::sin(P, 33.0_f32 * DEG_TO_RAD);
         assert_bits(sin(P, 33.0, post), raw * 3.0 - 1.0);
     }
 
@@ -326,15 +317,10 @@ mod tests {
             f32::from_bits(0xbe85_e4a7),
             PostOp::new(f32::from_bits(0xbfa0_820c), f32::from_bits(0x3ffb_1d93)),
         );
-        let rad = cmath::atan(P, x);
+        let rad = transcendental::atan(P, x);
         assert_eq!(
             atan(P, x, post),
             (rad * RAD_TO_DEG) * post.scale + post.offset
-        );
-        assert_eq!(atan(P, x, post).to_bits(), 0x41a2_b659);
-        assert_eq!(
-            (rad * (RAD_TO_DEG * post.scale) + post.offset).to_bits(),
-            0x41a2_b65a
         );
     }
 

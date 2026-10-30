@@ -167,11 +167,34 @@ pub(crate) mod test_support {
         ts
     }
 
+    /// The `(start, end)` pairs of [`sweep_hash`].
+    pub(crate) const SWEEP_RANGES: [(f32, f32); 4] =
+        [(0.0, 1.0), (1.0, 5.0), (-3.0, 7.5), (0.3, 0.1)];
+
+    /// The ulps a transcendental result of the host's C library may miss the `libm` crate's by.
+    pub(crate) const HOST_ULPS: u32 = 2;
+
+    /// Whether `a` and `b` are both NaN, or within `calls` × [`HOST_ULPS`] ulps of the larger of
+    /// `scale`, `|a|` and `|b|`: a formula that subtracts a transcendental result from a constant
+    /// keeps its absolute error, not its relative one, and each call adds its own.
+    pub(crate) fn within_host_ulps_of(a: f32, b: f32, scale: f32, calls: u32) -> bool {
+        if a.is_nan() || b.is_nan() {
+            return a.is_nan() && b.is_nan();
+        }
+        if a.is_infinite() || b.is_infinite() {
+            return a == b;
+        }
+        let scale = scale.max(a.abs()).max(b.abs());
+        let ulp = f64::from(f32::from_bits(scale.to_bits() & 0x7f80_0000).max(f32::MIN_POSITIVE))
+            * f64::from(f32::EPSILON);
+        (f64::from(a) - f64::from(b)).abs() <= f64::from(HOST_ULPS * calls) * ulp
+    }
+
     /// FNV-1a over the bits of `f` at every [`sweep_ts`] point, for `(start, end)` pairs whose
     /// range is not a power of two (so fused and separate rounding differ); all NaNs hash alike.
     pub(crate) fn sweep_hash(f: impl Fn(f32, f32, f32) -> f32) -> u64 {
         let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-        for (start, end) in [(0.0_f32, 1.0_f32), (1.0, 5.0), (-3.0, 7.5), (0.3, 0.1)] {
+        for (start, end) in SWEEP_RANGES {
             for t in sweep_ts() {
                 let value = f(start, end, t);
                 let bits = if value.is_nan() {
