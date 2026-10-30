@@ -728,10 +728,10 @@ impl EvalCase {
                 Row::Hash(HashRow {
                     literal, expected, ..
                 }) => {
-                    if HashedStr::new(literal).as_u64() != *expected {
+                    if HashedStr::new(literal).to_u64() != *expected {
                         failures.push(format!(
                             "{name}: the hash of {literal:?} is {:#018x}, not {expected:#018x}",
-                            HashedStr::new(literal).as_u64()
+                            HashedStr::new(literal).to_u64()
                         ));
                     }
                 }

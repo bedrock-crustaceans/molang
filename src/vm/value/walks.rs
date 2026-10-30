@@ -92,7 +92,7 @@ impl<H: Host> Debug for DebugAt<'_, '_, H> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.value {
             Value::Float(x) => f.debug_tuple("Float").field(x).finish(),
-            Value::Hash(h) => write!(f, "Hash({:#018x})", h.as_u64()),
+            Value::Hash(h) => write!(f, "Hash({:#018x})", h.to_u64()),
             Value::Actor(a) => f.debug_tuple("Actor").field(a).finish(),
             Value::Item(i) => f.debug_tuple("Item").field(i).finish(),
             Value::ActorArray(a) => f.debug_tuple("ActorArray").field(a).finish(),
@@ -127,7 +127,7 @@ impl<H: Host> Debug for DebugMembers<'_, '_, H> {
             }
             self.budget.set(left - 1);
             map.entry(
-                &name.as_u64(),
+                &name.to_u64(),
                 &DebugAt {
                     value,
                     depth: self.depth,
@@ -480,11 +480,11 @@ mod tests {
         let v = V::structure(M::from([("x", 1.0)]));
         assert_eq!(
             format!("{v:?}"),
-            format!("Struct({{{}: Float(1.0)}})", h("x").as_u64())
+            format!("Struct({{{}: Float(1.0)}})", h("x").to_u64())
         );
         assert_eq!(
             format!("{:?}", M::from([("x", 1.0)])),
-            format!("{{{}: Float(1.0)}}", h("x").as_u64())
+            format!("{{{}: Float(1.0)}}", h("x").to_u64())
         );
         assert_eq!(format!("{:?}", M::new()), "{}");
     }

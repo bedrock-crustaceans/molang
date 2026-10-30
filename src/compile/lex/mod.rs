@@ -261,7 +261,7 @@ impl<'c> Lexer<'c, '_> {
     #[inline]
     fn read_string(&mut self, start: usize) -> Result<Lexeme, TokenFailed> {
         let closing = self.scan_string(start)?;
-        let hash = HashedStr::from_bytes(&self.text[start + 1..closing]).as_u64();
+        let hash = HashedStr::from_bytes(&self.text[start + 1..closing]).to_u64();
         Ok(Lexeme {
             op: Op::StringLiteral,
             value: Payload::Hash(hash),
@@ -1366,7 +1366,7 @@ mod tests {
                 ("' '", 12_638_153_115_695_167_487),
             ] {
                 let inner = &literal[1..literal.len() - 1];
-                assert_eq!(HashedStr::new(inner).as_u64(), hash, "{literal}");
+                assert_eq!(HashedStr::new(inner).to_u64(), hash, "{literal}");
                 assert_eq!(tree(literal), hash.to_string(), "{literal}");
             }
         }

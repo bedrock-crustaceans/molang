@@ -33,7 +33,7 @@ impl Builder<'_, '_> {
     #[inline(never)]
     pub(super) fn resource(&mut self, node: &Node) -> Build {
         let hash = match &node.value {
-            Payload::Geometry(n) | Payload::Material(n) | Payload::Texture(n) => n.hash().as_u64(),
+            Payload::Geometry(n) | Payload::Material(n) | Payload::Texture(n) => n.hash().to_u64(),
             _ => 0,
         };
         let h = self.hash(hash)?;
@@ -214,7 +214,7 @@ mod tests {
     fn a_string_is_a_hash_instruction() {
         assert_listing("'moo'", &[format!("hash {}", hex("moo")), "end".to_owned()]);
         let p = program_of("'moo'");
-        assert_eq!(*p.hashes, [HashedStr::new("moo").as_u64()]);
+        assert_eq!(*p.hashes, [HashedStr::new("moo").to_u64()]);
         assert!(!p.flags.contains(ProgramFlags::FLOAT_ONLY));
         assert!(!p.float_loop);
     }
@@ -525,7 +525,7 @@ mod tests {
         let tree = node(Op::Geometry, Payload::Geometry(name.clone()), vec![]);
         let p = built(&tree).unwrap();
         assert_eq!(p.code[0], Instr::Resource { h: HashIdx(0) });
-        assert_eq!(*p.hashes, [name.hash().as_u64()]);
+        assert_eq!(*p.hashes, [name.hash().to_u64()]);
         assert!(!p.float_loop && !p.flags.contains(ProgramFlags::FLOAT_ONLY));
         for (op_, payload) in [
             (Op::Material, Payload::Material(Name::new("material.m"))),

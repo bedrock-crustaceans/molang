@@ -74,7 +74,7 @@ mod tests {
             toks("'abc'"),
             [(
                 Op::StringLiteral,
-                Payload::Hash(HashedStr::new("abc").as_u64()),
+                Payload::Hash(HashedStr::new("abc").to_u64()),
                 (0, 5)
             )]
         );
@@ -85,7 +85,7 @@ mod tests {
     fn a_string_keeps_its_case_and_spaces() {
         assert_eq!(
             toks("'A b'")[0].1,
-            Payload::Hash(HashedStr::new("A b").as_u64())
+            Payload::Hash(HashedStr::new("A b").to_u64())
         );
         assert_ne!(toks("'A'")[0].1, toks("'a'")[0].1);
     }
@@ -107,7 +107,7 @@ mod tests {
             t,
             [(
                 Op::StringLiteral,
-                Payload::Hash(HashedStr::from_bytes(b"a\\'xb").as_u64()),
+                Payload::Hash(HashedStr::from_bytes(b"a\\'xb").to_u64()),
                 (0, 7)
             )]
         );
@@ -121,7 +121,7 @@ mod tests {
             toks("'ab\\xy'"),
             [(
                 Op::StringLiteral,
-                Payload::Hash(HashedStr::from_bytes(b"ab\\xy").as_u64()),
+                Payload::Hash(HashedStr::from_bytes(b"ab\\xy").to_u64()),
                 (0, 7)
             )]
         );
@@ -129,7 +129,7 @@ mod tests {
         assert_eq!(t[2].2, (4, 13));
         assert_eq!(
             t[2].1,
-            Payload::Hash(HashedStr::from_bytes(b"abcd\\xy").as_u64())
+            Payload::Hash(HashedStr::from_bytes(b"abcd\\xy").to_u64())
         );
     }
 
@@ -184,7 +184,7 @@ mod tests {
                 let inner = &valid[1..valid.len() - 1];
                 assert_eq!(
                     compiled.tree_notation(9).as_deref(),
-                    Some(HashedStr::new(inner).as_u64().to_string().as_str()),
+                    Some(HashedStr::new(inner).to_u64().to_string().as_str()),
                     "{valid}"
                 );
             }

@@ -269,7 +269,7 @@ impl<N: Namespace> nohash_hasher::IsEnabled for Name<N> {}
 
 impl<N: Namespace> fmt::Debug for Name<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}({:#018x})", N::KEY_NAME, self.hash.as_u64())
+        write!(f, "{}({:#018x})", N::KEY_NAME, self.hash.to_u64())
     }
 }
 
@@ -565,7 +565,7 @@ mod tests {
         assert_eq!(
             ContextName::from_raw_hash(HashedStr::from_u64(7))
                 .hashed()
-                .as_u64(),
+                .to_u64(),
             7
         );
         assert_eq!(AnyName::Variable(key).hashed(), key.hashed());
@@ -627,7 +627,7 @@ mod tests {
         );
         assert_eq!(
             build.hash_one(VariableName::new("x")),
-            VariableName::new("x").hashed().as_u64()
+            VariableName::new("x").hashed().to_u64()
         );
     }
 

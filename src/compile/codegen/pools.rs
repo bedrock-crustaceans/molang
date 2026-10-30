@@ -160,7 +160,7 @@ impl Builder<'_, '_> {
             text: name.as_str().into(),
         };
         self.names
-            .intern(hash.as_u64(), entry)
+            .intern(hash.to_u64(), entry)
             .and_then(narrow)
             .map(NameIdx)
     }
@@ -174,7 +174,7 @@ impl Builder<'_, '_> {
 
     /// The member entry of `name` in a read path whose last member is `last`.
     pub(super) fn member(&mut self, name: &Name, last: &Name) -> Result<MemberIdx, LinkError> {
-        let key = (name.hash().as_u64(), last.hash().as_u64());
+        let key = (name.hash().to_u64(), last.hash().to_u64());
         let entry = || MemberEntry {
             hash: name.hash(),
             text: format!(".{}", name.as_str()).into(),

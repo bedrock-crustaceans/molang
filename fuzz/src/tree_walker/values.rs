@@ -359,7 +359,7 @@ mod tests {
             Some(&Value::string("cow"))
         );
         // In arithmetic a string is the float of its low 32 bits.
-        let low = f32::from_bits(HashedStr::new("moo").as_u64() as u32);
+        let low = f32::from_bits(HashedStr::new("moo").to_u64() as u32);
         assert_eq!(bits(float("v.s + 0")), bits(low + 0.0));
         assert_eq!(bits(float("v.s * 1")), bits(low));
         assert_eq!(float("'cow' == v.s"), 0.0);

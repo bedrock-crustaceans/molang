@@ -1702,7 +1702,7 @@ mod value_type {
             V::Hash(HashedStr::from_u64(0xdead_beef_3fc0_0000)).to_f32(),
             1.5
         );
-        let hash = h("a").as_u64();
+        let hash = h("a").to_u64();
         assert_eq!(V::string("a").to_f32().to_bits(), hash as u32);
         assert_eq!(V::Actor(3).to_f32(), 0.0);
         assert_eq!(V::Item(3).to_f32(), 0.0);
@@ -1879,7 +1879,7 @@ mod value_type {
         );
         assert!(
             err.to_string()
-                .ends_with(&format!("{:#018x}'", h("x").as_u64()))
+                .ends_with(&format!("{:#018x}'", h("x").to_u64()))
         );
         assert_eq!(s.get(h("x")), Some(&V::Float(1.0)));
         assert_eq!(s.len(), 1);

@@ -1689,7 +1689,7 @@ mod tests {
                     tokens,
                     [(
                         Op::StringLiteral,
-                        Payload::Hash(HashedStr::new(text).as_u64())
+                        Payload::Hash(HashedStr::new(text).to_u64())
                     )],
                     "{text:?}"
                 );

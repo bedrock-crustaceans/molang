@@ -43,7 +43,7 @@ mod types_layer {
             panic!("a number reads as one value: {field:?}");
         };
         assert_eq!(repr.number(), Some(1.5));
-        assert_eq!(HashedStr::new("").as_u64(), 0);
+        assert_eq!(HashedStr::new("").to_u64(), 0);
         assert!(!molang::stdlib::queries(Side::Client).is_empty());
         assert_eq!(
             molang::stdlib::queries(Side::Server)
@@ -117,19 +117,19 @@ mod types_layer {
     /// FNV-1 of the bytes as written; the empty string hashes to 0.
     #[test]
     fn hashing() {
-        assert_eq!(HashedStr::new("").as_u64(), 0);
+        assert_eq!(HashedStr::new("").to_u64(), 0);
         assert_eq!(HashedStr::EMPTY, HashedStr::new(""));
         assert!(HashedStr::EMPTY.is_empty());
-        assert_eq!(HashedStr::new("a").as_u64(), 12_638_153_115_695_167_422);
-        assert_eq!(HashedStr::new("abc").as_u64(), 15_626_587_013_303_479_755);
+        assert_eq!(HashedStr::new("a").to_u64(), 12_638_153_115_695_167_422);
+        assert_eq!(HashedStr::new("abc").to_u64(), 15_626_587_013_303_479_755);
         assert_eq!(
-            HashedStr::new("ABC").as_u64(),
+            HashedStr::new("ABC").to_u64(),
             15_595_941_425_208_037_995,
             "no case folding"
         );
-        assert_eq!(HashedStr::new(" ").as_u64(), 12_638_153_115_695_167_487);
+        assert_eq!(HashedStr::new(" ").to_u64(), 12_638_153_115_695_167_487);
         assert_eq!(HashedStr::from("abc"), HashedStr::new("abc"));
-        assert_eq!(HashedStr::from_u64(42).as_u64(), 42);
+        assert_eq!(HashedStr::from_u64(42).to_u64(), 42);
         assert_eq!(u64::from(HashedStr::new("a")), 12_638_153_115_695_167_422);
         assert!(!HashedStr::new("a").is_empty());
     }
@@ -140,10 +140,10 @@ mod types_layer {
         assert_eq!(HashedStr::from_bytes(b"\0a"), HashedStr::EMPTY);
         assert_eq!(
             molang::hash::fnv1_64(b"abc"),
-            HashedStr::new("abc").as_u64()
+            HashedStr::new("abc").to_u64()
         );
         const A: HashedStr = HashedStr::new("a");
-        assert_eq!(A.as_u64(), 12_638_153_115_695_167_422);
+        assert_eq!(A.to_u64(), 12_638_153_115_695_167_422);
     }
 
     /// Only by the full name or the suffix after `query.`.
@@ -576,7 +576,7 @@ mod vm {
     /// with the string on the left.
     #[test]
     fn to_f32_and_mixed_equality() {
-        let low = f32::from_bits(molang::hash::HashedStr::new("a").as_u64() as u32);
+        let low = f32::from_bits(molang::hash::HashedStr::new("a").to_u64() as u32);
         assert_eq!(
             Value::<NoHost>::string("a").to_f32().to_bits(),
             low.to_bits()
@@ -1663,15 +1663,15 @@ mod fnv_hash {
 
     #[test]
     fn conformance_vectors() {
-        assert_eq!(HashedStr::new("a").as_u64(), 12_638_153_115_695_167_422);
-        assert_eq!(HashedStr::new("abc").as_u64(), 15_626_587_013_303_479_755);
-        assert_eq!(HashedStr::new("ABC").as_u64(), 15_595_941_425_208_037_995);
-        assert_eq!(HashedStr::new(" ").as_u64(), 12_638_153_115_695_167_487);
+        assert_eq!(HashedStr::new("a").to_u64(), 12_638_153_115_695_167_422);
+        assert_eq!(HashedStr::new("abc").to_u64(), 15_626_587_013_303_479_755);
+        assert_eq!(HashedStr::new("ABC").to_u64(), 15_595_941_425_208_037_995);
+        assert_eq!(HashedStr::new(" ").to_u64(), 12_638_153_115_695_167_487);
     }
 
     #[test]
     fn empty_string_hashes_to_zero_not_the_basis() {
-        assert_eq!(HashedStr::new("").as_u64(), 0);
+        assert_eq!(HashedStr::new("").to_u64(), 0);
         assert_eq!(fnv1_64(b""), 0);
         assert_eq!(HashedStr::new(""), HashedStr::EMPTY);
         assert!(HashedStr::EMPTY.is_empty());
@@ -1702,7 +1702,7 @@ mod fnv_hash {
         assert_ne!(HashedStr::new("a\\'b"), HashedStr::new("a'b"));
         // Non-UTF-8 bytes hash like any other.
         assert_eq!(
-            HashedStr::from_bytes(&[0xff, 0xfe]).as_u64(),
+            HashedStr::from_bytes(&[0xff, 0xfe]).to_u64(),
             fnv1_64(&[0xff, 0xfe])
         );
     }
@@ -1721,7 +1721,7 @@ mod fnv_hash {
         assert_eq!(h, copy);
         assert_eq!(u64::from(h), 15_615_043_240_721_163_028);
         assert_eq!(HashedStr::from(15_615_043_240_721_163_028_u64), h);
-        assert_eq!(HashedStr::from_u64(h.as_u64()), h);
+        assert_eq!(HashedStr::from_u64(h.to_u64()), h);
     }
 
     #[test]
@@ -1729,7 +1729,7 @@ mod fnv_hash {
         const GREETING: HashedStr = HashedStr::new("hello");
         const PLANET: u64 = fnv1_64(b"planet");
         assert_eq!(GREETING, HashedStr::new("hello"));
-        assert_eq!(PLANET, HashedStr::new("planet").as_u64());
+        assert_eq!(PLANET, HashedStr::new("planet").to_u64());
     }
 }
 

@@ -54,7 +54,7 @@ impl QueryError {
 /// Only the name's hash is known here, so the text prints it in hexadecimal; a host that has the
 /// name reports [`RuntimeMsg::DuplicateMember`](super::RuntimeMsg::DuplicateMember) instead.
 #[derive(Error, Copy, Clone, Debug, PartialEq, Eq)]
-#[error("molang: a struct already has a member named '{:#018x}'", .name.as_u64())]
+#[error("molang: a struct already has a member named '{:#018x}'", .name.to_u64())]
 pub struct DuplicateMember {
     /// The hash of the duplicated member name.
     pub name: HashedStr,

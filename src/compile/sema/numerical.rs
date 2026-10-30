@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn a_string_in_arithmetic_is_accepted_below_version_3() {
-        let hash = HashedStr::new("a").as_u64();
+        let hash = HashedStr::new("a").to_u64();
         for raw in [-1, 0, 1, 2] {
             assert_eq!(
                 shown_at("'a'+1", raw),

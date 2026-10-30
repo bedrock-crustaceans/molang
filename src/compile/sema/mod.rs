@@ -238,7 +238,7 @@ pub(crate) mod test_support {
     pub(super) fn string(text: &str) -> Node {
         Node::token(
             Op::StringLiteral,
-            Payload::Hash(HashedStr::new(text).as_u64()),
+            Payload::Hash(HashedStr::new(text).to_u64()),
             Span::new(0, 1),
         )
     }

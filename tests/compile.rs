@@ -1556,7 +1556,7 @@ mod strings {
         /// through a variable.
         #[test]
         fn string_arithmetic_reinterprets_the_low_bits() {
-            let low = f32::from_bits(HashedStr::new("a").as_u64() as u32);
+            let low = f32::from_bits(HashedStr::new("a").to_u64() as u32);
             for version in [2, 13] {
                 let Value::Float(x) = eval("v.s = 'a'; v.one = 1; return v.s * v.one;", version)
                 else {
@@ -4537,8 +4537,8 @@ mod shapes_by_value {
     #[cfg(feature = "vm")]
     #[test]
     fn string_hashes_of_raw_bytes() {
-        assert_eq!(HashedStr::new("a\\'b").as_u64(), 3_327_885_792_095_995_213);
-        assert_eq!(HashedStr::new("a\\\\b").as_u64(), 3_327_983_648_630_905_864);
+        assert_eq!(HashedStr::new("a\\'b").to_u64(), 3_327_885_792_095_995_213);
+        assert_eq!(HashedStr::new("a\\\\b").to_u64(), 3_327_983_648_630_905_864);
         assert_eq!(value_of("'a\\'b'"), Value::string("a\\'b"));
         assert_eq!(value_of("'a\\\\b'"), Value::string("a\\\\b"));
     }
@@ -4660,7 +4660,7 @@ mod shapes_by_value {
             ("' '", 12_638_153_115_695_167_487),
         ] {
             let inner = &literal[1..literal.len() - 1];
-            assert_eq!(HashedStr::new(inner).as_u64(), hash, "{literal}");
+            assert_eq!(HashedStr::new(inner).to_u64(), hash, "{literal}");
             assert_eq!(value_of(literal), Value::string(inner), "{literal}");
         }
     }
@@ -4670,7 +4670,7 @@ mod shapes_by_value {
     fn pitfall_lowering_inside_strings() {
         assert_ne!(value_of("'ABC'"), value_of("'abc'"));
         assert_eq!(value_of("'abc'"), Value::string("abc"));
-        assert_eq!(HashedStr::new("abc").as_u64(), 15_626_587_013_303_479_755);
+        assert_eq!(HashedStr::new("abc").to_u64(), 15_626_587_013_303_479_755);
         let vars = [("a", -3.0)];
         assert_eq!(
             run("MATH.ABS(V.A) + Q.IS_BABY", 13, &vars),

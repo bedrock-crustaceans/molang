@@ -232,7 +232,7 @@ mod tests {
         let p = program_of("v.x == 'abc'");
         assert_eq!(p.flags, ProgramFlags::READS_ACTOR_VARS);
         assert!(!p.float_loop);
-        assert_eq!(*p.hashes, [HashedStr::new("abc").as_u64()]);
+        assert_eq!(*p.hashes, [HashedStr::new("abc").to_u64()]);
         // The same string twice shares one hash.
         assert_eq!(
             program_of("(v.x == 'abc') + (v.y == 'abc')").hashes.len(),

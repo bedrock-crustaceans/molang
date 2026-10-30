@@ -6,9 +6,9 @@
 //! ```
 //! use molang::hash::HashedStr;
 //!
-//! assert_eq!(HashedStr::new("a").as_u64(), 12_638_153_115_695_167_422);
+//! assert_eq!(HashedStr::new("a").to_u64(), 12_638_153_115_695_167_422);
 //! assert_eq!(HashedStr::new(""), HashedStr::EMPTY);
-//! assert_eq!(HashedStr::EMPTY.as_u64(), 0);
+//! assert_eq!(HashedStr::EMPTY.to_u64(), 0);
 //! // `const`, so tables of names can be hashed at compile time.
 //! const GREETING: HashedStr = HashedStr::new("hello");
 //! assert_eq!(GREETING, HashedStr::new("hello"));
@@ -68,7 +68,7 @@ impl HashedStr {
     }
 
     /// The 64-bit hash value.
-    pub const fn as_u64(self) -> u64 {
+    pub const fn to_u64(self) -> u64 {
         self.0
     }
 
@@ -102,21 +102,21 @@ mod tests {
 
     #[test]
     fn conformance_vectors() {
-        assert_eq!(HashedStr::new("a").as_u64(), 12_638_153_115_695_167_422);
-        assert_eq!(HashedStr::new("abc").as_u64(), 15_626_587_013_303_479_755);
-        assert_eq!(HashedStr::new("ABC").as_u64(), 15_595_941_425_208_037_995);
-        assert_eq!(HashedStr::new(" ").as_u64(), 12_638_153_115_695_167_487);
+        assert_eq!(HashedStr::new("a").to_u64(), 12_638_153_115_695_167_422);
+        assert_eq!(HashedStr::new("abc").to_u64(), 15_626_587_013_303_479_755);
+        assert_eq!(HashedStr::new("ABC").to_u64(), 15_595_941_425_208_037_995);
+        assert_eq!(HashedStr::new(" ").to_u64(), 12_638_153_115_695_167_487);
         assert_eq!(fnv1_64(b"moo"), 15_615_043_240_721_163_028);
     }
 
     #[test]
     fn the_empty_string_and_a_leading_nul_hash_to_zero_not_the_basis() {
-        assert_eq!(HashedStr::new("").as_u64(), 0);
+        assert_eq!(HashedStr::new("").to_u64(), 0);
         assert_eq!(fnv1_64(b""), 0);
         assert_eq!(fnv1_64(b"\0"), 0);
         assert_eq!(fnv1_64(b"\0abc"), 0);
         assert_eq!(HashedStr::new(""), HashedStr::EMPTY);
-        assert_eq!(HashedStr::EMPTY.as_u64(), 0);
+        assert_eq!(HashedStr::EMPTY.to_u64(), 0);
         assert_eq!(HashedStr::from_bytes(&[0]), HashedStr::EMPTY);
         assert_eq!(HashedStr::from_bytes(b""), HashedStr::EMPTY);
         assert_eq!(HashedStr::new("\0x"), HashedStr::EMPTY);
@@ -149,7 +149,7 @@ mod tests {
         assert_eq!(HashedStr::new("a\\'b"), HashedStr::from_bytes(b"a\\'b"));
         assert_ne!(HashedStr::new("a\\'b"), HashedStr::new("a'b"));
         assert_eq!(
-            HashedStr::from_bytes(&[0xff, 0xfe]).as_u64(),
+            HashedStr::from_bytes(&[0xff, 0xfe]).to_u64(),
             fnv1_64(&[0xff, 0xfe])
         );
     }
@@ -171,7 +171,7 @@ mod tests {
         assert_eq!(h, copy);
         assert_eq!(u64::from(h), 15_615_043_240_721_163_028);
         assert_eq!(HashedStr::from(15_615_043_240_721_163_028_u64), h);
-        assert_eq!(HashedStr::from_u64(h.as_u64()), h);
+        assert_eq!(HashedStr::from_u64(h.to_u64()), h);
     }
 
     #[test]
@@ -179,7 +179,7 @@ mod tests {
         const GREETING: HashedStr = HashedStr::new("hello");
         const PLANET: u64 = fnv1_64(b"planet");
         assert_eq!(GREETING, HashedStr::new("hello"));
-        assert_eq!(PLANET, HashedStr::new("planet").as_u64());
+        assert_eq!(PLANET, HashedStr::new("planet").to_u64());
     }
 
     #[test]
@@ -203,7 +203,7 @@ mod tests {
     fn a_byte_above_ascii_is_not_mistaken_for_nul() {
         let bytes = [0xff, 0xfe, 0x00, 0x01];
         assert_eq!(
-            HashedStr::from_bytes(&bytes[..2]).as_u64(),
+            HashedStr::from_bytes(&bytes[..2]).to_u64(),
             fnv1_64(&[0xff, 0xfe])
         );
         assert_eq!(

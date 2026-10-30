@@ -226,7 +226,7 @@ mod tests {
         let hash = Value::<FuzzHost>::string("moo");
         let values = [
             float(0.0),
-            float(f32::from_bits(HashedStr::new("moo").as_u64() as u32)),
+            float(f32::from_bits(HashedStr::new("moo").to_u64() as u32)),
             hash.clone(),
             Value::Actor(FuzzActor::Handle(1)),
             Value::Actor(FuzzActor::Id(1)),

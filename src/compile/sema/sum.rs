@@ -202,7 +202,7 @@ fn merge_entity_variable_terms(p: Platform, node: &mut Node) {
         let Some(name) = entity_variable_name(&terms[index]) else {
             continue;
         };
-        let key = name.hash().as_u64();
+        let key = name.hash().to_u64();
         if !repeated.may_repeat(key) {
             continue;
         }
@@ -291,7 +291,7 @@ impl RepeatedNames {
         let mut twice = vec![0u64; bits / 64];
         let mut any = false;
         for name in terms.iter().filter_map(entity_variable_name) {
-            let bit = mix(name.hash().as_u64()) & mask;
+            let bit = mix(name.hash().to_u64()) & mask;
             let (word, flag) = ((bit / 64) as usize, 1u64 << (bit % 64));
             if once[word] & flag != 0 {
                 twice[word] |= flag;
@@ -1293,7 +1293,7 @@ mod tests {
                     if *count > 1 {
                         assert!(
                             filter
-                                .may_repeat(Name::new(format!("variable.{name}")).hash().as_u64()),
+                                .may_repeat(Name::new(format!("variable.{name}")).hash().to_u64()),
                             "{name}"
                         );
                     }
@@ -1319,7 +1319,7 @@ mod tests {
         assert!(RepeatedNames::of(&terms(&["a", "b", "c"]).children).is_none());
         assert!(RepeatedNames::of(&[temp("a"), temp("a")]).is_none());
         let filter = RepeatedNames::of(&terms(&["a", "b", "a"]).children).expect("a repeat");
-        assert!(filter.may_repeat(Name::new("variable.a").hash().as_u64()));
+        assert!(filter.may_repeat(Name::new("variable.a").hash().to_u64()));
     }
 
     #[test]

@@ -101,7 +101,7 @@ impl<H: Host> Slot<H> for Value<H> {
     #[inline]
     fn is_hash(&self, hash: u64) -> bool {
         match self {
-            Value::Hash(h) => h.as_u64() == hash,
+            Value::Hash(h) => h.to_u64() == hash,
             Value::Float(x) => u64::from(x.to_bits()) == hash,
             _ => false,
         }
@@ -142,10 +142,10 @@ mod tests {
         ));
         assert!(<f32 as Slot<NoHost>>::is_hash(&0.0, 0));
         assert!(!<f32 as Slot<NoHost>>::is_hash(&-0.0, 0));
-        assert!(NV::Hash(h).is_hash(h.as_u64()));
-        assert!(!NV::Hash(h).is_hash(h.as_u64() ^ 1));
+        assert!(NV::Hash(h).is_hash(h.to_u64()));
+        assert!(!NV::Hash(h).is_hash(h.to_u64() ^ 1));
         assert!(NV::Float(1.5).is_hash(u64::from(bits)));
-        assert!(!NV::Float(1.5).is_hash(h.as_u64()));
+        assert!(!NV::Float(1.5).is_hash(h.to_u64()));
         assert!(!NV::Item(()).is_hash(0));
         assert!(!NV::Actor(()).is_hash(0));
     }

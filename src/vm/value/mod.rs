@@ -168,7 +168,7 @@ impl<H: Host> Value<H> {
     pub const fn to_f32(&self) -> f32 {
         match self {
             Self::Float(x) => *x,
-            Self::Hash(h) => f32::from_bits(h.as_u64() as u32),
+            Self::Hash(h) => f32::from_bits(h.to_u64() as u32),
             _ => 0.0,
         }
     }
@@ -267,9 +267,9 @@ impl<H: Host> Value<H> {
     ) -> bool {
         match (self, rhs) {
             (Self::Float(a), Self::Float(b)) => a == b,
-            (Self::Hash(a), Self::Float(b)) => f32::from_bits(a.as_u64() as u32) == *b,
+            (Self::Hash(a), Self::Float(b)) => f32::from_bits(a.to_u64() as u32) == *b,
             (Self::Hash(a), Self::Hash(b)) => a == b,
-            (Self::Float(a), Self::Hash(b)) => u64::from(a.to_bits()) == b.as_u64(),
+            (Self::Float(a), Self::Hash(b)) => u64::from(a.to_bits()) == b.to_u64(),
             (Self::Actor(a), Self::Actor(b)) => match (resolve(*a), resolve(*b)) {
                 (Some(a), Some(b)) => a == b,
                 _ => false,
@@ -489,7 +489,7 @@ mod tests {
             V::Hash(HashedStr::from_u64(0xdead_beef_3fc0_0000)).to_f32(),
             1.5
         );
-        let hash = h("a").as_u64();
+        let hash = h("a").to_u64();
         assert_eq!(V::string("a").to_f32().to_bits(), hash as u32);
         assert_eq!(V::Actor(3).to_f32(), 0.0);
         assert_eq!(V::Item(3).to_f32(), 0.0);
@@ -546,7 +546,7 @@ mod tests {
         // A NaN pattern in the low bits is true.
         assert!(V::Hash(HashedStr::from_u64(0x7fc0_0000)).is_nonzero());
         // A real string reads the low bits of its own hash.
-        let low = f32::from_bits(h("moo").as_u64() as u32);
+        let low = f32::from_bits(h("moo").to_u64() as u32);
         assert_eq!(V::string("moo").is_nonzero(), low != 0.0);
     }
 

@@ -404,7 +404,7 @@ mod tests {
         );
         assert!(
             err.to_string()
-                .ends_with(&format!("{:#018x}'", h("x").as_u64()))
+                .ends_with(&format!("{:#018x}'", h("x").to_u64()))
         );
         assert_eq!(s.get(h("x")), Some(&V::Float(1.0)));
         assert_eq!(s.len(), 1);

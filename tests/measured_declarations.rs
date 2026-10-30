@@ -276,6 +276,6 @@ fn the_hash_rows_expect_the_fnv1_hash_of_their_literal() {
         ("a", HASH_OF_A),
         ("a", HASH_OF_A),
     ] {
-        assert_eq!(HashedStr::new(literal).as_u64(), expected, "{literal:?}");
+        assert_eq!(HashedStr::new(literal).to_u64(), expected, "{literal:?}");
     }
 }

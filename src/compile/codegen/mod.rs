@@ -424,7 +424,7 @@ pub(crate) mod test_support {
     }
 
     pub(super) fn hex(s: &str) -> String {
-        format!("{:#018x}", HashedStr::new(s).as_u64())
+        format!("{:#018x}", HashedStr::new(s).to_u64())
     }
 
     pub(super) fn node(op: Op, value: Payload, children: Vec<Node>) -> Node {

@@ -646,7 +646,7 @@ mod variables {
         let mut env = NoHostEnv::new();
         env.variables
             .set(VariableName::new("h"), Value::string("abc"));
-        let low = f32::from_bits(HashedStr::new("abc").as_u64() as u32);
+        let low = f32::from_bits(HashedStr::new("abc").to_u64() as u32);
         assert_eq!(server_expr("v.h == 1").eval_f32(&mut env.cx()), 0.0);
         assert_eq!(server_expr("v.h == 'abc'").eval_f32(&mut env.cx()), 1.0);
         assert_eq!(server_expr("'abc' == v.h").eval_f32(&mut env.cx()), 1.0);
@@ -715,7 +715,7 @@ mod variables {
             assert_eq!(eval(source), expected, "{source}");
         }
         // `'a' + 0` is the hash's low bits (negative); `v.s + 1` is 1.
-        let low = f32::from_bits(HashedStr::new("a").as_u64() as u32);
+        let low = f32::from_bits(HashedStr::new("a").to_u64() as u32);
         assert_eq!(
             eval("v.s = 'a'; v.z = 0; return v.s + v.z;").to_bits(),
             low.to_bits()
@@ -1176,7 +1176,7 @@ mod result_kinds {
 
     #[test]
     fn a_string_is_a_hash_and_its_low_bits() {
-        let low = f32::from_bits(HashedStr::new("moo").as_u64() as u32);
+        let low = f32::from_bits(HashedStr::new("moo").to_u64() as u32);
         for source in ["return 'moo';", "v.s = 'moo'; return v.s;"] {
             let (full, float) = both(source);
             assert_eq!(full, Value::string("moo"), "{source}");

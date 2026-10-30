@@ -114,7 +114,7 @@ mod tests {
             t,
             [(
                 Op::StringLiteral,
-                Payload::Hash(HashedStr::from_bytes(b"a\\'B").as_u64()),
+                Payload::Hash(HashedStr::from_bytes(b"a\\'B").to_u64()),
                 (0, 6)
             )]
         );
@@ -174,7 +174,7 @@ mod tests {
         use crate::hash::HashedStr;
 
         fn hash_tree(text: &str) -> String {
-            HashedStr::new(text).as_u64().to_string()
+            HashedStr::new(text).to_u64().to_string()
         }
 
         #[test]
@@ -183,8 +183,8 @@ mod tests {
             assert_eq!(tree("Variable.X_1"), "v.x_1");
             assert_eq!(tree("MATH.PI"), tree("math.pi"));
             assert_eq!(tree("LOOP(3, {V.X = 1;});"), tree("loop(3, {v.x = 1;});"));
-            assert_eq!(tree("'abc'"), HashedStr::new("abc").as_u64().to_string());
-            assert_eq!(tree("'ABC'"), HashedStr::new("ABC").as_u64().to_string());
+            assert_eq!(tree("'abc'"), HashedStr::new("abc").to_u64().to_string());
+            assert_eq!(tree("'ABC'"), HashedStr::new("ABC").to_u64().to_string());
             assert_ne!(tree("'abc'"), tree("'ABC'"));
         }
 
@@ -193,7 +193,7 @@ mod tests {
             // Inside a string the lowering loop skips one byte after `\`, the scanner two.
             assert_eq!(
                 tree("'a\\'B'"),
-                HashedStr::new("a\\'B").as_u64().to_string()
+                HashedStr::new("a\\'B").to_u64().to_string()
             );
         }
 

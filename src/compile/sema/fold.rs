@@ -1541,7 +1541,7 @@ mod tests {
     fn absorb_constant_child_moves_the_first_string_when_there_is_no_float() {
         let mut node = parent(Op::LogicalEqual, vec![entity("x"), string("a")]);
         absorb_constant_child(P, &mut node);
-        assert_eq!(node.value, Payload::Hash(HashedStr::new("a").as_u64()));
+        assert_eq!(node.value, Payload::Hash(HashedStr::new("a").to_u64()));
         assert_eq!(node.children.len(), 1);
         assert!(node.children[0].is(Op::EntityVariable));
     }
@@ -1630,7 +1630,7 @@ mod tests {
 
     #[test]
     fn equality_with_a_string_moves_its_hash() {
-        let b = HashedStr::new("b").as_u64();
+        let b = HashedStr::new("b").to_u64();
         let root = tree("v.x=='b'");
         assert_eq!(root.value, Payload::Hash(b));
         assert_eq!(root.children.len(), 1);
@@ -1641,7 +1641,7 @@ mod tests {
 
     #[test]
     fn equality_of_two_strings_moves_the_first_and_keeps_the_second() {
-        let (a, b) = (HashedStr::new("a").as_u64(), HashedStr::new("b").as_u64());
+        let (a, b) = (HashedStr::new("a").to_u64(), HashedStr::new("b").to_u64());
         let root = tree("'a'=='b'");
         assert!(root.is(Op::LogicalEqual));
         assert_eq!(root.value, Payload::Hash(a));

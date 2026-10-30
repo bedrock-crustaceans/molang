@@ -530,7 +530,7 @@ mod tests {
             (
                 "string",
                 NV::string("moo"),
-                f32::from_bits(HashedStr::new("moo").as_u64() as u32),
+                f32::from_bits(HashedStr::new("moo").to_u64() as u32),
             ),
             ("actor", NV::Actor(()), 0.0),
             ("item", NV::Item(()), 0.0),
@@ -564,7 +564,7 @@ mod tests {
 
     #[test]
     fn a_string_result_is_the_low_bits_of_its_hash_as_a_float() {
-        let hash = HashedStr::new("walk").as_u64();
+        let hash = HashedStr::new("walk").to_u64();
         let mut env = test_env();
         env.variables.set(key("k"), NV::string("walk"));
         let f = compile_ok("v.k").eval_f32(&mut env.cx());

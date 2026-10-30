@@ -1121,7 +1121,7 @@ mod tests {
         let mut a = FnvWriter::new();
         a.write_str("a").unwrap();
         assert_eq!(a.finish(), 12_638_153_115_695_167_422);
-        assert_eq!(a.finish(), HashedStr::new("a").as_u64());
+        assert_eq!(a.finish(), HashedStr::new("a").to_u64());
 
         let mut whole = FnvWriter::new();
         whole.write_str("hello world").unwrap();
@@ -1130,6 +1130,6 @@ mod tests {
             pieces.write_str(piece).unwrap();
         }
         assert_eq!(whole.finish(), pieces.finish());
-        assert_eq!(whole.finish(), HashedStr::new("hello world").as_u64());
+        assert_eq!(whole.finish(), HashedStr::new("hello world").to_u64());
     }
 }

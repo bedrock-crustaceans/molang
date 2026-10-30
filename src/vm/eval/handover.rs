@@ -257,7 +257,7 @@ mod tests {
     #[test]
     fn strings_and_resources_need_the_general_loop() {
         let mut p = asm(vec![Instr::Hash { h: HashIdx(0) }, Instr::End]);
-        p.hashes = vec![HashedStr::new("moo").as_u64()].into_boxed_slice();
+        p.hashes = vec![HashedStr::new("moo").to_u64()].into_boxed_slice();
         let mut env = test_env();
         let mut cx = env.cx();
         let mut vm = Vm::<NoHost, f32>::new(&p, Some(10));
@@ -267,7 +267,7 @@ mod tests {
         assert_eq!(vm.acc, NV::string("moo"));
 
         let mut p = asm(vec![Instr::Resource { h: HashIdx(0) }, Instr::End]);
-        p.hashes = vec![HashedStr::new("texture.default").as_u64()].into_boxed_slice();
+        p.hashes = vec![HashedStr::new("texture.default").to_u64()].into_boxed_slice();
         let mut vm = Vm::<NoHost, f32>::new(&p, Some(10));
         expect_deopt_at(&mut vm, &p, &mut cx, 0);
         let mut vm = Vm::<NoHost, NV>::new(&p, Some(10));
