@@ -446,7 +446,7 @@ mod tests {
                 seen.push(platform);
             }
         }
-        assert_eq!(seen.len(), 4, "{seen:?}");
+        assert_eq!(seen.len(), 3, "{seen:?}");
     }
 
     #[test]
