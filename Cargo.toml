@@ -2,6 +2,7 @@
 name = "molang"
 description = "A pure-Rust compiler and bytecode VM for Molang, the expression language of Minecraft: Bedrock Edition content"
 version = "1.0.0"
+authors = ["Lucy <theaddonn@gmail.com>"]
 edition = "2024"
 rust-version = "1.92"
 repository = "https://github.com/bedrock-crustaceans/molang"
