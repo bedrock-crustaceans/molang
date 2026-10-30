@@ -85,6 +85,8 @@ impl core::ops::BitOrAssign for ReturnType {
     }
 }
 
+crate::bitmask::bit_formats!(ReturnType);
+
 impl fmt::Debug for ReturnType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         crate::bitmask::fmt_bit_names(f, self.0.into(), &Self::NAMES)
@@ -141,6 +143,20 @@ mod tests {
 
     /// The empty set, which no public constructor builds.
     const NOTHING: ReturnType = ReturnType(0);
+
+    #[test]
+    fn the_numeric_formats_show_the_bits() {
+        let number = ReturnType::NUMBER;
+        assert_eq!(
+            [
+                format!("{number:b}"),
+                format!("{number:o}"),
+                format!("{number:#x}"),
+                format!("{:X}", ReturnType::all())
+            ],
+            ["11", "3", "0x3", "7F"]
+        );
+    }
 
     #[test]
     fn return_type_constants_cover_each_bit_once() {

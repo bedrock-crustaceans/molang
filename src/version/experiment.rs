@@ -2,7 +2,7 @@
 
 use core::fmt;
 
-use crate::bitmask::set_operators;
+use crate::bitmask::{bit_formats, set_operators};
 
 /// One experiment toggle, numbered `0..64` by the host.
 ///
@@ -114,6 +114,7 @@ impl FromIterator<Experiment> for ExperimentMask {
 }
 
 set_operators!(ExperimentMask);
+bit_formats!(ExperimentMask);
 
 impl fmt::Debug for ExperimentMask {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -126,6 +127,20 @@ impl fmt::Debug for ExperimentMask {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_numeric_formats_show_the_bits() {
+        let mask = ExperimentMask::empty().with(Experiment::new(5).unwrap());
+        assert_eq!(
+            [
+                format!("{mask:b}"),
+                format!("{mask:o}"),
+                format!("{mask:x}"),
+                format!("{mask:#X}")
+            ],
+            ["100000", "40", "20", "0x20"]
+        );
+    }
 
     #[test]
     fn experiment_ids_are_below_sixty_four() {

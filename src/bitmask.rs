@@ -1,4 +1,5 @@
-//! What the bitmask types share: their set operators and the names in their `Debug` output.
+//! What the bitmask types share: their set operators, their numeric formats and the names in
+//! their `Debug` output.
 
 /// `|`, `&` and `-` (and their assigning forms) as `union`, `intersection` and `difference` of
 /// the bitmask type `$mask`.
@@ -49,6 +50,37 @@ macro_rules! set_operators {
 }
 
 pub(crate) use set_operators;
+
+/// `Binary`, `Octal`, `LowerHex` and `UpperHex` of the bitmask type `$mask`, formatting its bits.
+macro_rules! bit_formats {
+    ($mask:ty) => {
+        impl core::fmt::Binary for $mask {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                core::fmt::Binary::fmt(&self.0, f)
+            }
+        }
+
+        impl core::fmt::Octal for $mask {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                core::fmt::Octal::fmt(&self.0, f)
+            }
+        }
+
+        impl core::fmt::LowerHex for $mask {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                core::fmt::LowerHex::fmt(&self.0, f)
+            }
+        }
+
+        impl core::fmt::UpperHex for $mask {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                core::fmt::UpperHex::fmt(&self.0, f)
+            }
+        }
+    };
+}
+
+pub(crate) use bit_formats;
 
 /// Writes the names of the set bits of `bits` as a set, bit `n` named `names[n]`, and any bits
 /// past the names as one hex entry.

@@ -5,7 +5,7 @@ use core::str::FromStr;
 
 use thiserror::Error;
 
-use crate::bitmask::set_operators;
+use crate::bitmask::{bit_formats, set_operators};
 
 /// A set of query sets: the three built-in sets and up to 13 host sets. The empty mask admits no
 /// query; the default is [`QuerySetMask::DEFAULT`].
@@ -114,6 +114,7 @@ impl Default for QuerySetMask {
 }
 
 set_operators!(QuerySetMask);
+bit_formats!(QuerySetMask);
 
 /// Text that is not the name of a built-in query set ([`QuerySetMask`]'s `FromStr`).
 #[derive(Error, Copy, Clone, Debug, PartialEq, Eq)]
@@ -154,6 +155,20 @@ impl fmt::Debug for QuerySetMask {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_numeric_formats_show_the_bits() {
+        let mask = QuerySetMask::BUILTIN;
+        assert_eq!(
+            [
+                format!("{mask:#06b}"),
+                format!("{mask:o}"),
+                format!("{mask:x}"),
+                format!("{mask:X}")
+            ],
+            ["0b0111", "7", "7", "7"]
+        );
+    }
 
     #[test]
     fn query_set_mask() {

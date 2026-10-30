@@ -3,7 +3,7 @@
 use core::fmt;
 
 use super::op::{self, ExpressionOp};
-use crate::bitmask::set_operators;
+use crate::bitmask::{bit_formats, set_operators};
 
 /// The operations a compilation allows: a bitset over [`ExpressionOp`] indices.
 ///
@@ -130,6 +130,7 @@ impl From<ExpressionOp> for OpSet {
 }
 
 set_operators!(OpSet);
+bit_formats!(OpSet);
 
 impl fmt::Debug for OpSet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -142,6 +143,15 @@ mod tests {
     use super::*;
     use crate::ops::OpFlags;
     use proptest::prelude::*;
+
+    #[test]
+    fn the_numeric_formats_show_the_bits() {
+        let set = OpSet::all();
+        assert_eq!(format!("{set:x}"), format!("{:x}", set.0));
+        assert_eq!(format!("{set:#X}"), format!("{:#X}", set.0));
+        assert_eq!(format!("{set:b}"), format!("{:b}", set.0));
+        assert_eq!(format!("{set:o}"), format!("{:o}", set.0));
+    }
 
     #[test]
     fn op_set() {
