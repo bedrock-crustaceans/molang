@@ -12,6 +12,8 @@
 #[cfg(feature = "vm")]
 use crate::common::host::{Env, LevelSink};
 #[cfg(feature = "vm")]
+use crate::common::library::reproduces_the_server;
+#[cfg(feature = "vm")]
 use crate::common::rng::Xorshift128;
 use molang::compile::{CompileFailure, CompileOptions, Deviations, compile};
 use molang::numeric::Platform;
@@ -52,6 +54,12 @@ impl Release {
         match self {
             Self::V1_26_36_1 | Self::V1_26_52_3 => Platform::BdsLinux,
         }
+    }
+
+    /// Whether the release logs `math.ln` of a negative number as the positive NaN, where the crate
+    /// gives the platform's default NaN: a known deviation, as the server's C library chose.
+    pub const fn logs_a_positive_ln_nan(self) -> bool {
+        matches!(self, Self::V1_26_52_3)
     }
 }
 
@@ -441,14 +449,25 @@ impl ServerRun {
         self.validate();
         let mut report = self.counts();
         let mut failures = Vec::new();
+        #[cfg(feature = "vm")]
+        let evaluates = reproduces_the_server();
+        #[cfg(feature = "vm")]
+        if !evaluates {
+            eprintln!(
+                "{}: evaluation not replayed: the host's C library is not glibc 2.41 on x86-64 with FMA (strict-math replays it on any host)",
+                self.run
+            );
+        }
         for &release in &self.releases {
             self.check_log(release, &mut failures);
             self.check_compile(release, &mut failures);
             #[cfg(feature = "vm")]
-            self.check_replay(release, &mut failures);
+            if evaluates {
+                self.check_replay(release, &mut failures);
+            }
         }
         #[cfg(feature = "vm")]
-        for platform in OTHER_PLATFORMS {
+        for platform in OTHER_PLATFORMS.into_iter().filter(|_| evaluates) {
             let expected = self
                 .differs
                 .iter()

@@ -21,7 +21,8 @@ use molang::numeric::Platform;
 use serde_json::Value;
 
 /// The probes of `math.ln` of a negative number, which takes the NaN sign of its release: `nann` on
-/// 1.26.36.1, `nanp` on 1.26.52.3. The two releases differ on these only.
+/// 1.26.36.1, `nanp` on 1.26.52.3. The two releases differ on these only, and the crate answers
+/// `nann` on both ([`Release::logs_a_positive_ln_nan`]).
 const LN_OF_A_NEGATIVE: [(u64, &str); 8] = [
     (44, "s0038"),
     (44, "s0039"),
@@ -31,6 +32,32 @@ const LN_OF_A_NEGATIVE: [(u64, &str); 8] = [
     (44, "s0047"),
     (44, "s0056"),
     (44, "s0057"),
+];
+
+/// The probes where the `libm` crate rounds π/2 or π one ulp low (`acos` of 0 and −1, `atan` of
+/// ±∞ and huge numbers, `atan2(±∞, 1)`): under `strict-math` the crate answers `ne` where both
+/// releases answer the exact angle.
+const LIBM_ROUNDS_LOW: [(u64, &str); 20] = [
+    (44, "s0130"),
+    (44, "s0131"),
+    (44, "s0132"),
+    (44, "s0133"),
+    (44, "s0140"),
+    (44, "s0141"),
+    (44, "s0152"),
+    (44, "s0153"),
+    (44, "s0156"),
+    (44, "s0157"),
+    (45, "s0423"),
+    (45, "s0424"),
+    (45, "s0425"),
+    (45, "s0426"),
+    (45, "s0437"),
+    (45, "s0438"),
+    (45, "s0507"),
+    (45, "s0508"),
+    (45, "s0511"),
+    (45, "s0512"),
 ];
 
 /// The probes each other platform answers differently from the servers: the NaN of an invalid
@@ -46,16 +73,6 @@ const OTHER_PLATFORMS_DIFFER: &[(u64, Platform, &[&str])] = &[
             "s0173", "s0174", "s0175", "s0200", "s0201", "s0208", "s0209", "s0210", "s0211",
             "s0236", "s0237", "s0270", "s0271", "s0298", "s0299", "s0326", "s0327", "s0352",
             "s0353", "s0360", "s0361", "s0362", "s0363", "s0386", "s0387", "s0394", "s0395",
-        ],
-    ),
-    (
-        44,
-        Platform::BdsWindows,
-        &[
-            "s0096", "s0097", "s0098", "s0099", "s0108", "s0109", "s0110", "s0111", "s0120",
-            "s0121", "s0122", "s0123", "s0124", "s0125", "s0134", "s0135", "s0136", "s0137",
-            "s0146", "s0147", "s0148", "s0149", "s0158", "s0159", "s0160", "s0161", "s0162",
-            "s0163", "s0038", "s0039", "s0042", "s0043", "s0046", "s0047", "s0056", "s0057",
         ],
     ),
     (
@@ -292,6 +309,28 @@ fn sweep_run(run: u64) -> ServerRun {
         for release in BOTH_RELEASES {
             probe.answers_on(*release, str_field(&record["observed"], release.text()));
         }
+        if cfg!(feature = "strict-math") && LIBM_ROUNDS_LOW.contains(&(run, id)) {
+            for release in BOTH_RELEASES {
+                probe.expected_failure(
+                    *release,
+                    "the `libm` crate rounds the angle one ulp low",
+                    &[&format!(
+                        "Error: unhandled request for unknown variable 'variable.{id}_ne'"
+                    )],
+                );
+            }
+        }
+        if LN_OF_A_NEGATIVE.contains(&(run, id)) {
+            for release in BOTH_RELEASES.iter().filter(|r| r.logs_a_positive_ln_nan()) {
+                probe.expected_failure(
+                    *release,
+                    "the release's `math.ln` of a negative number is the positive NaN",
+                    &[&format!(
+                        "Error: unhandled request for unknown variable 'variable.{id}_nann'"
+                    )],
+                );
+            }
+        }
     }
     for (_, platform, ids) in OTHER_PLATFORMS_DIFFER.iter().filter(|(r, _, _)| *r == run) {
         server_run.differs_on(*platform, ids);
@@ -306,6 +345,17 @@ fn replay(run: u64, probes: usize) {
         report.not_run, 0,
         "run_{run}: every sweep probe was answered"
     );
+    let ln = LN_OF_A_NEGATIVE.iter().filter(|(r, _)| *r == run).count()
+        * BOTH_RELEASES
+            .iter()
+            .filter(|r| r.logs_a_positive_ln_nan())
+            .count();
+    let libm = if cfg!(feature = "strict-math") {
+        LIBM_ROUNDS_LOW.iter().filter(|(r, _)| *r == run).count() * BOTH_RELEASES.len()
+    } else {
+        0
+    };
+    assert_eq!(report.expected_failures, ln + libm, "run_{run}");
 }
 
 /// `math.sqrt`, `math.ln`, `math.exp`, `math.asin`, `math.acos`, `math.sin`, `math.cos`,
