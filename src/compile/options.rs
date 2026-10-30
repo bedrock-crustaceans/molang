@@ -70,7 +70,14 @@ pub enum ArrayAccess {
     #[default]
     Unresolved,
     /// An instruction that reads the element at evaluation, from
-    /// [`EvalCx::arrays`](crate::vm::EvalCx::arrays) by the array's name. The array need not be
+    #[cfg_attr(
+        feature = "vm",
+        doc = "[`EvalCx::arrays`](crate::vm::EvalCx::arrays) by the array's name. The array need not be"
+    )]
+    #[cfg_attr(
+        not(feature = "vm"),
+        doc = "`EvalCx::arrays` by the array's name. The array need not be"
+    )]
     /// known when compiling.
     FromHost,
 }
