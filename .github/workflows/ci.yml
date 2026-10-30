@@ -28,6 +28,8 @@ jobs:
         run: cargo check --locked --no-default-features
       - name: cargo check (all features)
         run: cargo check --locked --all-features
+      - name: cargo check (strict-math)
+        run: cargo check --locked --features strict-math
       - name: Documentation builds without warnings
         run: cargo doc --locked --no-deps --all-features
         env:
@@ -79,6 +81,10 @@ jobs:
         run: cargo test --locked --no-default-features --features fuzz
       - name: cargo test (all features)
         run: cargo test --locked --all-features
+      - name: cargo test (strict-math)
+        run: cargo test --locked --features strict-math
+      - name: cargo test (vm, strict-math)
+        run: cargo test --locked --features vm,strict-math
       - name: cargo test (compiler without stdlib)
         run: cargo test --locked --no-default-features --features compiler --test engine_only
       - name: cargo test (vm without stdlib)
@@ -102,8 +108,14 @@ jobs:
         run: cargo clippy --locked --no-default-features -- -D warnings
       - name: cargo clippy (arm64, compiler and vm without stdlib)
         run: cargo clippy --locked --no-default-features --features compiler,vm -- -D warnings
+      - name: cargo clippy (arm64, strict-math)
+        run: cargo clippy --locked --all-targets --features vm,strict-math -- -D warnings
       - name: cargo test (arm64, all features)
         run: cargo test --locked --all-features
+      - name: cargo test (arm64, strict-math)
+        run: cargo test --locked --features strict-math
+      - name: cargo test (arm64, vm)
+        run: cargo test --locked --features vm
       - name: cargo test (arm64, stdlib)
         run: cargo test --locked --no-default-features --features stdlib
       - name: cargo test (arm64, stdlib, compiler)
@@ -128,6 +140,8 @@ jobs:
         run: cargo clippy --locked --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
       - name: cargo test (arm64, fuzz)
         run: cargo test --locked --manifest-path fuzz/Cargo.toml
+      - name: cargo test (arm64, fuzz, strict-math)
+        run: cargo test --locked --manifest-path fuzz/Cargo.toml --features strict-math
 
   fmt:
     name: Rustfmt
@@ -168,6 +182,10 @@ jobs:
         run: cargo clippy --locked --no-default-features --features fuzz -- -D warnings
       - name: cargo clippy (compiler and vm without stdlib)
         run: cargo clippy --locked --no-default-features --features compiler,vm -- -D warnings
+      - name: cargo clippy (stdlib and strict-math)
+        run: cargo clippy --locked --no-default-features --features stdlib,strict-math -- -D warnings
+      - name: cargo clippy (all targets, without strict-math)
+        run: cargo clippy --locked --all-targets --features vm,cache,facet,fuzz -- -D warnings
 
   examples:
     name: Examples
@@ -207,6 +225,10 @@ jobs:
         run: cargo clippy --locked --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
       - name: cargo test (fuzz)
         run: cargo test --locked --manifest-path fuzz/Cargo.toml
+      - name: cargo clippy (fuzz, strict-math)
+        run: cargo clippy --locked --manifest-path fuzz/Cargo.toml --all-targets --features strict-math -- -D warnings
+      - name: cargo test (fuzz, strict-math)
+        run: cargo test --locked --manifest-path fuzz/Cargo.toml --features strict-math
 
   package:
     name: Package
