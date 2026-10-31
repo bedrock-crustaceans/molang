@@ -1,64 +1,56 @@
-# Contributing to molang
+# Contributing
 
-Fork the repository, branch from `main`, keep a branch to one change, and discuss larger changes in an issue first.
+Branch from `main`, one change per branch. Open an issue first for anything large.
 
-## Building and testing
+## Checks
 
 ```bash
 cargo fmt --all
 cargo clippy --locked --all-targets --all-features -- -D warnings
-cargo test --locked --all-features
-cargo test --locked
-cargo test --locked --features vm
-cargo test --locked --features vm,platform-quirks
-cargo test --locked --features strict-math
-cargo test --locked --features vm,strict-math,platform-quirks
+cargo test --locked                       # host maths, host floats
+cargo test --locked --all-features        # strict-math and platform-quirks on
 RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
 ```
 
-CI also runs the tests per feature set (each integration test gates itself on the features it needs; all but `engine_only.rs` need `stdlib`):
+CI additionally runs the tests per feature set and clippy per feature, on x86-64 and arm64; the matrix is `.github/workflows/ci.yml`. The unit tests need `stdlib`. CI pins one Rust release (`RUST_TOOLCHAIN` in the workflow), so use it locally when clippy disagrees.
+
+The hostile-input tests allocate a lot. Run them under a cap: `systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0 cargo test …`.
+
+The fuzz crate in `fuzz/` is its own package. Its library (a tree-walking second evaluator and a program generator) and tests run on stable; the targets need nightly and `cargo-fuzz`.
 
 ```bash
-cargo test --no-default-features --features stdlib
-cargo test --no-default-features --features stdlib,compiler
-cargo test --no-default-features --features stdlib,vm
-cargo test --no-default-features --features stdlib,cache
-cargo test --no-default-features --features stdlib,facet
-cargo test --no-default-features --features fuzz
-cargo test --no-default-features --features compiler --test engine_only
-cargo test --no-default-features --features vm --test engine_only
-```
-
-and clippy with each feature alone (`--no-default-features --features <feature>`), with `compiler,vm` without `stdlib`, and with `stdlib,strict-math`, `platform-quirks` and `strict-math,platform-quirks`. `--all-features` includes `strict-math` and `platform-quirks`; `cargo test --locked` and `cargo test --locked --features vm` run the suite on the host's C library and the host's float behaviour. The unit tests need `stdlib`. CI pins one Rust release (`RUST_TOOLCHAIN` in `.github/workflows/ci.yml`), since clippy's lints change between releases; use it locally when clippy disagrees with CI. The minimum supported version is `rust-version` in `Cargo.toml`.
-
-Hostile-input tests can allocate a lot; run them under a memory cap, for example `systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0 cargo test …`.
-
-### The fuzz crate
-
-`fuzz/` (`molang-fuzz`, not published) is a separate package with its own empty `[workspace]`. It depends on `molang` with the features `vm`, `fuzz` and `stdlib` and reads crate-private items through the hidden `molang::internals` module. Its library (`fuzz/src/`) holds `tree_walker`, a second evaluator that walks the optimised tree, and `generator`, the program generator. The library and its tests run on stable; running a fuzz target needs nightly and `cargo-fuzz`.
-
-```bash
-cargo fmt --manifest-path fuzz/Cargo.toml --all
 cargo test --locked --manifest-path fuzz/Cargo.toml
-cargo test --locked --manifest-path fuzz/Cargo.toml --features strict-math
 cargo test --locked --manifest-path fuzz/Cargo.toml --features platform-quirks
-cargo clippy --locked --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
 cargo +nightly fuzz run compile_eval -- -max_total_time=600 -timeout=10
 ```
 
-The targets (`fuzz/fuzz_targets/`) are `lex_parse` (arbitrary text through the front end), `compile_eval` (generated programs on the VM and the tree walker) and `repr_roundtrip` (the serialised forms).
+## Where things are
 
-## Platforms
+| Path | What |
+| --- | --- |
+| `src/compile/` | lexer, parser, semantic passes, codegen |
+| `src/vm/` | the bytecode VM, values, hosts, environments |
+| `src/stdlib/` | the query and `math.*` tables, hand maintained, and the math library |
+| `src/numeric/` | float semantics: `Platform`, the FPU rules (`fpu.rs`), post-ops |
+| `src/rng/` | random sources |
+| `tests/` | integration tests; `tests/measured_*.rs` hold the rows recorded from the game, `tests/common/` the helpers |
+| `tests/*.json`, `tests/server_logs/` | recorded data, replayed by `data_*.rs` and the server runs |
+| `fuzz/` | the fuzz crate |
 
-The float behaviour is a run-time `numeric::Platform` in the compile options. Without `platform-quirks` the only one is `Native`, the host's NaNs and Rust's float → int; with it the emulated platforms are the same on every host. The primitives with the processor's NaN rules and float → int conversion are in `src/numeric/fpu.rs`, whose `quirks` and `native` modules are the seam between the two builds, the transcendental functions (`std` or, under `strict-math`, `libm`, and their NaNs) in `src/stdlib/math/transcendental.rs`, and the formula shapes in `src/stdlib/math/formula/`; each takes the platform as its first argument. Unit tests check every platform through `numeric::test_support::PLATFORMS`, integration tests through `tests/common/mod.rs`'s `PLATFORMS`, whose helpers compile for `common::P`: BDS Linux with `platform-quirks`, else the host. A test of a NaN's bits, an `i32::MIN` conversion or another emulated rule is `#[cfg(feature = "platform-quirks")]`; without the feature its counterpart asserts only NaN-ness or Rust's conversion. Every host runs the same checks. The transcendental results in the data are the `libm` crate's: under `strict-math` they hold to the bit, otherwise within two ulps (`HOST_ULPS` in `tests/data_bits.rs`), with `platform-quirks` NaNs to the bit either way, and `tests/common/library.rs` gives a test the function the crate calls in either mode.
+## Floats
 
-- `tests/data_bits.rs`: BDS Linux reproduces the `X86_64` set of `tests/numeric_bits.json`; the other platforms pin the functions where they differ from it.
-- The recorded server bits (`tests/data_bits.rs`, the server runs) replay only with `platform-quirks` (`common::replays_the_servers_bits`); without it a replay prints why it skips its evaluation.
-- Server runs replay each release on BDS Linux and every probe on the other platforms, which must log other lines exactly on the probes `ServerRun::differs_on` lists. Two kinds of probe are expected failures: `math.ln` of a negative number on 1.26.52.3, which logs the positive NaN where the crate gives the platform's default NaN (`Release::logs_a_positive_ln_nan`), and under `strict-math` the angles the `libm` crate rounds one ulp low (`LIBM_ROUNDS_LOW` in `tests/data_sweeps.rs`). Without `strict-math` the evaluation is replayed only on the host the logs were reproduced on, Linux x86-64 with glibc 2.41 and FMA (`library::is_the_reference_host` in `tests/common/`); elsewhere the run prints why it skips it and checks the logs and compile messages alone, and the `strict-math` run replays it on any host. The pins of `library::pinned` follow the same split.
-- Run rows (`RunGroup`): the rows a platform lists in `RunGroup::differs_on` differ there and the rest hold.
-- `tests/data_parse.rs`: every row on every platform; the rows of `TREE_DIFFERS` check their outcome and messages only.
+Two seams decide the bits:
 
-CI runs the whole suite on an arm64 runner too, which must give the same bits as on x86-64 under `strict-math,platform-quirks` and the same within the tolerance under `platform-quirks`; the default build must pass there too, with the host's NaNs. An x86-64 machine runs it under user-mode emulation, with a cross linker and `qemu-aarch64` (`gcc-aarch64-linux-gnu`, `qemu-user`):
+- `src/stdlib/math/transcendental.rs` calls `std` or, under `strict-math`, `libm`.
+- `src/numeric/fpu.rs` has a `native` module (host NaNs, `as i32`) and a `quirks` module (the emulated platforms). Without `platform-quirks` the only platform is `Native`.
+
+Tests follow the same split. A test that asserts a NaN's bits or an `i32::MIN` conversion is `#[cfg(feature = "platform-quirks")]` and has a native counterpart that asserts NaN-ness or Rust's conversion. The recorded server bits replay only with `platform-quirks`; without `strict-math` the transcendentals replay only on the host the logs were taken on (Linux x86-64, glibc 2.41 with FMA) and hold within two ulps elsewhere. A skipped replay prints why. Never widen a tolerance to make a row pass: either the code or the row is wrong.
+
+Two sets of expected failures are listed explicitly and counted: `math.ln` of a negative number on 1.26.52.3, which logs the positive NaN, and under `strict-math` the angles `libm` rounds one ulp low.
+
+### arm64 under emulation
+
+CI runs the suite on an arm64 runner. On an x86-64 machine with `gcc-aarch64-linux-gnu` and `qemu-user`:
 
 ```bash
 rustup target add aarch64-unknown-linux-gnu
@@ -69,9 +61,7 @@ export MOLANG_TIME_SCALE=10
 cargo test --locked --target aarch64-unknown-linux-gnu --all-features --no-fail-fast
 ```
 
-The all-features run takes several minutes, half of it `tests/limits.rs`. Everything is uniformly slower under the emulator: `MOLANG_TIME_SCALE` multiplies every wall-clock bound in `tests/limits.rs`, and `MOLANG_HOSTILE_STACK_KIB` the 512 KiB stack of `hostile_input_compiles_on_a_small_stack`. Doc tests and examples run under the emulator as well.
-
-The fuzz crate's `libfuzzer-sys` builds C++, which needs an aarch64 C++ toolchain; its three `#![no_main]` targets only need to link, so a stub archive stands in for libFuzzer:
+`MOLANG_TIME_SCALE` multiplies the wall-clock bounds in `tests/limits.rs`, `MOLANG_HOSTILE_STACK_KIB` the small stack of the hostile-input test. The fuzz crate's `libfuzzer-sys` needs a C++ toolchain; a stub archive stands in, since the targets only have to link:
 
 ```bash
 mkdir -p target/no-libfuzzer
@@ -82,85 +72,29 @@ CUSTOM_LIBFUZZER_PATH=$PWD/target/no-libfuzzer/libfuzzer.a CUSTOM_LIBFUZZER_STD_
   cargo test --locked --target aarch64-unknown-linux-gnu --manifest-path fuzz/Cargo.toml
 ```
 
-Its build script reruns when the archive changes, not when `CUSTOM_LIBFUZZER_STD_CXX` does: `touch` the archive after changing only that. Without a cross linker, the arm64 build still compiles and lints (nothing is linked, so the C and C++ that two dependencies build are skipped):
+## Conventions
 
-```bash
-export CARGO_FEATURE_PURE=1 CUSTOM_LIBFUZZER_PATH=$PWD/target/no-libfuzzer/libfuzzer.a
-cargo clippy --locked --target aarch64-unknown-linux-gnu --all-targets --all-features -- -D warnings
-cargo clippy --locked --target aarch64-unknown-linux-gnu --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
-```
+- **One path per item.** A public item is reachable through its module and nowhere else. No glob re-exports, no `pub extern crate`.
+- **Modules with children** are `name/mod.rs`.
+- **Unit tests are inline**, one `mod tests` at the end of the file. When a file grows too large, split the code and take the tests along. Integration tests use the public API only.
+- **Invalid state is unrepresentable.** Correlated fields become an enum, sentinels become `Option` or a newtype, checks happen once in a constructor.
+- **No `unsafe`.** `clippy::pedantic` is on; the allowances in `src/lib.rs` each carry a reason.
+- **Comments** explain only what the code cannot: a reason, an invariant, a trap. They do not say where a behaviour comes from, and identifiers and prose do not use the usual name for unmodded behaviour.
+- **Message texts** in strings and data files are data. They stay byte for byte.
+- **A test asserts specific values**: the bits of an `f32`, the exact message. A behaviour change comes with a row that pins it.
 
-## Code conventions
+## Rows
 
-- **Modules.** A module with child files is `name/mod.rs`, never `name.rs` beside `name/`.
-- **One path per item.** Every public item has exactly one public path, its module's: the crate root declares modules only; a `pub use` names a whole external crate or an item of a private module, each once and never by a glob, and there is no `pub extern crate`. A `pub type` may name an instantiation of a public generic type (`vm::TempName` is `Name<Temp>`) or a `dyn` type; it may not rename a type, and no two aliases may name the same type.
-- **Unit tests** are inline: one `#[cfg(test)] mod tests { … }` as the last item of the file it tests; no `tests.rs`, no out-of-line test modules. When a file grows too large, split the code and move each test with it. Helpers shared across a module's files go in an inline `#[cfg(test)] pub(crate) mod test_support` of its `mod.rs`; support shared more widely is `src/reference_catalog.rs`, also read by the fuzz crate. Unit tests and the seam files under `src/` read no files (the package ships only `src/`).
-- **Invalid state is unrepresentable.** Fields that must agree become an enum whose variants carry what each state has; no in-band sentinels (`i16::MIN`, `u32::MAX`); a flag that makes other fields meaningless is a variant without them; values with different meanings get different types; a check the type cannot express is made once, in a constructor returning `Result` or `Option`. A review treats a representable invalid state as a defect.
-- **Tables.** The query, operator and math tables in `src/stdlib/{query_table,math_fn}.rs` and `src/ops/table.rs` are maintained by hand; `tests/operator_rules.rs` and `tests/public_api.rs` pin their invariants.
-- **No `unsafe`**, and `clippy::pedantic` with only the allowances listed in `src/lib.rs`, each with its reason.
-
-## Comments and wording
-
-Comments explain only non-obvious behaviour: a reason, an invariant, an ordering constraint, a trap, a unit or limit. They state what the code does, in as few words as possible, and never say where a behaviour comes from. Identifiers and prose do not use the usual name for unmodded behaviour. Message texts in strings and data files are data and stay byte for byte.
-
-## Tests
-
-A test asserts specific values (the bits of an `f32`, the exact message text). Something reachable through the public API gets an integration test, and the private logic behind it a unit test. Integration tests use the public API only; shared helpers live in `tests/common/`. A behaviour change comes with a row that pins it. Tolerances are never widened to make a test pass: when a row fails, the code or the row is wrong.
-
-| File | What it holds |
-| --- | --- |
-| `compile.rs` | compile results, folded constants, options |
-| `diagnostics.rs` | messages and diagnostics |
-| `evaluation.rs` | values and control flow |
-| `numerics.rs` | the math library and the float behaviours |
-| `host.rs` | embedding: queries, sinks, variables |
-| `host_math.rs` | host math functions: declaration, folding, merging, evaluation |
-| `limits.rs` | evaluation budgets and hostile input |
-| `cache.rs` | the compile cache |
-| `serialised_forms.rs` | `MolangValueRepr` and `MolangSource` forms |
-| `public_api.rs` | the public surface |
-| `properties.rs` | property tests without the program generator |
-| `measured_variables.rs`, `measured_arithmetic.rs`, `measured_math.rs`, `measured_rounding_and_random.rs`, `measured_logic.rs`, `measured_control_flow.rs`, `measured_queries.rs`, `measured_parsing.rs` | rows by topic |
-| `measured_declarations.rs` | rows the query declarations alone decide; runs with `stdlib` alone |
-| `data_parse.rs` | `tests/parse_vectors.json` |
-| `data_bits.rs` | `tests/numeric_bits.json` |
-| `data_sweeps.rs` | `tests/server_sweeps.json` |
-| `operator_rules.rs` | the operator table's invariants |
-| `corpus.rs` | the pack-corpus tests (ignored) |
-| `alloc_free.rs` | allocation-free evaluation (own allocator) |
-| `compile_memory.rs` | memory and time of a hostile compile (own allocator) |
-| `engine_only.rs` | the engine with host catalogues; passes with and without `stdlib` |
-
-The fuzz crate's tests (helpers in `fuzz/tests/common/`):
-
-| File | What it holds |
-| --- | --- |
-| `fuzz/tests/tree_walker.rs` | the VM against the tree walker: unmodelled jumps, budgets, the pack corpus (ignored) |
-| `fuzz/tests/properties.rs` | property tests over generated programs |
-| `fuzz/tests/recorded.rs` | the VM against the tree walker on the data files of `tests/` |
-
-### Adding a row
-
-A row is one input (expression, version, optional setup) with its expected result. Rows in `tests/measured_*.rs` are statements calling the helpers of `tests/common/measured/` (or `tests/common/declared.rs` for `VersionWindowCase` and `AllowListCase`). To add one:
-
-1. Add it to the case or group it belongs to in its topic file (`EvalCase`, `RunGroup`, `ParseGroup`, `LoopCapGroup`, `SmokeGroup`, a `ServerRun` probe), or start a new one with an id no other row has.
-2. Raise the count its terminal call takes (`case.check(3)`, `group.check(29)`, `run_19().replay(9)`): a list row (`is_constant`, `all_parse`, `evaluates_to`, `fails_evaluation`, `has_disallowed_queries`) counts one per item, every other row one; setup steps and case-level calls do not count.
-3. A `parse_fails` row whose first message is about a string operand or an unresolved query states it with `.because(ParseFailure::…)`.
-4. An `EvalCase` with no setup whose `eval` rows are all at the latest version carries `case.also_on_a_fresh_state()`; drop it when the case gains setup.
-5. A new `ServerRun` (`fn run_NN()`) gets a `#[test]` in the same file calling `run_NN().replay(<probes>)`, and its console logs in `tests/server_logs/`. A new run in `tests/server_sweeps.json` gets a `replay(NN, <probes>)` test in `tests/data_sweeps.rs`, and `the_sweep_file_is_complete` its new counts.
-
-Run the topic file's tests.
+A row is one expression with its version, setup and expected result. Rows live in `tests/measured_*.rs` by topic and call the helpers in `tests/common/measured/`. Add the row to the case or group it belongs to, raise the count that case's `check(n)` takes, and run the file. A new server run gets its console log in `tests/server_logs/` and a `replay(<probes>)` test next to the others.
 
 ## Content
 
-Never commit Minecraft content: pack files, game files, the pack corpus, or text copied from Mojang's documentation. The corpus tests (`tests/corpus.rs`, ignored) read `MOLANG_CORPUS_DIR/corpus_pairs.json`, built locally and never committed; keep the corpus strings out of tests, comments and commit messages.
+Never commit game content: pack files, game files, the pack corpus, or text from Mojang's documentation. The corpus tests are ignored and read `MOLANG_CORPUS_DIR`, which stays local.
 
-## Commits and pull requests
+## Commits
 
-Commit subjects follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/): `<type>(<scope>): <description>`, with the type one of `feat`, `fix`, `test`, `docs`, `refactor`, `perf`, `build`, `ci`, `chore` and the scope the module or area touched, for example `fix(parse): keep unary minus tighter than addition`. Keep commits small and do not mix formatting with behaviour changes.
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/): `<type>(<scope>): <description>`, with `!` for a breaking change, for example `fix(parse): keep unary minus tighter than addition`. Small commits, formatting separate from behaviour. A pull request says what changed, why, and how it was checked, and updates docs and examples with it.
 
-A pull request says what changed, why, how it was validated, and any breaking change; it links its issues (`Closes #123`). Update the documentation and examples when behaviour changes.
+## Bugs
 
-## Reporting bugs
-
-Give the Molang expression and its context (version, options, features), the expected and actual result, your OS and Rust version, and a minimal example if possible.
+Give the expression, its version, options and features, what you expected and what you got, and your OS and Rust version.
