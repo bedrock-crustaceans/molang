@@ -25,8 +25,9 @@ pub enum Verdict {
 ///
 /// Compiled for the client with the `default` query set, the helper queries' set and the helper
 /// experiment. On the VM, `eval_f32` must be the float of `eval` with the same state afterwards.
-/// The comparison is exact: the value (NaN sign and payload included), every variable map (each
-/// variable's value, access and public snapshot), the temps, the messages and the random source.
+/// The comparison is exact: the value (NaN sign and payload included with `platform-quirks`; without
+/// it the NaN is the host's and any NaN matches any NaN), every variable map (each variable's value,
+/// access and public snapshot), the temps, the messages and the random source.
 pub fn differential(case: &FuzzCase) -> Result<Verdict, String> {
     let source = case.source();
     let options = reference_catalog::options(case.version).with_platform(case.platform);
@@ -412,10 +413,12 @@ mod tests {
         // 0 / 0 guards to 0; build a NaN with `math.sqrt(-1)`.
         let case = simple(Ex::Math(29, vec![Ex::Neg(b(n(1)))]));
         assert_eq!(with_late(&case, |_, _| {}), Ok(Verdict::Agree));
-        assert!(
+        // Without `platform-quirks` the NaN is the host's and any NaN agrees.
+        assert_eq!(
             with_late(&case, |value, _| *value =
                 Value::Float(f32::from_bits(0x7fc0_4321)))
-            .is_err()
+            .is_err(),
+            cfg!(feature = "platform-quirks")
         );
         assert!(
             with_late(&case, |value, _| *value = Value::Float(0.0)).is_err(),

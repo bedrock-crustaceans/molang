@@ -71,7 +71,7 @@ fn is_baby(cx: &mut Cx<'_, '_>) -> QueryResult<FuzzHost> {
 
 fn same_arg(a: &Value<FuzzHost>, b: &Value<FuzzHost>) -> bool {
     match (a, b) {
-        (Value::Float(x), Value::Float(y)) => x.to_bits() == y.to_bits(),
+        (Value::Float(x), Value::Float(y)) => super::compare::same_float(*x, *y),
         _ => a == b,
     }
 }

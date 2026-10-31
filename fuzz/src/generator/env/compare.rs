@@ -1,5 +1,5 @@
 //! The exact comparison of two values, two variable maps and two fuzz environments, NaN sign and
-//! payload included.
+//! payload included with `platform-quirks`.
 
 use super::{FuzzEnv, FuzzHost};
 use molang::vm::namespace::Namespace;
@@ -8,7 +8,13 @@ use std::collections::HashSet;
 use std::iter;
 use std::sync::Arc;
 
-/// Whether two values are the same, floats compared by bits and structs member by member.
+/// Whether two floats are the same: by bits, except that without `platform-quirks` the NaN of an
+/// operation is the host's and any NaN matches any NaN.
+pub fn same_float(x: f32, y: f32) -> bool {
+    x.to_bits() == y.to_bits() || (!cfg!(feature = "platform-quirks") && x.is_nan() && y.is_nan())
+}
+
+/// Whether two values are the same, floats compared by [`same_float`] and structs member by member.
 pub fn same_value<H: Host>(a: &Value<H>, b: &Value<H>) -> bool {
     // Iterative: a value can nest far deeper than the tree that built it. Each pair of structs is
     // compared once: structs share members, so the paths through a value can be exponential in
@@ -17,7 +23,7 @@ pub fn same_value<H: Host>(a: &Value<H>, b: &Value<H>) -> bool {
     let mut compared = HashSet::new();
     while let Some((a, b)) = pending.pop() {
         let same = match (a, b) {
-            (Value::Float(x), Value::Float(y)) => x.to_bits() == y.to_bits(),
+            (Value::Float(x), Value::Float(y)) => same_float(*x, *y),
             (Value::Struct(x), Value::Struct(y)) => {
                 if Arc::ptr_eq(x, y)
                     || !compared.insert((Arc::as_ptr(x).addr(), Arc::as_ptr(y).addr()))
@@ -146,6 +152,9 @@ mod tests {
     use molang::vm::{Access, EvalLimits, StructValue, TempName};
     use std::thread;
 
+    /// Whether two NaNs of another sign or payload differ: only with `platform-quirks`.
+    const NAN_BITS: bool = cfg!(feature = "platform-quirks");
+
     fn chain(depth: usize, leaf: f32) -> V {
         let mut value = Value::Float(leaf);
         for _ in 0..depth {
@@ -208,7 +217,7 @@ mod tests {
             for (j, b) in payloads.into_iter().enumerate() {
                 assert_eq!(
                     same_value(&float(a), &float(b)),
-                    i == j,
+                    i == j || !NAN_BITS,
                     "{:#x} / {:#x}",
                     a.to_bits(),
                     b.to_bits()
@@ -335,11 +344,12 @@ mod tests {
         };
         assert!(same_value(&make(1.0, 2.0), &make(1.0, 2.0)));
         assert!(same_value(&make(f32::NAN, 2.0), &make(f32::NAN, 2.0)));
-        assert!(
-            !same_value(
+        assert_eq!(
+            same_value(
                 &make(f32::NAN, 2.0),
                 &make(f32::from_bits(0x7fc0_0001), 2.0)
             ),
+            !NAN_BITS,
             "a nested NaN payload"
         );
         assert!(!same_value(&make(1.0, 2.0), &make(1.5, 2.0)));
@@ -388,10 +398,13 @@ mod tests {
                     &chain(50_000, f32::NAN),
                     &chain(50_000, f32::NAN)
                 ));
-                assert!(!same_value(
-                    &chain(50_000, f32::NAN),
-                    &chain(50_000, f32::from_bits(0x7fc0_0001))
-                ));
+                assert_eq!(
+                    same_value(
+                        &chain(50_000, f32::NAN),
+                        &chain(50_000, f32::from_bits(0x7fc0_0001))
+                    ),
+                    !NAN_BITS
+                );
             })
             .expect("a thread")
             .join()
@@ -408,10 +421,10 @@ mod tests {
             &shared_levels(32, f32::NAN),
             &shared_levels(32, f32::NAN)
         ));
-        assert!(!same_value(
-            &shared_levels(32, f32::NAN),
-            &shared_levels(32, -f32::NAN)
-        ));
+        assert_eq!(
+            same_value(&shared_levels(32, f32::NAN), &shared_levels(32, -f32::NAN)),
+            !NAN_BITS
+        );
     }
 
     /// A value to build in two ways: a tree of the kinds a variable holds.
@@ -598,11 +611,11 @@ mod tests {
     fn maps_with_nan_values_compare_their_bits() {
         let a = map_of(&[("n", float(f32::NAN))]);
         assert!(same_map(&a, &map_of(&[("n", float(f32::NAN))])));
-        assert!(!same_map(
-            &a,
-            &map_of(&[("n", float(f32::from_bits(0x7fc0_0001)))])
-        ));
-        assert!(!same_map(&a, &map_of(&[("n", float(-f32::NAN))])));
+        assert_eq!(
+            same_map(&a, &map_of(&[("n", float(f32::from_bits(0x7fc0_0001)))])),
+            !NAN_BITS
+        );
+        assert_eq!(same_map(&a, &map_of(&[("n", float(-f32::NAN))])), !NAN_BITS);
         assert!(!same_map(&a, &map_of(&[("n", float(0.0))])));
     }
 
@@ -673,10 +686,13 @@ mod tests {
             &snapshot(f32::NAN, f32::NAN),
             &snapshot(f32::NAN, f32::NAN)
         ));
-        assert!(!same_map(
-            &snapshot(f32::NAN, f32::NAN),
-            &snapshot(f32::NAN, f32::from_bits(0x7fc0_0001))
-        ));
+        assert_eq!(
+            same_map(
+                &snapshot(f32::NAN, f32::NAN),
+                &snapshot(f32::NAN, f32::from_bits(0x7fc0_0001))
+            ),
+            !NAN_BITS
+        );
         assert!(
             !same_map(&snapshot(0.0, 0.0), &snapshot(0.0, -0.0)),
             "0.0 against -0.0 in the snapshot"
@@ -867,7 +883,7 @@ mod tests {
             .as_mut()
             .expect("temps")
             .set(TempName::new("t"), float(f32::from_bits(0x7fc0_0001)));
-        assert!(state_difference(&persistent, &other).is_some());
+        assert_eq!(state_difference(&persistent, &other).is_some(), NAN_BITS);
     }
 
     #[test]
@@ -926,11 +942,11 @@ mod tests {
             .vars
             .local
             .set(var("n"), float(f32::from_bits(0x7fc0_1234)));
-        assert!(state_difference(&a, &payload).is_some());
+        assert_eq!(state_difference(&a, &payload).is_some(), NAN_BITS);
         let mut sign = a.clone();
         let n = a.vars.local.get(var("n")).expect("n").to_f32();
         sign.vars.local.set(var("n"), float(-n));
-        assert!(state_difference(&a, &sign).is_some());
+        assert_eq!(state_difference(&a, &sign).is_some(), NAN_BITS);
         let mut number = a.clone();
         number.vars.local.set(var("n"), float(0.0));
         assert!(state_difference(&a, &number).is_some());
@@ -998,10 +1014,14 @@ mod tests {
 
     impl Tree {
         /// Whether two built values are the same, by the plain comparison except that floats are by
-        /// bits. Independent of `same_value`: written on `Value`.
+        /// bits (any NaN alike without `platform-quirks`). Independent of `same_value`: written on
+        /// `Value`.
         fn same_as_value(a: &V, b: &V) -> bool {
             match (a, b) {
-                (Value::Float(x), Value::Float(y)) => x.to_bits() == y.to_bits(),
+                (Value::Float(x), Value::Float(y)) => {
+                    x.to_bits() == y.to_bits()
+                        || (!cfg!(feature = "platform-quirks") && x.is_nan() && y.is_nan())
+                }
                 (Value::Struct(x), Value::Struct(y)) => {
                     x.len() == y.len()
                         && x.iter()
