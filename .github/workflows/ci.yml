@@ -93,8 +93,8 @@ jobs:
         run: cargo test --locked --features platform-quirks
       - name: cargo test (vm, platform-quirks)
         run: cargo test --locked --features vm,platform-quirks
-      - name: cargo test (strict-math, platform-quirks)
-        run: cargo test --locked --features strict-math,platform-quirks
+      - name: cargo test (vm, strict-math, platform-quirks)
+        run: cargo test --locked --features vm,strict-math,platform-quirks
       - name: cargo test (compiler without stdlib)
         run: cargo test --locked --no-default-features --features compiler --test engine_only
       - name: cargo test (vm without stdlib)
@@ -132,8 +132,8 @@ jobs:
         run: cargo test --locked --features platform-quirks
       - name: cargo test (arm64, vm, platform-quirks)
         run: cargo test --locked --features vm,platform-quirks
-      - name: cargo test (arm64, strict-math, platform-quirks)
-        run: cargo test --locked --features strict-math,platform-quirks
+      - name: cargo test (arm64, vm, strict-math, platform-quirks)
+        run: cargo test --locked --features vm,strict-math,platform-quirks
       - name: cargo test (arm64, stdlib)
         run: cargo test --locked --no-default-features --features stdlib
       - name: cargo test (arm64, stdlib, compiler)
