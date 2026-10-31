@@ -9,7 +9,10 @@ cargo fmt --all
 cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo test --locked --all-features
 cargo test --locked
+cargo test --locked --features vm
+cargo test --locked --features vm,platform-quirks
 cargo test --locked --features strict-math
+cargo test --locked --features strict-math,platform-quirks
 RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
 ```
 
@@ -26,7 +29,7 @@ cargo test --no-default-features --features compiler --test engine_only
 cargo test --no-default-features --features vm --test engine_only
 ```
 
-and clippy with each feature alone (`--no-default-features --features <feature>`), with `compiler,vm` without `stdlib`, and with `stdlib,strict-math`. `--all-features` includes `strict-math`; `cargo test --locked` and `cargo test --locked --features vm` run the suite on the host's C library. The unit tests need `stdlib`. CI pins one Rust release (`RUST_TOOLCHAIN` in `.github/workflows/ci.yml`), since clippy's lints change between releases; use it locally when clippy disagrees with CI. The minimum supported version is `rust-version` in `Cargo.toml`.
+and clippy with each feature alone (`--no-default-features --features <feature>`), with `compiler,vm` without `stdlib`, and with `stdlib,strict-math`, `platform-quirks` and `strict-math,platform-quirks`. `--all-features` includes `strict-math` and `platform-quirks`; `cargo test --locked` and `cargo test --locked --features vm` run the suite on the host's C library and the host's float behaviour. The unit tests need `stdlib`. CI pins one Rust release (`RUST_TOOLCHAIN` in `.github/workflows/ci.yml`), since clippy's lints change between releases; use it locally when clippy disagrees with CI. The minimum supported version is `rust-version` in `Cargo.toml`.
 
 Hostile-input tests can allocate a lot; run them under a memory cap, for example `systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0 cargo test …`.
 
@@ -38,6 +41,7 @@ Hostile-input tests can allocate a lot; run them under a memory cap, for example
 cargo fmt --manifest-path fuzz/Cargo.toml --all
 cargo test --locked --manifest-path fuzz/Cargo.toml
 cargo test --locked --manifest-path fuzz/Cargo.toml --features strict-math
+cargo test --locked --manifest-path fuzz/Cargo.toml --features platform-quirks
 cargo clippy --locked --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
 cargo +nightly fuzz run compile_eval -- -max_total_time=600 -timeout=10
 ```
@@ -46,14 +50,15 @@ The targets (`fuzz/fuzz_targets/`) are `lex_parse` (arbitrary text through the f
 
 ## Platforms
 
-The float behaviour is a run-time `numeric::Platform` in the compile options, the same on every host. The primitives with the processor's NaN rules and float → int conversion are in `src/numeric/fpu.rs`, the transcendental functions (`std` or, under `strict-math`, `libm`, and their NaNs) in `src/stdlib/math/transcendental.rs`, and the formula shapes in `src/stdlib/math/formula/`; each takes the platform as its first argument. Unit tests check every platform through `numeric::test_support::PLATFORMS`, integration tests through `tests/common/mod.rs`'s `PLATFORMS`. Every host runs the same checks. The transcendental results in the data are the `libm` crate's: under `strict-math` they hold to the bit, otherwise within two ulps (`HOST_ULPS` in `tests/data_bits.rs`), NaNs to the bit either way, and `tests/common/library.rs` gives a test the function the crate calls in either mode.
+The float behaviour is a run-time `numeric::Platform` in the compile options. Without `platform-quirks` the only one is `Native`, the host's NaNs and Rust's float → int; with it the emulated platforms are the same on every host. The primitives with the processor's NaN rules and float → int conversion are in `src/numeric/fpu.rs`, whose `quirks` and `native` modules are the seam between the two builds, the transcendental functions (`std` or, under `strict-math`, `libm`, and their NaNs) in `src/stdlib/math/transcendental.rs`, and the formula shapes in `src/stdlib/math/formula/`; each takes the platform as its first argument. Unit tests check every platform through `numeric::test_support::PLATFORMS`, integration tests through `tests/common/mod.rs`'s `PLATFORMS`, whose helpers compile for `common::P`: BDS Linux with `platform-quirks`, else the host. A test of a NaN's bits, an `i32::MIN` conversion or another emulated rule is `#[cfg(feature = "platform-quirks")]`; without the feature its counterpart asserts only NaN-ness or Rust's conversion. Every host runs the same checks. The transcendental results in the data are the `libm` crate's: under `strict-math` they hold to the bit, otherwise within two ulps (`HOST_ULPS` in `tests/data_bits.rs`), NaNs to the bit either way, and `tests/common/library.rs` gives a test the function the crate calls in either mode.
 
 - `tests/data_bits.rs`: BDS Linux reproduces the `X86_64` set of `tests/numeric_bits.json`; the other platforms pin the functions where they differ from it.
+- The recorded server bits (`tests/data_bits.rs`, the server runs) replay only with `platform-quirks` (`common::replays_the_servers_bits`); without it a replay prints why it skips its evaluation.
 - Server runs replay each release on BDS Linux and every probe on the other platforms, which must log other lines exactly on the probes `ServerRun::differs_on` lists. Two kinds of probe are expected failures: `math.ln` of a negative number on 1.26.52.3, which logs the positive NaN where the crate gives the platform's default NaN (`Release::logs_a_positive_ln_nan`), and under `strict-math` the angles the `libm` crate rounds one ulp low (`LIBM_ROUNDS_LOW` in `tests/data_sweeps.rs`). Without `strict-math` the evaluation is replayed only on the host the logs were reproduced on, Linux x86-64 with glibc 2.41 and FMA (`library::is_the_reference_host` in `tests/common/`); elsewhere the run prints why it skips it and checks the logs and compile messages alone, and the `strict-math` run replays it on any host. The pins of `library::pinned` follow the same split.
 - Run rows (`RunGroup`): the rows a platform lists in `RunGroup::differs_on` differ there and the rest hold.
 - `tests/data_parse.rs`: every row on every platform; the rows of `TREE_DIFFERS` check their outcome and messages only.
 
-CI runs the whole suite on an arm64 runner too, which must give the same bits as on x86-64 under `strict-math` and the same within the tolerance otherwise. An x86-64 machine runs it under user-mode emulation, with a cross linker and `qemu-aarch64` (`gcc-aarch64-linux-gnu`, `qemu-user`):
+CI runs the whole suite on an arm64 runner too, which must give the same bits as on x86-64 under `strict-math,platform-quirks` and the same within the tolerance under `platform-quirks`. An x86-64 machine runs it under user-mode emulation, with a cross linker and `qemu-aarch64` (`gcc-aarch64-linux-gnu`, `qemu-user`):
 
 ```bash
 rustup target add aarch64-unknown-linux-gnu
@@ -107,7 +112,7 @@ A test asserts specific values (the bits of an `f32`, the exact message text). S
 | `compile.rs` | compile results, folded constants, options |
 | `diagnostics.rs` | messages and diagnostics |
 | `evaluation.rs` | values and control flow |
-| `numerics.rs` | the math library and the two float behaviours |
+| `numerics.rs` | the math library and the float behaviours |
 | `host.rs` | embedding: queries, sinks, variables |
 | `host_math.rs` | host math functions: declaration, folding, merging, evaluation |
 | `limits.rs` | evaluation budgets and hostile input |
