@@ -258,13 +258,8 @@
 #[cfg(doctest)]
 struct NoItemAtTheRoot;
 
-/// Compiles the README's code blocks as doctests; one of them names an emulated platform.
-#[cfg(all(
-    doctest,
-    feature = "vm",
-    feature = "stdlib",
-    feature = "platform-quirks"
-))]
+/// Compiles the README's code blocks as doctests.
+#[cfg(all(doctest, feature = "vm", feature = "stdlib"))]
 #[doc = include_str!("../README.md")]
 struct ReadmeDoctests;
 

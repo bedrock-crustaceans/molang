@@ -253,13 +253,14 @@ The `platform-quirks` feature adds `BdsLinux`, `BdsWindows` and `AndroidArm64`, 
 - On `BdsWindows`, ten easings and the post-op of the rounding functions and `math.abs` take their operands in another order, so of two NaNs another one comes out.
 - `math.asin` and `math.acos` beyond ±1 give `0x7fc00000`, and `math.pow` of a NaN to an odd integer clears its sign. Both rules are measured on BDS Linux only; that BDS Windows and Android follow them is assumed.
 
-`numeric::Platform` lists every difference.
+`numeric::Platform` lists every difference. This example needs `platform-quirks`:
 
 ```rust
 use molang::compile::{CompileOptions, compile};
 use molang::numeric::Platform;
 use molang::version::MolangVersion;
 
+# #[cfg(feature = "platform-quirks")]
 fn main() -> Result<(), molang::compile::CompileError> {
     let options = CompileOptions::server(MolangVersion::LATEST).with_platform(Platform::AndroidArm64);
     let (expr, _) = compile("math.copy_sign(1, math.ln(-1))", &options).into_result()?;
@@ -267,6 +268,8 @@ fn main() -> Result<(), molang::compile::CompileError> {
     assert_eq!(expr.as_constant(), Some(1.0));
     Ok(())
 }
+# #[cfg(not(feature = "platform-quirks"))]
+# fn main() {}
 ```
 
 With `platform-quirks` the arithmetic and the standard functions choose the sign and payload of the NaNs they return, so those are the same on every host. On 32-bit x86 a value returned through the x87 register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
