@@ -14,7 +14,48 @@
 //!
 //! The crate has no generator of its own beyond the process one: a host brings MT19937 (the
 //! `rand_mt` crate, say) and maps its words with [`unit_32`]. A closure `FnMut() -> f32` is a
-//! source.
+//! source. Both mappings can give exactly 1.
+//!
+//! # Seeding the worldgen generators
+//!
+//! All arithmetic wraps in 32 bits; `MT(x)` is an MT19937 seeded with `x`.
+//!
+//! - **Chunk.** With `S` the level seed as 32 bits, `a` and `b` are the first two words of `MT(S)`,
+//!   each shifted right by 1 with the low bit set. The chunk `(cx, cz)` seeds
+//!   `MT((cx·a + cz·b) ^ S)`. One state drives the `math.random` of every rule in the chunk's
+//!   feature-rule pass.
+//! - **Rule.** Each rule seeds `MT(((s << 6) + (s >> 2) + h + 0x9e3779b9) ^ s)`, with `s` the chunk
+//!   generator's seed and `h` the low 32 bits of the rule identifier's hash. It draws the rule's
+//!   chance, iterations and coordinates; a placed scatter feature gets a fresh generator of the
+//!   same seed.
+//! - **Structure start.** Seeds as the chunk does, then discards one word.
+//!
+//! How a 64-bit level seed becomes `S` is the host's call; taking the low 32 bits is an assumption.
+//! `/place featurerule` uses the level's generator in place of the chunk's.
+//!
+//! ```
+//! use molang::rng::{RandomSource, unit_32};
+//! use rand_mt::Mt;
+//!
+//! fn chunk_seed(level_seed: u32, chunk_x: i32, chunk_z: i32) -> u32 {
+//!     let mut level = Mt::new(level_seed);
+//!     let a = (level.next_u32() >> 1) | 1;
+//!     let b = (level.next_u32() >> 1) | 1;
+//!     (chunk_x.cast_unsigned().wrapping_mul(a)).wrapping_add(chunk_z.cast_unsigned().wrapping_mul(b))
+//!         ^ level_seed
+//! }
+//!
+//! fn rule_seed(s: u32, hash: u32) -> u32 {
+//!     ((s << 6).wrapping_add(s >> 2).wrapping_add(hash).wrapping_add(0x9e37_79b9)) ^ s
+//! }
+//!
+//! let seed = chunk_seed(12_345, 3, -7);
+//! assert_eq!((seed, rule_seed(seed, 0xf7a7_6dfd)), (1_197_795_863, 3_348_516_332));
+//!
+//! let mut chunk = Mt::new(seed);
+//! let mut source = || unit_32(chunk.next_u32());
+//! assert!((0.0..=1.0).contains(&source.sample()));
+//! ```
 
 #[cfg(feature = "vm")]
 pub(crate) mod xorshift;
