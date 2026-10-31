@@ -2,24 +2,22 @@
 
 [![Crates.io](https://img.shields.io/crates/v/molang.svg)](https://crates.io/crates/molang) [![docs.rs](https://img.shields.io/docsrs/molang)](https://docs.rs/molang) [![CI](https://github.com/bedrock-crustaceans/molang/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bedrock-crustaceans/molang/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/bedrock-crustaceans/molang/blob/main/LICENSE)
 
-A pure-Rust compiler and bytecode VM for [Molang](https://learn.microsoft.com/en-us/minecraft/creator/reference/content/molangreference/examples/molangconcepts/molangintroduction), the expression language of Minecraft: Bedrock Edition, at every Molang version. Part of the [bedrock-crustaceans](https://github.com/bedrock-crustaceans) ecosystem.
+A compiler and bytecode VM for [Molang](https://learn.microsoft.com/en-us/minecraft/creator/reference/content/molangreference/examples/molangconcepts/molangintroduction), the expression language of Minecraft: Bedrock Edition, in pure Rust. It aims to behave like the game does, at every Molang version, down to the error messages. Part of [bedrock-crustaceans](https://github.com/bedrock-crustaceans).
 
-molang compiles Molang text to bytecode and evaluates it. Queries are declared, not implemented: a `QueryCatalog` holds their names, argument counts, version windows and query sets, so the compiler can tell that `query.does_not_exist` does not resolve, while the implementations come from a `QueryTable` your embedding fills in, one function per query name; a query without one returns the default of its declaration. The crate is not a JSON loader either: a field that holds Molang reaches it through `MolangValueRepr` as a plain `JsonScalar`.
+The crate compiles text to bytecode and evaluates it. It knows every standard query and `math.*` function, but it implements no query: your embedding fills in a `QueryTable`, and a query without a function returns its declared default.
 
 ## Installation
 
-molang uses edition 2024 and needs Rust 1.92 or newer and `std`:
+Edition 2024, Rust 1.92 or newer, `std`.
 
 ```toml
 [dependencies]
 molang = { version = "1", features = ["vm"] }
 ```
 
-`vm` is everything needed to compile and evaluate; the other flags are listed under [Features](#features). Without `stdlib` (`default-features = false`) the crate is the engine alone: no `math.*` name and no query is known, so a host declares its queries with `QueryCatalog::new`, its math functions in a `MathCatalog`, and compiles with `CompileOptions::new`.
-
 ## Quick start
 
-`compile` never fails: a rejected expression compiles to the constant 0 with its diagnostics attached (`Compiled::expr_or_zero`), and `Compiled::into_result` gives a `Result` instead. `NoHostEnv` evaluates without a world (numbers, strings, `variable.` / `temp.` / `context.`, `math.*`); an embedding with a world uses `HostEnv` (see the [`host`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/host.rs) example).
+`compile` never fails. A rejected expression becomes the constant 0 with its diagnostics attached, and `into_result` turns that into a `Result`. `NoHostEnv` evaluates without a world.
 
 ```rust
 use molang::compile::{CompileOptions, compile};
@@ -28,12 +26,7 @@ use molang::vm::{NoHostEnv, Value, VariableName};
 
 fn main() -> Result<(), molang::compile::CompileError> {
     let options = CompileOptions::server(MolangVersion::LATEST);
-    // A success carries what the compile logged (warnings, notes) along with the expression.
-    let source = "v.speed * 2 + math.clamp(1 + 2 * 3, 0, 5)";
-    let (expr, diagnostics) = compile(source, &options).into_result()?;
-    for diagnostic in &diagnostics {
-        eprintln!("{diagnostic}");
-    }
+    let (expr, diagnostics) = compile("v.speed * 2 + math.clamp(1 + 2 * 3, 0, 5)", &options).into_result()?;
     assert!(diagnostics.is_empty());
 
     let mut env = NoHostEnv::new();
@@ -43,51 +36,18 @@ fn main() -> Result<(), molang::compile::CompileError> {
 }
 ```
 
-## Reading a result
+Pick `CompileOptions::server` or `client`; there is no default side. The version comes from the pack: a `MolangSource` carries text plus version and `compile_source` compiles it at its own version. `MolangVersion::from_engine_version_str` maps an engine version such as `"1.18.10"`.
 
-`Expr::eval` returns a `Value` and the field it came from decides how to read it; `eval_f32` is the plain float reading. The readings the game's fields use are named on `Value`. The ones that truncate to an int take the `numeric::Platform` the expression was compiled for (`Expr::platform`): out of range or NaN saturates (NaN to 0) by default and on Android, and gives `i32::MIN` on a server ([Float behaviour](#float-behaviour)).
+## Embedding
 
-| Field | Reading |
-| --- | --- |
-| block permutation conditions, block and item event trigger conditions, `bone_visibility` | `rounds_to_nonzero(platform)`: `(int)round(x) != 0`, so 0.4 is false and 0.5 true |
-| item and block descriptor `tags`, bool entity-property defaults | `is_nonzero()`: `x != 0` |
-| ambient-sound conditions | `exceeds_epsilon()`: `x > 2^-23` |
-| anger-sound conditions | `is_positive()`: `x > 0` |
-| experience reward entries | `round_to_int(platform)` per entry, which the caller sums |
-| int entity-property defaults | `to_property_int(min..=max, platform)`: `clamp(trunc(x + 2^-23), min, max)` |
-| float entity-property defaults | `to_property_float(min..=max)`: `x > max ? max : (x > min ? x : min)`, so NaN is `min` |
-| animation values, render-controller colours and the other float fields | `to_f32()` |
+Everything the game provides, you provide. Each piece has an example under [`examples/`](https://github.com/bedrock-crustaceans/molang/tree/main/examples).
 
-```rust
-use molang::compile::{CompileOptions, compile};
-use molang::version::MolangVersion;
-use molang::vm::NoHostEnv;
-
-fn main() -> Result<(), molang::compile::CompileError> {
-    let options = CompileOptions::server(MolangVersion::LATEST);
-    let (expr, _) = compile("0.4", &options).into_result()?;
-    let value = expr.eval(&mut NoHostEnv::new().cx());
-    assert!(value.is_nonzero());
-    assert!(!value.rounds_to_nonzero(expr.platform()));
-
-    let (expr, _) = compile("1e10", &options).into_result()?;
-    let value = expr.eval(&mut NoHostEnv::new().cx());
-    assert_eq!(value.to_property_int(0..=10, expr.platform()), Some(10));
-    Ok(())
-}
-```
-
-## Versions and sides
-
-`MolangVersion` covers `-1` (`Invalid`) and `V0` to `V13`. `MolangVersion::from_engine_version_str` maps an engine-version text (`"1.18.10"` is `V5`), and an `EngineVersion` is `"*"` or a `semver::Version`. Queries resolve against the raw version (`RawVersion`): above 13 a text parses like 13 and resolves no query.
-
-A `MolangSource` is text plus version. `compile_source(&source, &options)` compiles it at its own version, and `CompileCache::compile_source` does the same through the cache; `compile(text, &options)` uses the options' version instead.
-
-`CompileOptions::server` and `CompileOptions::client` compile against `stdlib::queries(Side::Server)` and `stdlib::queries(Side::Client)`; there is no default side. For the catalogue of an older release, `stdlib::queries_at(side, &release)` takes a `semver::Version` from the `semver` crate, which this crate does not re-export.
-
-## Queries of your own
-
-Declare them in an extended catalogue, compile against it, and install the functions in a `QueryTable` built from it. `NoHostEnv::new()` and the default `HostEnv` hold no `QueryTable`, so every query returns its declared default. To change a query the catalogue already declares (a standard query's argument count or return type), build a catalogue with `QueryCatalog::overriding`, which replaces each declaration of the same name in place.
+- **Queries.** Declare your own in a catalogue extended from `stdlib::queries(side)`, compile against it, and put the functions in a `QueryTable`. `QueryCatalog::overriding` changes a standard declaration.
+- **Variables and contexts.** `NoHostEnv` holds maps for `variable.*`, `temp.*` and `context.*`. A `HostEnv` wraps your own `Host`, `VariableStore` and `ContextProvider` over a real world.
+- **Render-controller arrays.** `array.<name>[i]` reads an `ArrayTable` at evaluation under `CompileOptions::client`. A server has no arrays, so under `server` the compile ends with `CompileOutcome::UsesArrays`.
+- **Math functions.** A `MathCatalog` adds or replaces `math.*` functions. Pure ones fold at compile time; volatile ones draw from the random source.
+- **Random.** Any `rng::RandomSource` works, including a closure. The default is `ProcessRng`, one xorshift128 per process like the game's entity contexts. Worldgen uses a Mersenne Twister per chunk and rule; the `rng` module docs give the seeding.
+- **Limits.** `EvalLimits` budgets loops, steps, struct size and query depth. Keep the defaults for untrusted content.
 
 ```rust
 use molang::catalog::{Arity, QueryDecl, QueryShape, ReturnType, Side};
@@ -114,146 +74,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## Contexts of your own
+## Reading a result
 
-`context.*` is read-only and filled by the caller for one evaluation. Nothing is declared at compile time: any name compiles, and a read the provider does not answer is a missing variable, which ends the expression with 0 and logs a message unless `??` catches it. `NoHostEnv` and the default `HostEnv` hold a `ContextMap`, filled before each evaluation; `HostEnv::with_context` swaps in any `ContextProvider` of your own, one that reads straight from the host's state for instance (see the [`host`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/host.rs) example), and `NoContext` answers nothing.
+`eval` returns a `Value`. The game reads the same float differently depending on the field, so `Value` has one reading per field kind. `eval_f32` is the plain float.
 
-```rust
-use molang::compile::{CompileOptions, compile};
-use molang::version::MolangVersion;
-use molang::vm::{ContextName, NoHostEnv, Value};
+| Field | Reading |
+| --- | --- |
+| permutation and event conditions, `bone_visibility` | `rounds_to_nonzero`: round, then `!= 0` |
+| `tags`, bool property defaults | `is_nonzero` |
+| ambient-sound conditions | `exceeds_epsilon` |
+| anger-sound conditions | `is_positive` |
+| int property defaults, experience rewards | `to_property_int`, `round_to_int` |
+| float property defaults | `to_property_float`: clamped, NaN is the minimum |
+| animations, colours, everything else | `to_f32` |
 
-fn main() -> Result<(), molang::compile::CompileError> {
-    let options = CompileOptions::server(MolangVersion::LATEST);
-    let (expr, _) = compile("c.damage * 0.5 + (c.bonus ?? 1)", &options).into_result()?;
+## Exact bits
 
-    let mut env = NoHostEnv::new();
-    env.context_mut().set(ContextName::new("damage"), Value::Float(4.0));
-    assert_eq!(expr.eval_f32(&mut env.cx()), 3.0);
+By default the crate uses whatever your machine does: `std`'s `f32` functions, so the C library of the host, and the host CPU's NaNs. That matches the game closely, since the game does the same on its own machine, but the last bit of a `math.sin` and the sign of a NaN can differ between hosts. Two features pin them down:
 
-    env.context_mut().set(ContextName::new("bonus"), Value::Float(2.0));
-    assert_eq!(expr.eval_f32(&mut env.cx()), 4.0);
-    Ok(())
-}
-```
+- **`strict-math`** takes the transcendental functions from the `libm` crate instead of the host's C library. Same bits on every host.
+- **`platform-quirks`** adds `Platform::BdsLinux`, `BdsWindows` and `AndroidArm64` to `numeric::Platform`. An expression compiled for one of them reproduces that machine's NaNs and float-to-int conversions exactly, so for instance `array.frames[1e10]` picks the element the server picks, and `math.copy_sign(1, math.ln(-1))` is −1 like on the server rather than whatever the host gives.
 
-## Render-controller arrays
-
-`array.<name>[index]` reads an element of one of a render controller's arrays: its `geometries`, `textures` or `materials`. With `CompileOptions::client` (`ArrayAccess::FromHost`) it compiles to a read at evaluation. The index is truncated toward zero as the platform converts a float to an int, a negative index is 0, and the index wraps by the array's length. With `platform-quirks` an x86-64 platform converts as the servers do, since only the arm64 client's conversion was observed (the crate's choice).
-
-The element is a `Value::Resource`. Math on it is the compile error `MathOnArray` at the root; below the root it is only a diagnostic, the expression compiles and the element reads as 0. `NoHostEnv` and the default `HostEnv` hold an `ArrayTable`; `HostEnv::with_arrays` swaps in any `ArrayProvider`. An unknown array reads as 0 and logs a `molang:` message; so does an empty one (the crate's choice: what an empty array gives is unknown).
-
-A server has no render controllers, so under `CompileOptions::server` (`ArrayAccess::Unresolved`) the compile ends with `CompileOutcome::UsesArrays` and no program. A bare `array.<name>` does so under either.
-
-```rust
-use molang::compile::{CompileOptions, compile};
-use molang::version::MolangVersion;
-use molang::vm::{ArrayName, NoHostEnv, ResourceRef, Value, VariableName};
-
-fn main() -> Result<(), molang::compile::CompileError> {
-    let options = CompileOptions::client(MolangVersion::LATEST);
-    let (expr, _) = compile("array.skins[v.variant]", &options).into_result()?;
-
-    let mut env = NoHostEnv::new();
-    let skins = [ResourceRef::new("texture.default"), ResourceRef::new("texture.red")];
-    env.arrays_mut().set(ArrayName::new("skins"), skins);
-    env.variables_mut().set(VariableName::new("variant"), Value::Float(3.0));
-    assert_eq!(expr.eval(&mut env.cx()), Value::Resource(skins[1]));
-    Ok(())
-}
-```
-
-## Math functions of your own
-
-Declare them in a `MathCatalog` and pass it with `CompileOptions::with_math`; `math.<name>(…)` then calls them like the standard functions, with float arguments (at most `MAX_MATH_ARGS`) and the argument count checked at compile time. A pure function must be deterministic: a call of constants is folded at compile time and equal calls are merged. A volatile function gets the evaluation's random source (`&mut dyn RandomSource`; its `sample()` draws a sample as the standard functions do), is never folded or merged, and is forbidden by `OpSet::without_assignments_or_random`. A function must not panic. A function may take a standard function's name (all but the constant `math.pi`) and then replaces the standard function while the catalogue is in the options, as an ordinary host call.
-
-```rust
-use molang::catalog::{Arity, MathCatalog, MathDecl};
-use molang::compile::{CompileOptions, compile};
-use molang::version::MolangVersion;
-use molang::vm::NoHostEnv;
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let math = MathCatalog::new([
-        MathDecl::pure("math.hypot", Arity::exactly(2), |_, a| a[0].hypot(a[1]))?,
-        MathDecl::volatile("math.jitter", Arity::exactly(1), |_, rng, a| a[0] * rng.sample())?,
-    ])?;
-    let options = CompileOptions::server(MolangVersion::LATEST).with_math(Some(math));
-    let hypot = compile("math.hypot(3, 4)", &options);
-    assert_eq!(hypot.expr().and_then(|e| e.as_constant()), Some(5.0));
-    let (expr, _) = compile("math.jitter(10) + math.hypot(v.x ?? 3, 4)", &options).into_result()?;
-    assert!((5.0..=15.0).contains(&expr.eval_f32(&mut NoHostEnv::new().cx())));
-    Ok(())
-}
-```
-
-## Features
-
-`stdlib` is on by default. Every public item has one path, the module this table names (`molang::compile::CompileOptions`); [docs.rs](https://docs.rs/molang) shows the feature each item needs.
-
-| Feature | Contents | Implies |
-| --- | --- | --- |
-| (always) | `version`: `MolangVersion`, `RawVersion`, `EngineVersion` and the engine-version map, experiments; `json`: `MolangSource`, `MolangValueRepr` and its readers; `hash`: `HashedStr`; `catalog`: the query catalogue and declaration types; `ops`: the operator table and `OpSet` | |
-| `stdlib` | `stdlib`: the queries (`stdlib::queries`, `stdlib::query`), the `math.*` table (`MathFn`) and, with `compiler`, the math library (`stdlib::math`) and `CompileOptions::server` / `client` | |
-| `compiler` | `compile`: `compile`, `CompileOptions`, `Compiled`, `Expr`, `ProgramFlags` and the limits (`MAX_DEPTH`, `MAX_SOURCE_LEN`, `MAX_DIAGNOSTICS`); `diag`: `Diagnostic` and `LanguageMessage`; `numeric`: the float semantics; `rng`: the random sources and the mappings of a generator word; `catalog::MathCatalog`: host math functions | |
-| `vm` | `vm`: `Value`, the `Host` traits, variable storage and `EvalLimits`; `Expr::eval` | `compiler` |
-| `cache` | `cache::CompileCache`, a concurrent compile cache keyed by version, options and source | `compiler` |
-| `facet` | `Facet` impls for `json::MolangSource` and `json::MolangValueRepr` | |
-| `strict-math` | the transcendental `math.*` functions from the `libm` crate, the same bits on every host ([Math modes](#math-modes)) | |
-| `platform-quirks` | `numeric::Platform::BdsLinux`, `BdsWindows` and `AndroidArm64`: the NaNs and float → int conversions of a server's or the Android client's processor, bit for bit ([Float behaviour](#float-behaviour)) | |
-| `fuzz` | test support, **no SemVer guarantee**: a hidden `internals` module read by the repository's fuzz crate | `stdlib` |
-
-## Compile options
-
-Start from `CompileOptions::new`, `server` or `client` and change a setting with its `with_*` setter (`with_catalog`, `with_deviations`, …); each setting has a getter of the same name.
-
-| Setting | Meaning | Default |
-| --- | --- | --- |
-| `catalog` | The `QueryCatalog` queries resolve against. | Given to the constructor. |
-| `raw_version` | The `RawVersion` queries resolve with; parser gates use its effective value. | Given to the constructor. |
-| `admission` | Which queries of the catalogue may be called: query sets or an allow-list. | The `default` query set. |
-| `allowed_ops` | The `OpSet` of allowed operations. | All. |
-| `experiments` | The enabled experiments (`ExperimentMask`). No standard query is experiment-gated. | None. |
-| `math` | The host's own `math.*` functions (`MathCatalog`). | None. |
-| `keep_source` | Whether the compiled expression keeps the source text. | `false` |
-| `deviations` | The compile switches below. | `Deviations::DEFAULT` |
-
-`Deviations` is a bit set; `Deviations::NONE` turns every flag off.
-
-| Flag | On | Off | Default |
-| --- | --- | --- | --- |
-| `SOURCE_LENGTH_LIMIT` | A source longer than `MAX_SOURCE_LEN` (65,536 bytes) is rejected with `DiagCode::SourceTooLong`. | No length limit. | on |
-| `VALIDATE_NESTED` | Validation findings below the root are warnings. | They are errors. Either way the expression compiles. | on |
-| `TRUE_FALSE_PREFIX_ADVANCE` | A prefix of `true` / `false` (`t`, `tr`, `fals`) is a boolean token and the lexer advances by its length. | The lexer advances four bytes for `true`, five for `false`. | on |
-| `QUERY_ARITY_LINT` | A warning for a query call with an argument count outside its declared range. | No warning. | on |
-| `QUERY_CLIENT_ONLY` | An informational note for a client-only query compiled against a server catalogue. | No note. | on |
-| `OBJECT_VERSION_WARNING` | A warning for an object-form version outside -1..=13, a note for `Invalid`. | No diagnostic. | on |
-| `DIAGNOSTIC_LIMIT` | At most `MAX_DIAGNOSTICS` (256) diagnostics, then one `DiagCode::DiagnosticLimit` note counting the rest. | Every diagnostic is kept. | on |
-
-```rust
-use molang::compile::{CompileOptions, Deviations};
-use molang::version::MolangVersion;
-
-let options = CompileOptions::server(MolangVersion::LATEST)
-    .with_keep_source(true)
-    .with_deviations(Deviations::DEFAULT.difference(Deviations::VALIDATE_NESTED));
-assert_eq!(options.version(), MolangVersion::LATEST);
-```
-
-## Float behaviour
-
-The host chooses whose float behaviour an expression reproduces with `CompileOptions::with_platform`, a `numeric::Platform`; the compiled expression records it, and constant folding and evaluation both follow it. The default, `Platform::Native`, is the host's own: an operation returns whichever NaN the host's processor gives, and a float → int conversion (die counts, array indices, the sine-table index) is Rust's `as i32`, saturating with NaN as 0. Its results are host dependent: `math.copy_sign(1, math.ln(-1))` folds to −1 on x86-64 and +1 on arm64, a folded constant carries the NaN of the machine that compiled it, and Rust and LLVM do not guarantee a NaN's sign or payload even on one host. For host-independent bits use `platform-quirks`.
-
-Every platform keeps the engine's rules: each multiply, add and divide rounds on its own in formula order (no fused multiply-add), every comparison with a NaN is false, `math.min` / `math.max` return the second operand when either is NaN or both are zeros, `math.sign(NaN)` is 1, and a NaN passes the division guard and the `math.asin` / `math.acos` clamp.
-
-The `platform-quirks` feature adds `BdsLinux`, `BdsWindows` and `AndroidArm64`, which reproduce a server's or the Android client's processor bit for bit:
-
-- The NaN of an operation, a transcendental function's included: the servers return the left NaN operand quietened and `0xffc00000` for an invalid operation; Android returns the first signalling NaN operand quietened, else the first quiet one, and `0x7fc00000` for an invalid operation.
-- A float → int conversion out of range or NaN: `i32::MIN` on the servers; saturated, NaN as 0, on Android.
-- On `BdsWindows`, ten easings and the post-op of the rounding functions and `math.abs` take their operands in another order, so of two NaNs another one comes out.
-- `math.asin` and `math.acos` beyond ±1 give `0x7fc00000`, and `math.pow` of a NaN to an odd integer clears its sign. Both rules are measured on BDS Linux only; that BDS Windows and Android follow them is assumed.
-
-`numeric::Platform` lists every difference. This example needs `platform-quirks`:
+Both are additive and combine. With both on, the recorded server data in `tests/` replays bit for bit on any host. Molang's own rules always hold: comparisons with NaN are false, `math.min` and `math.max` return the second operand on NaN, there is no fused multiply-add.
 
 ```rust
 use molang::compile::{CompileOptions, compile};
@@ -264,7 +106,6 @@ use molang::version::MolangVersion;
 fn main() -> Result<(), molang::compile::CompileError> {
     let options = CompileOptions::server(MolangVersion::LATEST).with_platform(Platform::AndroidArm64);
     let (expr, _) = compile("math.copy_sign(1, math.ln(-1))", &options).into_result()?;
-    assert_eq!(expr.platform(), Platform::AndroidArm64);
     assert_eq!(expr.as_constant(), Some(1.0));
     Ok(())
 }
@@ -272,121 +113,38 @@ fn main() -> Result<(), molang::compile::CompileError> {
 # fn main() {}
 ```
 
-With `platform-quirks` the arithmetic and the standard functions choose the sign and payload of the NaNs they return, so those are the same on every host. On 32-bit x86 a value returned through the x87 register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
+## Features
 
-### Math modes
+`stdlib` is on by default. Every public item lives in exactly one module; docs.rs shows the feature each one needs.
 
-The game calls the C library of the system it runs on for `math.sin`, `math.cos`, `math.asin`, `math.acos`, `math.atan`, `math.atan2`, `math.exp`, `math.ln`, `math.pow` and the easings' `exp2` and sine table, and so does this crate by default, through `std`'s `f32` methods. Since that is the host's C library, the last bits can differ between hosts: the recorded BDS Linux data is reproduced bit for bit on a Linux x86-64 host with glibc 2.41 and FMA, and on other hosts within two ulps.
+| Feature | What it adds |
+| --- | --- |
+| `stdlib` | the standard queries and `math.*` functions, `CompileOptions::server` / `client` |
+| `compiler` | `compile`, `numeric`, `rng`, `diag`, host math catalogues |
+| `vm` | evaluation: `Value`, the host traits, `EvalLimits` (implies `compiler`) |
+| `cache` | `CompileCache`, a concurrent cache keyed by version, options and source |
+| `facet` | `Facet` impls for the JSON forms |
+| `strict-math` | transcendentals from `libm` |
+| `platform-quirks` | the emulated server and client platforms |
+| `fuzz` | internals for the repository's fuzz crate, no SemVer guarantee |
 
-With the `strict-math` feature the crate calls the `libm` crate instead, and every host gives the same bits. Either way the NaN a function returns follows the platform. With `platform-quirks`, `math.ln` of a negative number is the platform's invalid NaN, which BDS Linux 1.26.36 logs; 1.26.52 logs `0x7fc00000`.
-
-The two features combine freely:
-
-| | default | `platform-quirks` |
-| --- | --- | --- |
-| default | the host's C library; the host's NaNs and Rust's float → int | the host's C library; the chosen platform's NaNs and conversions; the recorded BDS Linux data bit for bit on the reference host |
-| `strict-math` | the `libm` crate; the host's NaNs and Rust's float → int | the `libm` crate; the chosen platform's NaNs and conversions; the recorded BDS Linux data bit for bit on every host |
-
-## Evaluation
-
-`EvalLimits` budgets one evaluation. Each budget is an `Option` (`None` is no limit); `EvalLimits::DEFAULT` is the column below, `EvalLimits::NONE` sets none, and each budget has a `with_*` setter and a getter. Keep a `total_steps` budget for untrusted content: a member store pays steps for the structs it copies, so the step budget bounds memory too. The operand stack is capped at 65,536 slots under every budget.
-
-| Field | Meaning | Default |
-| --- | --- | --- |
-| `loop_iterations` | Iterations one `loop` / `for_each` may run before it is left. | 1,024 |
-| `total_steps` | Steps one evaluation may take before it ends with 0. | 1,048,576 |
-| `struct_depth` | Struct levels a member store may leave in the variable or temp it writes; a deeper store ends the evaluation with 0. | 32 |
-| `struct_members` | Members a member store may leave in a struct it adds a member to; a wider store ends the evaluation with 0. | 256 |
-| `query_depth` | How deep query arguments may nest at run time (the top level is 0); `Some(0)` lets no query evaluate an argument. | None |
-
-```rust
-use molang::vm::EvalLimits;
-
-let limits = EvalLimits::DEFAULT
-    .with_loop_iterations(Some(5)) // a tighter per-loop budget
-    .with_struct_depth(None) // no struct depth budget
-    .with_query_depth(Some(0)); // no query may evaluate an argument
-assert!(!limits.is_unlimited());
-```
-
-`temp.*` starts empty in every evaluation; `with_temps(Temps::Kept(TempMap::new()))` on a `HostEnv` or `NoHostEnv` keeps them in a map nothing clears.
-
-The random source is any `rng::RandomSource`: each draw of `math.random*` and `math.die_roll*` is one `sample()`, and the source decides how its generator's word becomes the sample. A closure `FnMut() -> f32` is a source. `HostEnv` and `NoHostEnv` draw from `vm::ProcessRng` unless `with_rng` gives them another. Which source to use depends on where the expression runs:
-
-| Where | Generator | Sample from one 32-bit word `u` | Source |
-|---|---|---|---|
-| Entities, items, blocks, commands, scripting, camera, and `math.random` in particles | one xorshift128 for the whole process, from the standard seeds | `rng::unit_31(u)`: `(u & 0x7fff_ffff) · 2^-31` in `f32` | `ProcessRng`, the default |
-| The UI player preview (paper doll) | none: a constant | 0 | `FixedRng::ZERO` |
-| A feature rule's expressions | MT19937 seeded per chunk | `rng::unit_32(u)`: `u · 2^-32` in `f64`, then rounded to `f32` | the host's MT19937, mapped with `unit_32` |
-| A scatter feature placed by a feature rule | MT19937 seeded per rule, shared with the scatter's own placement draws | as above | as above |
-| Expressions evaluated directly by sapling growth, `/place feature` and other helper-placed features | MT19937 per thread, seeded from the system's random device | as above | as above |
-
-Both mappings can give exactly 1. The crate has no MT19937 of its own; a host seeds one (the `rand_mt` crate's `Mt`, say) as follows:
-
-- **Chunk seed.** With `S` the level seed as 32 bits, take `a` and `b`, the first two words of `MT(S)` each shifted right by 1 and with the low bit set; the chunk `(cx, cz)` seeds `MT((cx·a + cz·b) ^ S)` in wrapping 32-bit arithmetic. That generator drives the `math.random` of every rule in the chunk's feature-rule pass, one state across the rules.
-- **Rule seed.** Each rule seeds `MT(((s << 6) + (s >> 2) + h + 0x9e3779b9) ^ s)`, wrapping, with `s` the chunk generator's seed (not its state) and `h` the low 32 bits of the rule identifier's hash. It draws the rule's chance, iterations and coordinate distributions; when the iterations are more than 0, the placed scatter feature gets a second generator, a fresh one of the same seed.
-- **Structure start.** A structure start seeds as the chunk does and then discards one word.
-
-The host supplies `h`, and decides how a 64-bit level seed becomes `S`: taking its low 32 bits is this crate's assumption, not established. `/place featurerule` runs the feature-rule pass with the level's generator in place of the per-chunk one.
-
-```rust
-use molang::compile::{CompileOptions, compile};
-use molang::rng::unit_32;
-use molang::version::MolangVersion;
-use molang::vm::NoHostEnv;
-use rand_mt::Mt;
-
-/// The seed of a chunk's feature-rule pass.
-fn chunk_seed(level_seed: u32, chunk_x: i32, chunk_z: i32) -> u32 {
-    let mut level = Mt::new(level_seed);
-    let a = (level.next_u32() >> 1) | 1;
-    let b = (level.next_u32() >> 1) | 1;
-    (chunk_x.cast_unsigned().wrapping_mul(a)).wrapping_add(chunk_z.cast_unsigned().wrapping_mul(b))
-        ^ level_seed
-}
-
-/// The seed of one rule, from the chunk's seed and the identifier hash's low 32 bits.
-fn rule_seed(chunk_seed: u32, hash: u32) -> u32 {
-    let s = chunk_seed;
-    ((s << 6).wrapping_add(s >> 2).wrapping_add(hash).wrapping_add(0x9e37_79b9)) ^ s
-}
-
-fn main() -> Result<(), molang::compile::CompileError> {
-    let seed = chunk_seed(12_345, 3, -7);
-    assert_eq!((seed, rule_seed(seed, 0xf7a7_6dfd)), (1_197_795_863, 3_348_516_332));
-
-    let options = CompileOptions::server(MolangVersion::LATEST);
-    let (expr, _) = compile("math.random(0, 10)", &options).into_result()?;
-    let mut chunk = Mt::new(seed);
-    let mut source = || unit_32(chunk.next_u32());
-    let mut env = NoHostEnv::new();
-    let mut cx = env.cx();
-    cx.rng = &mut source;
-    let value = expr.eval_f32(&mut cx);
-    assert!((0.0..=10.0).contains(&value));
-    Ok(())
-}
-```
-
-The default message sink, `BoundedSink`, keeps the last 64 messages, each cut to 1 KiB; `LogOnce` drops repeats.
-
-The deepest nesting `compile` accepts needs about 320 KiB of stack in a release build and 1.9 MiB in a debug build; evaluate on threads of at least 512 KiB / 4 MiB, or set `EvalLimits::with_query_depth`. Structs share members, so walk a stored value with `Value::distinct_structs` or bound the walk.
+Without `stdlib` the crate is the bare engine: no query and no `math.*` name is known until you declare them.
 
 ## Examples
 
-Every example prints what it demonstrates. Start with `hello_world`: `cargo run --example hello_world --features vm`.
+Each one prints what it shows. Start with `cargo run --example hello_world --features vm`.
 
-| Example | What it covers | Features |
-| --- | --- | --- |
-| [`hello_world`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/hello_world.rs) | Compile and evaluate with no host; variables, a loop and a missing read. | `vm` |
-| [`versions`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/versions.rs) | `MolangVersion::from` an `EngineVersion`, and one text grouped differently at versions 4, 5 and 6. | `compiler` |
-| [`json_forms`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/json_forms.rs) | `MolangValueRepr` round trip of the number, string, `{expression, version}` and bool forms. | none |
-| [`diagnostics`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/diagnostics.rs) | Error texts, reject versus keep, byte spans, and the crate's own lints. | `compiler` |
-| [`restricted`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/restricted.rs) | Query sets, allow-lists and the side-effect-free contexts (`without_assignments`, `without_assignments_or_random`). | `compiler` |
-| [`host`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/host.rs) | Implementing `Host`, `VariableStore`, `ContextProvider` and queries over a toy world, evaluated through `HostEnv`. | `vm` |
-| [`variables`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/variables.rs) | `v.` / `t.` / `c.` scope, `??`, the missing-variable abort, `->` and public variables. | `vm` |
-| [`math`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/math.rs) | Host math functions in a `MathCatalog`: a pure one folded, a volatile one drawing, the argument-count error. | `vm` |
-| [`cache`](https://github.com/bedrock-crustaceans/molang/blob/main/examples/cache.rs) | `CompileCache` compiling one text at several versions. | `cache` |
+| Example | Covers |
+| --- | --- |
+| `hello_world` | compile, evaluate, variables, a loop, a missing read |
+| `versions` | engine versions and how one text parses differently across Molang versions |
+| `json_forms` | the JSON forms a Molang field can take |
+| `diagnostics` | error texts, spans, lints |
+| `restricted` | query sets, allow-lists, side-effect-free contexts |
+| `host` | a `Host` over a toy world, evaluated through `HostEnv` |
+| `variables` | `v.` / `t.` / `c.`, `??`, `->`, public variables |
+| `math` | host math functions, pure and volatile |
+| `cache` | one text compiled at several versions through `CompileCache` |
 
 ## Contributing
 
@@ -394,4 +152,4 @@ See [CONTRIBUTING.md](https://github.com/bedrock-crustaceans/molang/blob/main/CO
 
 ## License
 
-Licensed under the **Apache License 2.0**; see [LICENSE](https://github.com/bedrock-crustaceans/molang/blob/main/LICENSE).
+[Apache-2.0](https://github.com/bedrock-crustaceans/molang/blob/main/LICENSE)
