@@ -30,6 +30,10 @@ jobs:
         run: cargo check --locked --all-features
       - name: cargo check (strict-math)
         run: cargo check --locked --features strict-math
+      - name: cargo check (platform-quirks)
+        run: cargo check --locked --features platform-quirks
+      - name: cargo check (strict-math, platform-quirks)
+        run: cargo check --locked --features strict-math,platform-quirks
       - name: Documentation builds without warnings
         run: cargo doc --locked --no-deps --all-features
         env:
@@ -85,6 +89,12 @@ jobs:
         run: cargo test --locked --features strict-math
       - name: cargo test (vm, strict-math)
         run: cargo test --locked --features vm,strict-math
+      - name: cargo test (platform-quirks)
+        run: cargo test --locked --features platform-quirks
+      - name: cargo test (vm, platform-quirks)
+        run: cargo test --locked --features vm,platform-quirks
+      - name: cargo test (strict-math, platform-quirks)
+        run: cargo test --locked --features strict-math,platform-quirks
       - name: cargo test (compiler without stdlib)
         run: cargo test --locked --no-default-features --features compiler --test engine_only
       - name: cargo test (vm without stdlib)
@@ -92,7 +102,7 @@ jobs:
       - name: cargo test --doc (vm without stdlib)
         run: cargo test --locked --doc --no-default-features --features vm
 
-  # The float behaviour is a run-time platform: the whole suite on another host must give the same bits.
+  # With platform-quirks the float behaviour is a run-time platform: the whole suite on another host must give the same bits.
   test-arm64:
     name: Test (Linux arm64)
     runs-on: ubuntu-24.04-arm
@@ -110,12 +120,20 @@ jobs:
         run: cargo clippy --locked --no-default-features --features compiler,vm -- -D warnings
       - name: cargo clippy (arm64, strict-math)
         run: cargo clippy --locked --all-targets --features vm,strict-math -- -D warnings
+      - name: cargo clippy (arm64, platform-quirks)
+        run: cargo clippy --locked --all-targets --features vm,platform-quirks -- -D warnings
       - name: cargo test (arm64, all features)
         run: cargo test --locked --all-features
       - name: cargo test (arm64, strict-math)
         run: cargo test --locked --features strict-math
       - name: cargo test (arm64, vm)
         run: cargo test --locked --features vm
+      - name: cargo test (arm64, platform-quirks)
+        run: cargo test --locked --features platform-quirks
+      - name: cargo test (arm64, vm, platform-quirks)
+        run: cargo test --locked --features vm,platform-quirks
+      - name: cargo test (arm64, strict-math, platform-quirks)
+        run: cargo test --locked --features strict-math,platform-quirks
       - name: cargo test (arm64, stdlib)
         run: cargo test --locked --no-default-features --features stdlib
       - name: cargo test (arm64, stdlib, compiler)
@@ -142,6 +160,8 @@ jobs:
         run: cargo test --locked --manifest-path fuzz/Cargo.toml
       - name: cargo test (arm64, fuzz, strict-math)
         run: cargo test --locked --manifest-path fuzz/Cargo.toml --features strict-math
+      - name: cargo test (arm64, fuzz, platform-quirks)
+        run: cargo test --locked --manifest-path fuzz/Cargo.toml --features platform-quirks
 
   fmt:
     name: Rustfmt
@@ -184,8 +204,14 @@ jobs:
         run: cargo clippy --locked --no-default-features --features compiler,vm -- -D warnings
       - name: cargo clippy (stdlib and strict-math)
         run: cargo clippy --locked --no-default-features --features stdlib,strict-math -- -D warnings
+      - name: cargo clippy (feature platform-quirks)
+        run: cargo clippy --locked --all-targets --features platform-quirks -- -D warnings
+      - name: cargo clippy (stdlib, strict-math and platform-quirks)
+        run: cargo clippy --locked --no-default-features --features stdlib,strict-math,platform-quirks -- -D warnings
       - name: cargo clippy (all targets, without strict-math)
         run: cargo clippy --locked --all-targets --features vm,cache,facet,fuzz -- -D warnings
+      - name: cargo clippy (all targets, platform-quirks without strict-math)
+        run: cargo clippy --locked --all-targets --features vm,cache,facet,fuzz,platform-quirks -- -D warnings
 
   examples:
     name: Examples
@@ -229,6 +255,10 @@ jobs:
         run: cargo clippy --locked --manifest-path fuzz/Cargo.toml --all-targets --features strict-math -- -D warnings
       - name: cargo test (fuzz, strict-math)
         run: cargo test --locked --manifest-path fuzz/Cargo.toml --features strict-math
+      - name: cargo clippy (fuzz, platform-quirks)
+        run: cargo clippy --locked --manifest-path fuzz/Cargo.toml --all-targets --features platform-quirks -- -D warnings
+      - name: cargo test (fuzz, platform-quirks)
+        run: cargo test --locked --manifest-path fuzz/Cargo.toml --features platform-quirks
 
   package:
     name: Package
