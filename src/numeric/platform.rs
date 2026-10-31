@@ -15,8 +15,11 @@
 /// `math.sign(NaN)` = +1.
 ///
 /// [`Platform::Native`] leaves the rest to the host and to Rust: the NaN of an operation is
-/// whichever the host's processor returns, and a float → int conversion (`loop` counts, array
-/// indices, die counts, the sine-table index) is Rust's `as i32`, saturating with NaN → 0.
+/// whichever the host's processor returns, and a float → int conversion (array indices, die
+/// counts, the sine-table index) is Rust's `as i32`, saturating with NaN → 0. Its results are host
+/// dependent: `math.copy_sign(1, math.ln(-1))` folds to −1 on x86-64 and +1 on arm64, a folded
+/// constant carries the NaN of the machine that compiled it, and Rust and LLVM do not guarantee a
+/// NaN's sign or payload even on one host. `platform-quirks` gives host-independent bits.
 ///
 /// The `platform-quirks` feature adds the emulated platforms, which differ in:
 ///

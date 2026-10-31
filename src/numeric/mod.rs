@@ -41,8 +41,9 @@
 //! same on every host.
 //!
 //! On an emulated platform the arithmetic and the standard functions choose the sign and payload of
-//! every NaN they return, so those are the same on every host too. On 32-bit x86 a value returned through the x87
-//! register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
+//! every NaN they return, so those are the same on every host too. On 32-bit x86 a value returned
+//! through the x87 register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not
+//! compile.
 //!
 //! Every instruction function takes the node's [`PostOp`] as its last argument and returns the
 //! final value; pass [`PostOp::IDENTITY`] for the plain form.

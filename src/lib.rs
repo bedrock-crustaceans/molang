@@ -88,9 +88,11 @@
 //! The host chooses whose float behaviour an expression reproduces: [`compile::CompileOptions`]
 //! holds a [`numeric::Platform`], the compiled expression records it, and folding and evaluation
 //! follow it. The default is the host's own: the host's NaNs and Rust's saturating float → int
-//! conversion. With `platform-quirks` the platform can also be BDS Linux, BDS Windows or the
-//! Android arm64 client, which differ in the NaN an operation returns and in float → int
-//! conversion; [`numeric::Platform`] lists the differences. Either way every platform keeps the
+//! conversion, so its results are host dependent (`math.copy_sign(1, math.ln(-1))` folds to −1 on
+//! x86-64 and +1 on arm64, and Rust and LLVM do not guarantee a NaN's sign or payload even on one
+//! host); `platform-quirks` gives host-independent bits. With `platform-quirks` the platform can
+//! also be BDS Linux, BDS Windows or the Android arm64 client, which differ in the NaN an
+//! operation returns and in float → int conversion; [`numeric::Platform`] lists the differences. Either way every platform keeps the
 //! engine's rules: no fused multiply-add, false comparisons with a NaN, the second operand from
 //! `math.min` / `math.max` on a NaN.
 //!

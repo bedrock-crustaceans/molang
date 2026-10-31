@@ -242,7 +242,7 @@ assert_eq!(options.version(), MolangVersion::LATEST);
 
 ## Float behaviour
 
-The host chooses whose float behaviour an expression reproduces with `CompileOptions::with_platform`, a `numeric::Platform`; the compiled expression records it, and constant folding and evaluation both follow it. The default, `Platform::Native`, is the host's own: an operation returns whichever NaN the host's processor gives, and a float → int conversion (`loop` and die counts, array indices, the sine-table index) is Rust's `as i32`, saturating with NaN as 0.
+The host chooses whose float behaviour an expression reproduces with `CompileOptions::with_platform`, a `numeric::Platform`; the compiled expression records it, and constant folding and evaluation both follow it. The default, `Platform::Native`, is the host's own: an operation returns whichever NaN the host's processor gives, and a float → int conversion (die counts, array indices, the sine-table index) is Rust's `as i32`, saturating with NaN as 0. Its results are host dependent: `math.copy_sign(1, math.ln(-1))` folds to −1 on x86-64 and +1 on arm64, a folded constant carries the NaN of the machine that compiled it, and Rust and LLVM do not guarantee a NaN's sign or payload even on one host. For host-independent bits use `platform-quirks`.
 
 Every platform keeps the engine's rules: each multiply, add and divide rounds on its own in formula order (no fused multiply-add), every comparison with a NaN is false, `math.min` / `math.max` return the second operand when either is NaN or both are zeros, `math.sign(NaN)` is 1, and a NaN passes the division guard and the `math.asin` / `math.acos` clamp.
 

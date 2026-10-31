@@ -61,18 +61,19 @@ impl<H: Host> Value<H> {
     }
 
     /// `(int)round(x) != 0`: `0.4` is false and `0.5` true, and a NaN or an `x` beyond the int
-    /// range follows `platform`'s conversion (NaN is true on a server and false on Android). The
-    /// reading of block permutation conditions, block and item event trigger conditions and
-    /// `bone_visibility`.
+    /// range follows `platform`'s conversion (NaN is false by default and on Android, true on an
+    /// emulated server). The reading of block permutation conditions, block and item event
+    /// trigger conditions and `bone_visibility`.
     #[inline]
     pub fn rounds_to_nonzero(&self, platform: Platform) -> bool {
         self.round_to_int(platform) != 0
     }
 
     /// `clamp(trunc(x + 2^-23), min, max)` with `platform`'s truncation: the default of an int
-    /// entity property. NaN gives `min` on a server and 0 clamped on Android, and `1e10` in
-    /// `0..=10` gives 0 on a server and 10 on Android. `None` when the value is not a number
-    /// ([`Value::Float`]); the caller logs it and chooses the fallback.
+    /// entity property. The conversion saturates by default and on Android and gives `i32::MIN` on
+    /// an emulated server: NaN gives 0 clamped, or `min` on a server, and `1e10` in `0..=10` gives
+    /// 10, or 0 on a server. `None` when the value is not a number ([`Value::Float`]); the caller
+    /// logs it and chooses the fallback.
     ///
     /// # Panics
     ///
