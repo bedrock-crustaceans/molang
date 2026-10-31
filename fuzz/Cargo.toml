@@ -8,7 +8,7 @@ edition = "2024"
 cargo-fuzz = true
 
 [dependencies]
-arbitrary = "1.4"
+arbitrary = "1.5"
 libfuzzer-sys = "0.4"
 
 [dependencies.molang]
@@ -20,7 +20,7 @@ strict-math = ["molang/strict-math"]
 platform-quirks = ["molang/platform-quirks"]
 
 [dev-dependencies]
-proptest = { version = "1.11.0", default-features = false, features = ["std"] }
+proptest = { version = "1.12.0", default-features = false, features = ["std"] }
 serde_json = "1.0"
 
 # Keeps this package out of the root crate's workspace.
