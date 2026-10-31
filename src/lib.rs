@@ -12,6 +12,8 @@
 //!   `facet` dependency is a pre-release and is not re-exported.
 //! - `strict-math`: the transcendental `math.*` functions from the `libm` crate, the same bits on
 //!   every host, in place of the host's C library.
+//! - `platform-quirks`: the emulated platforms of [`numeric::Platform`], the NaNs and float → int
+//!   conversions of a server's or the Android client's processor, bit for bit.
 //! - `fuzz`: a hidden `internals` module for the repository's fuzz crate, with no `SemVer`
 //!   guarantee (implies `stdlib`).
 //!
@@ -84,15 +86,21 @@
 //! # Float behaviour
 //!
 //! The host chooses whose float behaviour an expression reproduces: [`compile::CompileOptions`]
-//! holds a [`numeric::Platform`] (BDS Linux, BDS Windows or the Android arm64 client), the compiled
-//! expression records it, and folding and evaluation follow it. The platforms differ in the NaN an
-//! operation returns and in float → int conversion; [`numeric::Platform`] lists the differences.
+//! holds a [`numeric::Platform`], the compiled expression records it, and folding and evaluation
+//! follow it. The default is the host's own: the host's NaNs and Rust's saturating float → int
+//! conversion. With `platform-quirks` the platform can also be BDS Linux, BDS Windows or the
+//! Android arm64 client, which differ in the NaN an operation returns and in float → int
+//! conversion; [`numeric::Platform`] lists the differences. Either way every platform keeps the
+//! engine's rules: no fused multiply-add, false comparisons with a NaN, the second operand from
+//! `math.min` / `math.max` on a NaN.
 //!
 //! The transcendental functions (`math.sin`, `math.pow`, the easings' `exp2` and sine table, …)
 //! call the host's C library through `std`, as the game calls the one of the system it runs on, so
 //! the last bits can differ between hosts: the recorded BDS Linux data is reproduced bit for bit on
 //! a Linux x86-64 host with glibc 2.41 and FMA, and on other hosts within two ulps. With
-//! `strict-math` they call the `libm` crate instead and give the same bits on every host.
+//! `strict-math` they call the `libm` crate instead and give the same bits on every host. The two
+//! features combine freely; the recorded data needs `platform-quirks`, and then `strict-math`
+//! reproduces it on any host.
 //!
 //! [`QueryCatalog`]: catalog::QueryCatalog
 //! [`QueryDecl`]: catalog::QueryDecl
@@ -248,8 +256,13 @@
 #[cfg(doctest)]
 struct NoItemAtTheRoot;
 
-/// Compiles the README's code blocks as doctests.
-#[cfg(all(doctest, feature = "vm", feature = "stdlib"))]
+/// Compiles the README's code blocks as doctests; one of them names an emulated platform.
+#[cfg(all(
+    doctest,
+    feature = "vm",
+    feature = "stdlib",
+    feature = "platform-quirks"
+))]
 #[doc = include_str!("../README.md")]
 struct ReadmeDoctests;
 

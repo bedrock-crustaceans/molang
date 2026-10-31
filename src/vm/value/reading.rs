@@ -14,8 +14,8 @@ const PROPERTY_BIAS: f32 = f32::EPSILON;
 
 /// The readings of a result. Each starts from [`Value::to_f32`] (a string is the low bits of its
 /// hash, every handle and resource 0.0), and a field that wants a float takes `to_f32` as is. The
-/// readings that truncate depend on the [`Platform`]: out of range or NaN gives `i32::MIN` on a
-/// server and saturates (NaN to 0) on [`Platform::AndroidArm64`].
+/// readings that truncate depend on the [`Platform`]: out of range or NaN saturates (NaN to 0),
+/// except on the emulated servers (`platform-quirks`), which give `i32::MIN`.
 ///
 /// | Field | Reading |
 /// | --- | --- |
@@ -115,7 +115,11 @@ mod tests {
 
     type V = Value<NoHost>;
 
+    use crate::numeric::test_support::PLATFORMS;
+
+    #[cfg(feature = "platform-quirks")]
     const SERVERS: [Platform; 2] = [Platform::BdsLinux, Platform::BdsWindows];
+    #[cfg(feature = "platform-quirks")]
     const ANDROID: Platform = Platform::AndroidArm64;
     const NAN: f32 = f32::NAN;
     const INF: f32 = f32::INFINITY;
@@ -149,7 +153,7 @@ mod tests {
 
     #[test]
     fn rounding_is_half_away_from_zero_before_the_truncation() {
-        for p in SERVERS.into_iter().chain([ANDROID]) {
+        for p in PLATFORMS {
             assert_eq!(f(0.4).round_to_int(p), 0);
             assert_eq!(f(0.5).round_to_int(p), 1);
             assert_eq!(f(-0.5).round_to_int(p), -1);
@@ -167,6 +171,29 @@ mod tests {
         }
     }
 
+    #[test]
+    fn natively_the_integer_readings_saturate_out_of_range() {
+        let p = Platform::Native;
+        assert_eq!(f(NAN).to_int(p), 0);
+        assert_eq!(f(NAN).round_to_int(p), 0);
+        assert!(!f(NAN).rounds_to_nonzero(p));
+        for x in [INF, TWO_31, 1.0e10] {
+            assert_eq!(f(x).to_int(p), i32::MAX, "{x}");
+            assert_eq!(f(x).round_to_int(p), i32::MAX, "{x}");
+            assert!(f(x).rounds_to_nonzero(p), "{x}");
+        }
+        for x in [-INF, -TWO_31, -1.0e10] {
+            assert_eq!(f(x).to_int(p), i32::MIN, "{x}");
+            assert!(f(x).rounds_to_nonzero(p), "{x}");
+        }
+        assert_eq!(f(1.0e10).to_property_int(0..=10, p), Some(10));
+        assert_eq!(f(INF).to_property_int(0..=10, p), Some(10));
+        assert_eq!(f(NAN).to_property_int(0..=10, p), Some(0));
+        assert_eq!(f(NAN).to_property_int(3..=10, p), Some(3));
+        assert_eq!(f(-1.0e10).to_property_int(-3..=10, p), Some(-3));
+    }
+
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn the_integer_readings_follow_the_platform_out_of_range() {
         for p in SERVERS {
@@ -192,7 +219,7 @@ mod tests {
 
     #[test]
     fn a_property_default_biases_truncates_and_clamps() {
-        for p in SERVERS.into_iter().chain([ANDROID]) {
+        for p in PLATFORMS {
             assert_eq!(f(3.0).to_property_int(0..=10, p), Some(3));
             assert_eq!(f(2.9).to_property_int(0..=10, p), Some(2));
             assert_eq!(f(-0.5).to_property_int(0..=10, p), Some(0));
@@ -205,6 +232,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn a_property_default_out_of_range_differs_by_platform() {
         for p in SERVERS {

@@ -265,8 +265,11 @@ fn differing_functions(file: &Value, set: &str, platform: Platform) -> BTreeSet<
 
 #[test]
 fn bds_linux_matches_the_x86_64_rows() {
+    if !common::replays_the_servers_bits("numeric_bits.json [X86_64]") {
+        return;
+    }
     let file = common::data_json("numeric_bits.json");
-    let differing = differing_functions(&file, "X86_64", Platform::BdsLinux);
+    let differing = differing_functions(&file, "X86_64", common::P);
     assert!(differing.is_empty(), "BdsLinux differs in {differing:?}");
     let (mut rows, mut nan_rows) = (0_u64, 0_u64);
     let mut most = BTreeMap::<String, u32>::new();
@@ -276,7 +279,7 @@ fn bds_linux_matches_the_x86_64_rows() {
             let (args, samples, expected) = row_values(row);
             rows += 1;
             nan_rows += u64::from(expected.is_some_and(f32::is_nan));
-            let actual = evaluate_row(Platform::BdsLinux, function, &args, &samples, post_of(row));
+            let actual = evaluate_row(common::P, function, &args, &samples, post_of(row));
             if let (Some(a), Some(e)) = (actual, expected) {
                 let d = ulps(a, e).unwrap_or(u32::MAX);
                 let entry = most.entry(function.to_owned()).or_default();
@@ -291,6 +294,7 @@ fn bds_linux_matches_the_x86_64_rows() {
 /// The functions of the `X86_64` set each other platform computes differently: the invalid
 /// operations' NaN, the NaN an operation of two NaNs keeps, and the number of rolls. The bits
 /// themselves are pinned in `tests/numerics.rs` (`platforms`).
+#[cfg(feature = "platform-quirks")]
 #[test]
 fn each_other_platform_differs_from_the_x86_64_set_in_its_functions() {
     let file = common::data_json("numeric_bits.json");
@@ -433,7 +437,7 @@ fn every_transcendental_sample_is_the_crates_function() {
         .into_iter()
         .flat_map(|p| ["X86_64", "Arm64"].map(|set| (p, set)))
     {
-        let exact = set == "X86_64" && platform == Platform::BdsLinux;
+        let exact = set == "X86_64" && cfg!(feature = "platform-quirks") && platform == common::P;
         for group in file["profiles"][set].as_array().unwrap() {
             for sample in group["rows"]
                 .as_array()
@@ -472,8 +476,10 @@ fn every_transcendental_sample_is_the_crates_function() {
                     continue;
                 };
                 checked += 1;
-                let invalid_of_the_other =
-                    !exact && expected.is_nan() && !a.iter().any(|x| x.is_nan());
+                // Without `platform-quirks` every NaN is the host's.
+                let invalid_of_the_other = !exact
+                    && expected.is_nan()
+                    && (!cfg!(feature = "platform-quirks") || !a.iter().any(|x| x.is_nan()));
                 let agrees = if invalid_of_the_other {
                     actual.is_nan()
                 } else {
@@ -506,5 +512,5 @@ fn every_transcendental_sample_is_the_crates_function() {
         .map(|&bits| ("exp2".to_owned(), bits))
         .collect();
     assert_eq!(unreached, expected_unreached);
-    assert_eq!(checked, 3 * (1468 - 18));
+    assert_eq!(checked, PLATFORMS.len() as u32 * (1468 - 18));
 }

@@ -4,7 +4,6 @@
 //! Run with `cargo run --example hello_world --features vm`.
 
 use molang::compile::{CompileError, CompileOptions, compile};
-use molang::numeric::Platform;
 use molang::version::MolangVersion;
 use molang::vm::{NoHostEnv, Value, VariableName};
 
@@ -52,11 +51,10 @@ fn main() -> Result<(), CompileError> {
     );
     let (expr, _) = compile("1e10", &options).into_result()?;
     let value = expr.eval(&mut env.cx());
-    for platform in [Platform::default(), Platform::AndroidArm64] {
-        println!(
-            "1e10 as an int property in 0..=10 on {platform:?} = {}",
-            value.to_property_int(0..=10, platform).unwrap()
-        );
-    }
+    let platform = expr.platform();
+    println!(
+        "1e10 as an int property in 0..=10 on {platform:?} = {}",
+        value.to_property_int(0..=10, platform).unwrap()
+    );
     Ok(())
 }

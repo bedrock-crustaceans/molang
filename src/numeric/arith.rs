@@ -1,7 +1,7 @@
 //! The engine's primitive float operations, as a [`Platform`] performs them.
 //!
-//! Each operation is rounded on its own; the platform chooses the NaN of a NaN result and the
-//! integer of an out-of-range conversion.
+//! Each operation is rounded on its own; an emulated platform (`platform-quirks`) chooses the NaN
+//! of a NaN result and the integer of an out-of-range conversion.
 
 use super::{Platform, fpu};
 
@@ -53,9 +53,8 @@ pub fn min(a: f32, b: f32) -> f32 {
     fpu::min(a, b)
 }
 
-/// Truncating float-to-int. Out of range or NaN, [`Platform::BdsLinux`] and
-/// [`Platform::BdsWindows`] give `i32::MIN`; [`Platform::AndroidArm64`] saturates and maps NaN to
-/// 0.
+/// Truncating float-to-int. Out of range or NaN, it saturates and maps NaN to 0, except on
+/// `Platform::BdsLinux` and `Platform::BdsWindows` (`platform-quirks`), which give `i32::MIN`.
 #[inline]
 pub fn to_int(platform: Platform, v: f32) -> i32 {
     fpu::to_int(platform, v)
@@ -79,6 +78,13 @@ mod tests {
         assert_bits(super::max(NAN, 4.0), 4.0);
         assert!(super::max(4.0, NAN).is_nan());
         assert!(super::min(4.0, NAN).is_nan());
+        assert_eq!(super::to_int(NATIVE, NAN), 0);
+        assert!(super::mul_sub(NATIVE, NAN, 1.0, -NAN).is_nan());
+    }
+
+    #[cfg(feature = "platform-quirks")]
+    #[test]
+    fn the_wrappers_follow_the_emulated_rules() {
         assert_eq!(super::to_int(LINUX, NAN), i32::MIN);
         assert_eq!(super::to_int(ANDROID, NAN), 0);
         assert_eq!(

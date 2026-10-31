@@ -107,7 +107,7 @@ mod tests {
     use crate::numeric::test_support::*;
     use crate::stdlib::math::transcendental;
 
-    const P: Platform = LINUX;
+    const P: Platform = NATIVE;
 
     const T: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
 

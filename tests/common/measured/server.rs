@@ -22,6 +22,8 @@ use molang::version::MolangVersion;
 use molang::vm::{LogLevel, Value};
 
 use crate::common::compile_support::messages;
+#[cfg(feature = "vm")]
+use crate::common::replays_the_servers_bits;
 use crate::common::{CheckGuard, compile_support::server_at, data_path, on};
 
 /// A new release needs its arm in `text` and its place at the end of [`Release::ALL`].
@@ -49,10 +51,11 @@ impl Release {
         self as usize
     }
 
-    /// The platform of this release's server, which the logs come from.
+    /// The platform of this release's server, which the logs come from: the Linux server, only
+    /// emulated with `platform-quirks`.
     pub const fn platform(self) -> Platform {
         match self {
-            Self::V1_26_36_1 | Self::V1_26_52_3 => Platform::BdsLinux,
+            Self::V1_26_36_1 | Self::V1_26_52_3 => crate::common::P,
         }
     }
 
@@ -80,8 +83,10 @@ pub const BOTH_RELEASES: &[Release] = &[Release::V1_26_36_1, Release::V1_26_52_3
 
 /// The platforms besides the logged servers every run also replays on; it must disagree exactly on
 /// the probes it lists for one ([`ServerRun::differs_on`]).
-#[cfg(feature = "vm")]
+#[cfg(all(feature = "vm", feature = "platform-quirks"))]
 const OTHER_PLATFORMS: [Platform; 2] = [Platform::BdsWindows, Platform::AndroidArm64];
+#[cfg(all(feature = "vm", not(feature = "platform-quirks")))]
+const OTHER_PLATFORMS: [Platform; 0] = [];
 
 /// The step budget of a replay on another platform.
 #[cfg(feature = "vm")]
@@ -409,7 +414,7 @@ impl ServerRun {
     /// none lists no probe.
     pub fn differs_on(&mut self, platform: Platform, ids: &[&str]) -> &mut Self {
         assert!(
-            matches!(platform, Platform::BdsWindows | Platform::AndroidArm64),
+            platform != crate::common::P,
             "{}: the logs are those of the Linux servers",
             self.run
         );
@@ -450,9 +455,9 @@ impl ServerRun {
         let mut report = self.counts();
         let mut failures = Vec::new();
         #[cfg(feature = "vm")]
-        let evaluates = reproduces_the_server();
+        let evaluates = replays_the_servers_bits(&self.run) && reproduces_the_server();
         #[cfg(feature = "vm")]
-        if !evaluates {
+        if cfg!(feature = "platform-quirks") && !evaluates {
             eprintln!(
                 "{}: evaluation not replayed: the host's C library is not glibc 2.41 on x86-64 with FMA (strict-math replays it on any host)",
                 self.run

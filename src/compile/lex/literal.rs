@@ -159,18 +159,38 @@ mod tests {
     use crate::diag::Severity;
     use proptest::prelude::*;
 
+    #[cfg(feature = "platform-quirks")]
+    fn lexed_float(source: &str, options: &crate::compile::CompileOptions) -> f32 {
+        let tokens = run_with(source, options).tokens.expect("the literal lexes");
+        let Payload::Float(v) = tokens[0].1 else {
+            panic!("not a float: {source}");
+        };
+        v
+    }
+
+    #[test]
+    fn a_zero_scaled_by_an_infinite_power_is_nan() {
+        for source in ["0e400", "0.0e999", "0e400f"] {
+            assert!(f32::from_bits(float_bits(source)).is_nan(), "{source}");
+        }
+    }
+
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn a_zero_scaled_by_an_infinite_power_is_the_invalid_operation_nan() {
+        let linux = client().with_platform(Platform::BdsLinux);
         let android = client().with_platform(Platform::AndroidArm64);
         for source in ["0e400", "0.0e999", "0e400f"] {
-            assert_eq!(float_bits(source), 0xffc0_0000, "{source}");
-            let tokens = run_with(source, &android)
-                .tokens
-                .expect("the literal lexes");
-            let Payload::Float(v) = tokens[0].1 else {
-                panic!("not a float: {source}");
-            };
-            assert_eq!(v.to_bits(), 0x7fc0_0000, "{source}");
+            assert_eq!(
+                lexed_float(source, &linux).to_bits(),
+                0xffc0_0000,
+                "{source}"
+            );
+            assert_eq!(
+                lexed_float(source, &android).to_bits(),
+                0x7fc0_0000,
+                "{source}"
+            );
         }
     }
 

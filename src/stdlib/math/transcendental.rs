@@ -1,25 +1,14 @@
 //! The transcendental functions: `std`'s `f32` methods, which call the host's C library, or with
 //! the `strict-math` feature the `libm` crate, the same bits on every host.
 //!
-//! The platform chooses every NaN they return: a NaN argument quietened (of two, by its
-//! [`nan_of`](fpu::nan_of) rule), else its default NaN. Two exceptions hold on every platform:
-//! `asin` and `acos` beyond ±1 give the positive NaN, and `pow` of a NaN to an odd integer gives
-//! that NaN quietened with its sign bit cleared. Both are measured on BDS Linux only; that BDS
-//! Windows and Android give the same is assumed.
+//! An emulated platform (`platform-quirks`) chooses every NaN they return: a NaN argument
+//! quietened (of two, by its rule for arithmetic), else its default NaN. Two exceptions hold on
+//! every emulated platform: `asin` and `acos` beyond ±1 give the positive NaN, and `pow` of a NaN
+//! to an odd integer gives that NaN quietened with its sign bit cleared. Both are measured on BDS
+//! Linux only; that BDS Windows and Android give the same is assumed.
 
-use crate::numeric::{Platform, fpu};
-
-const POSITIVE_NAN: f32 = f32::from_bits(0x7fc0_0000);
-
-/// `r`, or when it is NaN the platform's NaN of the arguments `a` and `b`.
-#[inline]
-fn chosen(p: Platform, r: f32, a: f32, b: f32) -> f32 {
-    if r.is_nan() {
-        fpu::nan_of(p.fpu(), a, b)
-    } else {
-        r
-    }
-}
+use crate::numeric::Platform;
+use crate::numeric::fpu::{self, chosen};
 
 /// The host's C library, through `std`.
 #[cfg(any(test, not(feature = "strict-math")))]
@@ -133,26 +122,16 @@ pub(crate) fn cos(p: Platform, x: f32) -> f32 {
     chosen(p, library::cos(x), x, x)
 }
 
-/// `r`, or when it is NaN the quietened `x` or else the positive NaN.
+/// The arcsine in radians; beyond ±1 NaN.
 #[inline]
-fn inverse_trig(r: f32, x: f32) -> f32 {
-    match (r.is_nan(), x.is_nan()) {
-        (false, _) => r,
-        (true, true) => fpu::quiet(x),
-        (true, false) => POSITIVE_NAN,
-    }
+pub(crate) fn asin(p: Platform, x: f32) -> f32 {
+    fpu::inverse_trig(p, library::asin(x), x)
 }
 
-/// The arcsine in radians; beyond ±1 the positive NaN.
+/// The arccosine in radians; beyond ±1 NaN.
 #[inline]
-pub(crate) fn asin(x: f32) -> f32 {
-    inverse_trig(library::asin(x), x)
-}
-
-/// The arccosine in radians; beyond ±1 the positive NaN.
-#[inline]
-pub(crate) fn acos(x: f32) -> f32 {
-    inverse_trig(library::acos(x), x)
+pub(crate) fn acos(p: Platform, x: f32) -> f32 {
+    fpu::inverse_trig(p, library::acos(x), x)
 }
 
 /// The arctangent in radians.
@@ -185,16 +164,10 @@ pub(crate) fn ln(p: Platform, x: f32) -> f32 {
     chosen(p, library::ln(x), x, x)
 }
 
-/// `a` to the power `b`; a NaN `a` with an odd integer `b` gives that NaN quietened with its sign
-/// bit cleared.
+/// `a` to the power `b`.
 #[inline]
 pub(crate) fn pow(p: Platform, a: f32, b: f32) -> f32 {
-    let r = library::pow(a, b);
-    if r.is_nan() && a.is_nan() && (b % 2.0).abs() == 1.0 {
-        fpu::quiet(a.abs())
-    } else {
-        chosen(p, r, a, b)
-    }
+    fpu::pow_nan(p, library::pow(a, b), a, b)
 }
 
 #[cfg(test)]
@@ -202,12 +175,36 @@ mod tests {
     use super::*;
     use crate::numeric::test_support::*;
 
+    #[cfg(feature = "platform-quirks")]
     const SIGNALLING: f32 = f32::from_bits(0x7f80_0001);
 
+    #[cfg(any(feature = "platform-quirks", feature = "strict-math"))]
     fn bits(x: f32) -> u32 {
         x.to_bits()
     }
 
+    #[test]
+    fn an_invalid_or_nan_argument_gives_nan_on_every_platform() {
+        let negative_signalling = f32::from_bits(0xff80_0003);
+        for p in PLATFORMS {
+            for got in [
+                sin(p, INF),
+                cos(p, -INF),
+                ln(p, -1.0),
+                ln(p, -INF),
+                pow(p, -8.0, 1.0 / 3.0),
+                asin(p, 2.0),
+                acos(p, -INF),
+                pow(p, NAN, 3.0),
+                sin(p, negative_signalling),
+                atan2(p, 1.0, negative_signalling),
+            ] {
+                assert!(got.is_nan(), "{p:?}");
+            }
+        }
+    }
+
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn each_platform_chooses_the_nan_of_each_invalid_argument() {
         for (p, nan) in [
@@ -226,19 +223,23 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn asin_and_acos_beyond_one_give_the_positive_nan() {
-        for x in [1.000_001, -1.000_001, 2.0, INF, -INF] {
-            assert_eq!(bits(asin(x)), 0x7fc0_0000, "asin({x})");
-            assert_eq!(bits(acos(x)), 0x7fc0_0000, "acos({x})");
+        for p in EMULATED {
+            for x in [1.000_001, -1.000_001, 2.0, INF, -INF] {
+                assert_eq!(bits(asin(p, x)), 0x7fc0_0000, "asin({x})");
+                assert_eq!(bits(acos(p, x)), 0x7fc0_0000, "acos({x})");
+            }
+            assert_eq!(bits(asin(p, f32::from_bits(0xff80_0003))), 0xffc0_0003);
+            assert_eq!(bits(acos(p, f32::from_bits(0xffc0_0000))), 0xffc0_0000);
         }
-        assert_eq!(bits(asin(f32::from_bits(0xff80_0003))), 0xffc0_0003);
-        assert_eq!(bits(acos(f32::from_bits(0xffc0_0000))), 0xffc0_0000);
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn pow_of_a_nan_to_an_odd_integer_clears_its_sign() {
-        for p in PLATFORMS {
+        for p in EMULATED {
             for b in [1.0, -1.0, 3.0, -5.0] {
                 assert_eq!(bits(pow(p, f32::from_bits(0xffc0_0000), b)), 0x7fc0_0000);
                 assert_eq!(bits(pow(p, f32::from_bits(0xff80_0002), b)), 0x7fc0_0002);
@@ -249,15 +250,16 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
-    fn a_nan_argument_comes_back_quiet_on_every_platform() {
+    fn a_nan_argument_comes_back_quiet_on_every_emulated_platform() {
         let negative_signalling = f32::from_bits(0xff80_0003);
-        for p in PLATFORMS {
+        for p in EMULATED {
             for got in [
                 sin(p, negative_signalling),
                 cos(p, negative_signalling),
-                asin(negative_signalling),
-                acos(negative_signalling),
+                asin(p, negative_signalling),
+                acos(p, negative_signalling),
                 atan(p, negative_signalling),
                 exp(p, negative_signalling),
                 exp2(p, negative_signalling),
@@ -272,6 +274,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn of_two_nan_arguments_arm64_takes_the_signalling_one() {
         let quiet = f32::from_bits(0xffc0_0005);
@@ -297,7 +300,7 @@ mod tests {
             assert_eq!(ln(p, 0.0), -INF);
             assert_eq!(ln(p, -0.0), -INF);
             assert_bits(atan2(p, 0.0, 0.0), 0.0);
-            assert_bits(asin(1.0), std::f32::consts::FRAC_PI_2);
+            assert_bits(asin(p, 1.0), std::f32::consts::FRAC_PI_2);
             assert_bits(atan2(p, 1.0, 0.0), std::f32::consts::FRAC_PI_2);
             assert_eq!(exp(p, 0.0), 1.0);
             assert_eq!(exp2(p, -3.0), 0.125);
@@ -317,7 +320,7 @@ mod tests {
             (0xc08c_be3f, 0x3d42_4033),
         ] {
             assert_eq!(
-                bits(exp2(LINUX, f32::from_bits(x))),
+                bits(exp2(NATIVE, f32::from_bits(x))),
                 expected,
                 "exp2({x:#x})"
             );

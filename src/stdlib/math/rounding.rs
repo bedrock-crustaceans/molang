@@ -32,7 +32,7 @@ mod tests {
     use super::*;
     use crate::numeric::{PostOp, test_support::*};
 
-    const P: Platform = LINUX;
+    const P: Platform = NATIVE;
 
     #[test]
     fn ceil_floor_round_and_trunc_on_ordinary_values() {
@@ -129,6 +129,7 @@ mod tests {
         assert_eq!(ceil(P, 1.1, PostOp::new(-2.0, -1.0)), -5.0);
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn rounding_adds_the_offset_first_on_windows() {
         let post = PostOp::new(NAN, -NAN);

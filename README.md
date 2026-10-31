@@ -45,7 +45,7 @@ fn main() -> Result<(), molang::compile::CompileError> {
 
 ## Reading a result
 
-`Expr::eval` returns a `Value` and the field it came from decides how to read it; `eval_f32` is the plain float reading. The readings the game's fields use are named on `Value`. The ones that truncate to an int take the `numeric::Platform` the expression was compiled for (`Expr::platform`), because out of range or NaN gives `i32::MIN` on a server and saturates (NaN to 0) on Android.
+`Expr::eval` returns a `Value` and the field it came from decides how to read it; `eval_f32` is the plain float reading. The readings the game's fields use are named on `Value`. The ones that truncate to an int take the `numeric::Platform` the expression was compiled for (`Expr::platform`): out of range or NaN saturates (NaN to 0) by default and on Android, and gives `i32::MIN` on a server ([Float behaviour](#float-behaviour)).
 
 | Field | Reading |
 | --- | --- |
@@ -60,7 +60,6 @@ fn main() -> Result<(), molang::compile::CompileError> {
 
 ```rust
 use molang::compile::{CompileOptions, compile};
-use molang::numeric::Platform;
 use molang::version::MolangVersion;
 use molang::vm::NoHostEnv;
 
@@ -73,8 +72,7 @@ fn main() -> Result<(), molang::compile::CompileError> {
 
     let (expr, _) = compile("1e10", &options).into_result()?;
     let value = expr.eval(&mut NoHostEnv::new().cx());
-    assert_eq!(value.to_property_int(0..=10, Platform::default()), Some(0));
-    assert_eq!(value.to_property_int(0..=10, Platform::AndroidArm64), Some(10));
+    assert_eq!(value.to_property_int(0..=10, expr.platform()), Some(10));
     Ok(())
 }
 ```
@@ -141,7 +139,7 @@ fn main() -> Result<(), molang::compile::CompileError> {
 
 ## Render-controller arrays
 
-`array.<name>[index]` reads an element of one of a render controller's arrays: its `geometries`, `textures` or `materials`. With `CompileOptions::client` (`ArrayAccess::FromHost`) it compiles to a read at evaluation. The index is truncated toward zero as the platform converts a float to an int, a negative index is 0, and the index wraps by the array's length. An x86-64 platform converts as the servers do, since only the arm64 client's conversion was observed (the crate's choice).
+`array.<name>[index]` reads an element of one of a render controller's arrays: its `geometries`, `textures` or `materials`. With `CompileOptions::client` (`ArrayAccess::FromHost`) it compiles to a read at evaluation. The index is truncated toward zero as the platform converts a float to an int, a negative index is 0, and the index wraps by the array's length. With `platform-quirks` an x86-64 platform converts as the servers do, since only the arm64 client's conversion was observed (the crate's choice).
 
 The element is a `Value::Resource`. Math on it is the compile error `MathOnArray` at the root; below the root it is only a diagnostic, the expression compiles and the element reads as 0. `NoHostEnv` and the default `HostEnv` hold an `ArrayTable`; `HostEnv::with_arrays` swaps in any `ArrayProvider`. An unknown array reads as 0 and logs a `molang:` message; so does an empty one (the crate's choice: what an empty array gives is unknown).
 
@@ -202,6 +200,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `cache` | `cache::CompileCache`, a concurrent compile cache keyed by version, options and source | `compiler` |
 | `facet` | `Facet` impls for `json::MolangSource` and `json::MolangValueRepr` | |
 | `strict-math` | the transcendental `math.*` functions from the `libm` crate, the same bits on every host ([Math modes](#math-modes)) | |
+| `platform-quirks` | `numeric::Platform::BdsLinux`, `BdsWindows` and `AndroidArm64`: the NaNs and float → int conversions of a server's or the Android client's processor, bit for bit ([Float behaviour](#float-behaviour)) | |
 | `fuzz` | test support, **no SemVer guarantee**: a hidden `internals` module read by the repository's fuzz crate | `stdlib` |
 
 ## Compile options
@@ -243,7 +242,18 @@ assert_eq!(options.version(), MolangVersion::LATEST);
 
 ## Float behaviour
 
-The host chooses whose float behaviour an expression reproduces with `CompileOptions::with_platform`, a `numeric::Platform`: `BdsLinux`, `BdsWindows` or `AndroidArm64`. The default is `BdsLinux`. The compiled expression records it, and constant folding and evaluation both follow it. A platform is the processor's rules only: the NaN an operation returns and float → int conversion.
+The host chooses whose float behaviour an expression reproduces with `CompileOptions::with_platform`, a `numeric::Platform`; the compiled expression records it, and constant folding and evaluation both follow it. The default, `Platform::Native`, is the host's own: an operation returns whichever NaN the host's processor gives, and a float → int conversion (`loop` and die counts, array indices, the sine-table index) is Rust's `as i32`, saturating with NaN as 0.
+
+Every platform keeps the engine's rules: each multiply, add and divide rounds on its own in formula order (no fused multiply-add), every comparison with a NaN is false, `math.min` / `math.max` return the second operand when either is NaN or both are zeros, `math.sign(NaN)` is 1, and a NaN passes the division guard and the `math.asin` / `math.acos` clamp.
+
+The `platform-quirks` feature adds `BdsLinux`, `BdsWindows` and `AndroidArm64`, which reproduce a server's or the Android client's processor bit for bit:
+
+- The NaN of an operation, a transcendental function's included: the servers return the left NaN operand quietened and `0xffc00000` for an invalid operation; Android returns the first signalling NaN operand quietened, else the first quiet one, and `0x7fc00000` for an invalid operation.
+- A float → int conversion out of range or NaN: `i32::MIN` on the servers; saturated, NaN as 0, on Android.
+- On `BdsWindows`, ten easings and the post-op of the rounding functions and `math.abs` take their operands in another order, so of two NaNs another one comes out.
+- `math.asin` and `math.acos` beyond ±1 give `0x7fc00000`, and `math.pow` of a NaN to an odd integer clears its sign. Both rules are measured on BDS Linux only; that BDS Windows and Android follow them is assumed.
+
+`numeric::Platform` lists every difference.
 
 ```rust
 use molang::compile::{CompileOptions, compile};
@@ -259,15 +269,20 @@ fn main() -> Result<(), molang::compile::CompileError> {
 }
 ```
 
-Every platform rounds each multiply, add and divide on its own in formula order, makes every comparison with a NaN false and returns the second operand from `math.min` / `math.max` when either is NaN. The servers return the left NaN operand of an arithmetic operation quietened and `0xffc00000` for an invalid one; Android returns the first signalling NaN operand quietened, else the first quiet one, `0x7fc00000` for an invalid one, and saturates a float → int conversion (`loop` and die counts, array indices) with NaN as 0 where the servers give `i32::MIN`. `numeric::Platform` lists every difference.
-
-The arithmetic and the standard functions choose the sign and payload of the NaNs they return, so those are the same on every host. On 32-bit x86 a value returned through the x87 register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
+With `platform-quirks` the arithmetic and the standard functions choose the sign and payload of the NaNs they return, so those are the same on every host. On 32-bit x86 a value returned through the x87 register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
 
 ### Math modes
 
 The game calls the C library of the system it runs on for `math.sin`, `math.cos`, `math.asin`, `math.acos`, `math.atan`, `math.atan2`, `math.exp`, `math.ln`, `math.pow` and the easings' `exp2` and sine table, and so does this crate by default, through `std`'s `f32` methods. Since that is the host's C library, the last bits can differ between hosts: the recorded BDS Linux data is reproduced bit for bit on a Linux x86-64 host with glibc 2.41 and FMA, and on other hosts within two ulps.
 
-With the `strict-math` feature the crate calls the `libm` crate instead, and every host gives the same bits. Either way the NaN a function returns follows the platform, except that `math.asin` and `math.acos` beyond ±1 give `0x7fc00000` and `math.pow` of a NaN to an odd integer clears its sign on every platform. Both rules are measured on BDS Linux only; that BDS Windows and Android follow them is assumed. `math.ln` of a negative number is the platform's invalid NaN, which BDS Linux 1.26.36 logs; 1.26.52 logs `0x7fc00000`.
+With the `strict-math` feature the crate calls the `libm` crate instead, and every host gives the same bits. Either way the NaN a function returns follows the platform. With `platform-quirks`, `math.ln` of a negative number is the platform's invalid NaN, which BDS Linux 1.26.36 logs; 1.26.52 logs `0x7fc00000`.
+
+The two features combine freely:
+
+| | default | `platform-quirks` |
+| --- | --- | --- |
+| default | the host's C library; the host's NaNs and Rust's float → int | the host's C library; the chosen platform's NaNs and conversions; the recorded BDS Linux data bit for bit on the reference host |
+| `strict-math` | the `libm` crate; the host's NaNs and Rust's float → int | the `libm` crate; the chosen platform's NaNs and conversions; the recorded BDS Linux data bit for bit on every host |
 
 ## Evaluation
 

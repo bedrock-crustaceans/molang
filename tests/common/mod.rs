@@ -217,20 +217,38 @@ pub fn latin1_to_utf8(text: &str) -> String {
     String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
-/// Every platform, the default first.
-#[cfg(feature = "compiler")]
+/// Every emulated platform, the Linux server first.
+#[cfg(all(feature = "compiler", feature = "platform-quirks"))]
 pub const PLATFORMS: [molang::numeric::Platform; 3] = [
     molang::numeric::Platform::BdsLinux,
     molang::numeric::Platform::BdsWindows,
     molang::numeric::Platform::AndroidArm64,
 ];
 
-/// The default platform, which the recorded server data comes from.
+/// The host's platform, the only one without `platform-quirks`.
+#[cfg(all(feature = "compiler", not(feature = "platform-quirks")))]
+pub const PLATFORMS: [molang::numeric::Platform; 1] = [molang::numeric::Platform::Native];
+
+/// The platform the helpers compile for: with `platform-quirks` the Linux server, which the
+/// recorded server data comes from, else the host's.
 #[cfg(feature = "compiler")]
 pub const P: molang::numeric::Platform = PLATFORMS[0];
 
-/// `servers` on the two dedicated servers, `android` on the Android client.
+/// Whether the bits recorded on the Linux server replay: their NaNs and int conversions need
+/// `platform-quirks`. Without it, logs why `what` is skipped.
 #[cfg(feature = "compiler")]
+pub fn replays_the_servers_bits(what: &str) -> bool {
+    let replays = cfg!(feature = "platform-quirks");
+    if !replays {
+        eprintln!(
+            "{what}: not replayed: the server's NaNs and int conversions need platform-quirks"
+        );
+    }
+    replays
+}
+
+/// `servers` on the two dedicated servers, `android` on the Android client.
+#[cfg(all(feature = "compiler", feature = "platform-quirks"))]
 pub fn servers_or_android<T>(platform: molang::numeric::Platform, servers: T, android: T) -> T {
     match platform {
         molang::numeric::Platform::AndroidArm64 => android,
@@ -269,6 +287,17 @@ pub fn assert_bits(actual: f32, expected: f32, what: &str) {
         actual.to_bits(),
         expected.to_bits()
     );
+}
+
+/// [`assert_bits`] with `platform-quirks`; without it the NaN of an operation is the host's, so
+/// any NaN matches an expected NaN.
+#[track_caller]
+pub fn assert_server_bits(actual: f32, expected: f32, what: &str) {
+    if cfg!(feature = "platform-quirks") || !expected.is_nan() {
+        assert_bits(actual, expected, what);
+    } else {
+        assert!(actual.is_nan(), "{what}: {actual:e}, expected NaN");
+    }
 }
 
 pub fn hex_to_string(hex: &str) -> String {

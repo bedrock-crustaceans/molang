@@ -906,8 +906,11 @@ mod folding {
                 .expect("constant")
         };
         // The invalid NaN is negative on the servers and positive on Android.
-        let sign = crate::common::servers_or_android(platform, -1.0, 1.0);
-        assert_eq!(value("math.copy_sign(1, math.sqrt(-1))"), sign);
+        #[cfg(feature = "platform-quirks")]
+        assert_eq!(
+            value("math.copy_sign(1, math.sqrt(-1))"),
+            crate::common::servers_or_android(platform, -1.0, 1.0)
+        );
         // A NaN operand: every ordered comparison is false.
         assert_eq!(value("math.sqrt(-1) < 4"), 0.0);
         assert!(value("math.max(4, math.sqrt(-1))").is_nan());
@@ -2339,8 +2342,9 @@ mod compile_source {
         );
         assert_eq!(compile(STRING_MATH, &opts).failure(), None);
         for raw in [-7_i16, -1, 0, 5, 13, 14, 200] {
-            let opts =
-                CompileOptions::server(MolangVersion::LATEST).with_raw_version(RawVersion(raw));
+            let opts = CompileOptions::server(MolangVersion::LATEST)
+                .with_raw_version(RawVersion(raw))
+                .with_platform(crate::common::P);
             assert_eq!(
                 (opts.version(), opts.raw_version()),
                 (RawVersion(raw).effective(), RawVersion(raw))
@@ -2348,7 +2352,10 @@ mod compile_source {
             assert_eq!(opts, server_at(raw));
         }
         for version in (-1..=13).filter_map(MolangVersion::from_i16) {
-            assert_eq!(CompileOptions::server(version), server_at(version.to_i16()));
+            assert_eq!(
+                CompileOptions::server(version).with_platform(crate::common::P),
+                server_at(version.to_i16())
+            );
         }
     }
 
@@ -3127,6 +3134,7 @@ mod fields {
         );
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn the_folding_arithmetic_is_the_platforms() {
         use molang::numeric::Platform;

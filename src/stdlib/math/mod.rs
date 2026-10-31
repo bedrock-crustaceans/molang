@@ -7,7 +7,8 @@
 //! The transcendental functions (`sin`, `cos`, `asin`, `acos`, `atan`, `atan2`, `exp`, `ln`, `pow`,
 //! and the `exp2` and sine table of the easings) call `std`'s `f32` methods, the host's C library,
 //! so their last bit can differ between hosts; with the `strict-math` feature they call the `libm`
-//! crate and give the same bits everywhere. Their NaNs follow the platform either way.
+//! crate and give the same bits everywhere. Their NaNs follow the platform either way: the host's on
+//! [`Platform::Native`], else the emulated processor's.
 
 // Single-letter names follow the formulas.
 #![allow(clippy::many_single_char_names)]
@@ -45,7 +46,7 @@ pub fn pi(platform: Platform, post: PostOp) -> f32 {
     post.apply(platform, PI)
 }
 
-/// `raw·S + O`, computed as `O + S·raw` on [`Platform::BdsWindows`]: the same value, only the
+/// `raw·S + O`, computed as `O + S·raw` on `Platform::BdsWindows`: the same value, only the
 /// choice between two NaNs differs.
 #[inline]
 fn offset_first(platform: Platform, raw: f32, post: PostOp) -> f32 {
@@ -103,6 +104,14 @@ mod tests {
         }
     }
 
+    #[test]
+    fn natively_the_offset_is_added_last() {
+        assert!(offset_first(NATIVE, 1.0, PostOp::new(NAN, 1.0)).is_nan());
+        assert_bits(offset_first(NATIVE, -0.0, ID), -0.0);
+        assert_bits(offset_first(NATIVE, 3.0, AFFINE), 7.0);
+    }
+
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn only_windows_adds_the_offset_first() {
         let post = PostOp::new(NAN, -NAN);

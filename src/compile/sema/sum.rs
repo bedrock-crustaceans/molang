@@ -377,9 +377,11 @@ mod tests {
     use super::*;
     use crate::compile::ast::Span;
     use crate::compile::sema::test_support::*;
+    use crate::numeric::test_support::NATIVE;
+    #[cfg(feature = "platform-quirks")]
     use crate::numeric::test_support::{ANDROID, LINUX};
 
-    const P: Platform = LINUX;
+    const P: Platform = NATIVE;
 
     fn add(children: Vec<Node>) -> Node {
         parent(Op::Add, children)
@@ -549,15 +551,19 @@ mod tests {
         assert_post_bits(&root, scale, arith::mul_add(P, constant, scale, offset));
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn the_folded_term_chooses_its_nans() {
         let (q1, q2) = (f32::from_bits(0x7fc0_0001), f32::from_bits(0xffc0_0002));
-        let root = folded(add(vec![with_post(entity("x"), q2, q1), float(q2)]));
+        let root = folded_on(LINUX, add(vec![with_post(entity("x"), q2, q1), float(q2)]));
         assert_post_bits(&root, q2, q1);
-        let root = folded(add(vec![
-            with_post(entity("x"), 1.0, f32::INFINITY),
-            float(f32::NEG_INFINITY),
-        ]));
+        let root = folded_on(
+            LINUX,
+            add(vec![
+                with_post(entity("x"), 1.0, f32::INFINITY),
+                float(f32::NEG_INFINITY),
+            ]),
+        );
         assert_post_bits(&root, 1.0, f32::from_bits(0xffc0_0000));
         let mut node = add(vec![
             with_post(entity("x"), 1.0, f32::INFINITY),

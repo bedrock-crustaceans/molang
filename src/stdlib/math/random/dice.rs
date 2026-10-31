@@ -7,8 +7,8 @@ use crate::stdlib::math::formula::{self, Sort, integer_reach, sorted_bounds};
 
 /// The number of rolls of `math.die_roll(n, …)`: `n` truncated, at least 0.
 ///
-/// There is no cap below 2^31. An `n` of 2^31 or more is no rolls on [`Platform::BdsLinux`] and
-/// [`Platform::BdsWindows`] and 2^31 − 1 on [`Platform::AndroidArm64`].
+/// There is no cap below 2^31. An `n` of 2^31 or more is 2^31 − 1 rolls, except on
+/// `Platform::BdsLinux` and `Platform::BdsWindows` (`platform-quirks`), where it is none.
 #[inline]
 pub fn die_roll_count(platform: Platform, n: f32) -> u32 {
     arith::to_int(platform, n).max(0) as u32
@@ -166,7 +166,7 @@ mod tests {
     use proptest::prelude::*;
 
     const NO_LIMIT: u32 = u32::MAX;
-    const P: Platform = LINUX;
+    const P: Platform = NATIVE;
 
     /// Plays back `samples` in a loop and counts its draws.
     struct Scripted {
@@ -220,8 +220,16 @@ mod tests {
     }
 
     #[test]
+    fn die_roll_count_beyond_the_int_range_saturates_natively() {
+        for n in [2_147_483_648.0_f32, 1.0e10, f32::MAX, INF] {
+            assert_eq!(die_roll_count(NATIVE, n), i32::MAX as u32, "{n}");
+        }
+    }
+
+    #[cfg(feature = "platform-quirks")]
+    #[test]
     fn die_roll_count_beyond_the_int_range_depends_on_the_platform() {
-        for p in PLATFORMS {
+        for p in EMULATED {
             for n in [2_147_483_648.0_f32, 1.0e10, f32::MAX, INF] {
                 assert_eq!(
                     die_roll_count(p, n),
@@ -437,9 +445,24 @@ mod tests {
     }
 
     #[test]
+    fn a_huge_count_is_cut_off_by_the_limit_natively() {
+        let mut rng = scripted(&[0.5]);
+        assert_eq!(
+            die_roll(NATIVE, 1.0e10, 1.0, 6.0, 1_000_000, &mut rng, ID),
+            None
+        );
+        assert_eq!(
+            die_roll_integer(NATIVE, INF, 1.0, 6.0, 1_000_000, &mut rng, ID),
+            None
+        );
+        assert_eq!(rng.draws, 0);
+    }
+
+    #[cfg(feature = "platform-quirks")]
+    #[test]
     fn a_huge_count_is_empty_on_the_servers_and_cut_off_by_the_limit_on_android() {
         let mut rng = scripted(&[0.5]);
-        for p in PLATFORMS {
+        for p in EMULATED {
             assert_eq!(
                 die_roll(p, 1.0e10, 1.0, 6.0, 1_000_000, &mut rng, ID),
                 servers_or_android(p, Some(0.0), None)
@@ -588,8 +611,7 @@ mod tests {
         assert_eq!(die_roll_count(P, 3.9), 3);
         assert_eq!(die_roll_count(P, -3.9), 0);
         assert_eq!(die_roll_count(P, NAN), 0);
-        assert_eq!(die_roll_count(P, 1.0e10), 0);
-        assert_eq!(die_roll_count(ANDROID, 1.0e10), i32::MAX as u32);
+        assert_eq!(die_roll_count(P, 1.0e10), i32::MAX as u32);
     }
 
     #[test]

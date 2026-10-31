@@ -2,7 +2,7 @@
 //!
 //! The first operand of each arithmetic call is the one whose NaN wins (of two quiet ones); the
 //! start value is the second operand of the final addition except in the elastic curves and the
-//! second half of `in_out_bounce`, and on [`Platform::BdsWindows`] in the ten easings that call
+//! second half of `in_out_bounce`, and on `Platform::BdsWindows` in the ten easings that call
 //! [`plus_start`].
 
 use super::{
@@ -24,7 +24,7 @@ fn plus_zero(p: Platform, x: f32) -> f32 {
     add(p, x, 0.0)
 }
 
-/// `x + start`; on [`Platform::BdsWindows`] `start + x`, which differs only in the NaN of two.
+/// `x + start`; on `Platform::BdsWindows` `start + x`, which differs only in the NaN of two.
 #[inline]
 fn plus_start(p: Platform, x: f32, start: f32) -> f32 {
     if p.reorders_operands() {
@@ -34,7 +34,7 @@ fn plus_start(p: Platform, x: f32, start: f32) -> f32 {
     }
 }
 
-/// `x·h`; on [`Platform::BdsWindows`] `h·x`, which differs only in the NaN of two.
+/// `x·h`; on `Platform::BdsWindows` `h·x`, which differs only in the NaN of two.
 #[inline]
 fn times_half_range(p: Platform, x: f32, h: f32) -> f32 {
     if p.reorders_operands() {
@@ -267,7 +267,7 @@ pub(crate) fn in_out_expo(p: Platform, start: f32, end: f32, t: f32) -> f32 {
 }
 
 /// `in_circ`: `−c·(sqrt(1 − t·t) − 1) + b`; negating `c` flips a NaN's sign too. On
-/// [`Platform::BdsWindows`] `b − c·(sqrt(1 − t·t) − 1)`, the same value with `c`'s NaN unflipped.
+/// `Platform::BdsWindows` `b − c·(sqrt(1 − t·t) − 1)`, the same value with `c`'s NaN unflipped.
 #[inline]
 pub(crate) fn in_circ(p: Platform, start: f32, end: f32, t: f32) -> f32 {
     let d = sub(p, end, start);
@@ -495,8 +495,9 @@ mod tests {
 
     /// The sign of the NaN each body returns (`+` clear, `-` set) with two NaNs of opposite sign in
     /// `(start, end)`, `(end, start)`, `(end, t)`, `(t, end)`, `(start, t)`, `(t, start)`, the
-    /// first of each pair negative and the third argument 0.5; on [`Platform::BdsWindows`] ten
+    /// first of each pair negative and the third argument 0.5; on `Platform::BdsWindows` ten
     /// easings take the start's NaN first.
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn every_body_returns_its_nan_of_two() {
         let (n, p) = (f32::from_bits(0xffc0_0000), f32::from_bits(0x7fc0_0000));
@@ -529,7 +530,7 @@ mod tests {
             (n, 0.5, p),
             (p, 0.5, n),
         ];
-        for platform in PLATFORMS {
+        for platform in EMULATED {
             for ((name, body, _), (signs_name, signs)) in easing_bodies().into_iter().zip(nans) {
                 assert_eq!(name, signs_name);
                 let signs = match windows.iter().find(|(other, _)| *other == name) {
@@ -547,16 +548,18 @@ mod tests {
         }
     }
 
-    /// Of the platforms' NaN rules only the order of the operands differs on Windows: the values
-    /// are those of Linux.
+    /// The platforms differ in NaNs only: the values are the host's.
     #[test]
-    fn windows_swaps_operands_without_changing_a_value() {
+    fn every_platform_gives_the_same_values() {
         for (name, body, _) in easing_bodies() {
-            assert_eq!(
-                sweep_hash(|s, e, t| body(WINDOWS, s, e, t)),
-                sweep_hash(|s, e, t| body(LINUX, s, e, t)),
-                "{name}"
-            );
+            let native = sweep_hash(|s, e, t| body(NATIVE, s, e, t));
+            for p in PLATFORMS {
+                assert_eq!(
+                    sweep_hash(|s, e, t| body(p, s, e, t)),
+                    native,
+                    "{p:?} {name}"
+                );
+            }
         }
     }
 

@@ -8,6 +8,7 @@
 
 mod common;
 
+#[cfg(feature = "platform-quirks")]
 use molang::numeric::Platform;
 
 use common::measured::*;
@@ -747,6 +748,7 @@ fn run_34() -> ServerRun {
     run.probe("r99", "v.r99_marker_end;")
         .answers("r99_marker_end");
     // Android saturates a count of 2^31 or more to 2^31 − 1 rolls.
+    #[cfg(feature = "platform-quirks")]
     run.differs_on(Platform::AndroidArm64, &["d2", "d3", "d5"]);
     run
 }

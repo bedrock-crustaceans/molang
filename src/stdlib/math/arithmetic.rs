@@ -62,8 +62,9 @@ pub fn mod_const(platform: Platform, a: f32, b: f32, post: PostOp) -> f32 {
     arith::mul_add(platform, fpu::rem(platform, a, b), post.scale, post.offset)
 }
 
-/// `math.pow(a, b)`: `a` to the power `b`. A NaN `a` with an odd integer `b` gives that NaN with
-/// its sign bit cleared and its quiet bit set; an invalid operation gives the platform's NaN.
+/// `math.pow(a, b)`: `a` to the power `b`; an invalid operation gives the platform's NaN. On an
+/// emulated platform a NaN `a` with an odd integer `b` gives that NaN with its sign bit cleared
+/// and its quiet bit set.
 #[inline]
 pub fn pow(platform: Platform, a: f32, b: f32, post: PostOp) -> f32 {
     post.apply(platform, transcendental::pow(platform, a, b))
@@ -91,8 +92,29 @@ mod tests {
     use crate::numeric::{PostOp, test_support::*};
     use crate::stdlib::math::{clamp, hermite_blend};
 
-    const P: Platform = LINUX;
+    const P: Platform = NATIVE;
 
+    #[test]
+    fn ln_of_a_negative_number_is_nan_and_max_and_min_keep_the_second_operand() {
+        for p in PLATFORMS {
+            for x in [-1.0_f32, -1.0e-45, -f32::MAX, f32::NEG_INFINITY, NAN] {
+                assert!(ln(p, x, ID).is_nan(), "{p:?} {x}");
+                assert!(ln(p, x, AFFINE).is_nan(), "{p:?} {x} with a post-op");
+            }
+            assert_eq!(ln(p, 0.0, ID), f32::NEG_INFINITY);
+            assert_eq!(ln(p, -0.0, ID), f32::NEG_INFINITY);
+            assert_eq!(ln(p, 1.0, ID).to_bits(), 0);
+            assert_eq!(max(p, NAN, 4.0, ID), 4.0);
+            assert!(max(p, 4.0, NAN, ID).is_nan());
+            assert!(max(p, NAN, NAN, ID).is_nan());
+            assert_eq!(min(p, NAN, 4.0, ID), 4.0);
+            assert!(min(p, 4.0, NAN, ID).is_nan());
+            assert_bits(max(p, -0.0, 0.0, ID), 0.0);
+            assert_bits(max(p, 0.0, -0.0, ID), -0.0);
+        }
+    }
+
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn ln_of_a_negative_number_is_the_nan_of_the_platform() {
         for (p, nan) in [
@@ -240,41 +262,53 @@ mod tests {
     }
 
     #[test]
+    fn pow_of_a_nan_is_nan_except_to_the_zeroth_power() {
+        for p in PLATFORMS {
+            for b in [1.0, -1.0, 3.0, 2.0, 0.5, 16_777_217.0] {
+                assert!(pow(p, -NAN, b, ID).is_nan(), "{p:?} pow(-NaN, {b})");
+            }
+            assert_bits(pow(p, -NAN, 0.0, ID), 1.0);
+        }
+    }
+
+    #[cfg(feature = "platform-quirks")]
+    #[test]
     fn pow_of_a_nan_to_an_odd_integer_clears_the_sign_bit() {
         let negative_nan = f32::from_bits(0xffc0_0000);
         for b in [1.0, -1.0, 3.0, -5.0] {
             assert_eq!(
-                pow(P, negative_nan, b, ID).to_bits(),
+                pow(LINUX, negative_nan, b, ID).to_bits(),
                 0x7fc0_0000,
-                "pow(P, -NaN, {b})"
+                "pow(LINUX, -NaN, {b})"
             );
         }
         for b in [2.0, 0.5, -2.0, 16_777_217.0] {
             assert_eq!(
-                pow(P, negative_nan, b, ID).to_bits(),
+                pow(LINUX, negative_nan, b, ID).to_bits(),
                 0xffc0_0000,
-                "pow(P, -NaN, {b})"
+                "pow(LINUX, -NaN, {b})"
             );
         }
-        assert_bits(pow(P, negative_nan, 0.0, ID), 1.0);
+        assert_bits(pow(LINUX, negative_nan, 0.0, ID), 1.0);
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn pow_never_returns_a_signalling_nan() {
         assert_eq!(
-            pow(P, f32::from_bits(0x7f80_0001), 1.0, ID).to_bits(),
+            pow(LINUX, f32::from_bits(0x7f80_0001), 1.0, ID).to_bits(),
             0x7fc0_0001
         );
         assert_eq!(
-            pow(P, f32::from_bits(0xff80_0001), -1.0, ID).to_bits(),
+            pow(LINUX, f32::from_bits(0xff80_0001), -1.0, ID).to_bits(),
             0x7fc0_0001
         );
         assert_eq!(
-            pow(P, f32::from_bits(0xff80_0001), 2.0, ID).to_bits(),
+            pow(LINUX, f32::from_bits(0xff80_0001), 2.0, ID).to_bits(),
             0xffc0_0001
         );
         assert_eq!(
-            pow(P, 2.0, f32::from_bits(0x7f80_0001), ID).to_bits(),
+            pow(LINUX, 2.0, f32::from_bits(0x7f80_0001), ID).to_bits(),
             0x7fc0_0001
         );
     }
@@ -477,6 +511,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn abs_adds_the_offset_first_on_windows() {
         let post = PostOp::new(NAN, -NAN);

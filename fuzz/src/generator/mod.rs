@@ -89,12 +89,19 @@ impl<'a> Arbitrary<'a> for FuzzCase {
 }
 
 /// One byte.
+#[cfg(feature = "platform-quirks")]
 fn platform(u: &mut Unstructured<'_>) -> Result<Platform> {
     Ok(match u.int_in_range(0..=2u8)? {
         0 => Platform::BdsLinux,
         1 => Platform::BdsWindows,
         _ => Platform::AndroidArm64,
     })
+}
+
+/// One byte, as with `platform-quirks`, so a recorded input decodes the same either way.
+#[cfg(not(feature = "platform-quirks"))]
+fn platform(u: &mut Unstructured<'_>) -> Result<Platform> {
+    u.int_in_range(0..=2u8).map(|_| Platform::Native)
 }
 
 fn steps(u: &mut Unstructured<'_>) -> Result<u64> {
@@ -446,7 +453,12 @@ mod tests {
                 seen.push(platform);
             }
         }
-        assert_eq!(seen.len(), 3, "{seen:?}");
+        let platforms = if cfg!(feature = "platform-quirks") {
+            3
+        } else {
+            1
+        };
+        assert_eq!(seen.len(), platforms, "{seen:?}");
     }
 
     #[test]

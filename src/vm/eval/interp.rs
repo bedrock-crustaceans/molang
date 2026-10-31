@@ -966,9 +966,21 @@ mod tests {
     }
 
     #[test]
+    fn natively_an_index_past_the_int_range_saturates() {
+        for index in [3.0e9, f32::INFINITY] {
+            assert_eq!(
+                element(Platform::Native, index, Some(3)).0,
+                texture(1),
+                "{index}"
+            );
+        }
+    }
+
+    #[cfg(feature = "platform-quirks")]
+    #[test]
     fn an_index_past_the_int_range_is_converted_as_the_platform_converts() {
-        use crate::numeric::test_support::{PLATFORMS, servers_or_android};
-        for platform in PLATFORMS {
+        use crate::numeric::test_support::{EMULATED, servers_or_android};
+        for platform in EMULATED {
             // The servers make `i32::MIN` (then 0), Android saturates to `i32::MAX`, 1 mod 3.
             let at = servers_or_android(platform, 0, 1);
             for index in [3.0e9, f32::INFINITY] {

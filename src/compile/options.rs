@@ -394,6 +394,7 @@ mod tests {
         assert_eq!(o.platform, Platform::default());
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn options_for_another_platform_compare_unequal() {
         let o = CompileOptions::server(MolangVersion::LATEST);

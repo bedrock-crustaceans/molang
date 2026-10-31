@@ -7,6 +7,7 @@
 
 mod common;
 
+#[cfg(feature = "platform-quirks")]
 use molang::numeric::Platform;
 
 use common::measured::*;
@@ -290,6 +291,7 @@ fn run_31() -> ServerRun {
     run.probe("t29", "v.r = v.one ? (((v.x2 + v.x3 + 1) + (-v.x2 - v.x3)) / 2) : 0; v.r == 0 ? v.t29_0 : (v.r == 1 ? v.t29_1 : (v.r == 2 ? v.t29_2 : (v.r == 3 ? v.t29_3 : (v.r == 4 ? v.t29_4 : (v.r == 5 ? v.t29_5 : (v.r == 7 ? v.t29_7 : (v.r == 10 ? v.t29_10 : (v.r == -1 ? v.t29_m1 : (v.r == -2 ? v.t29_m2 : (v.r == 0.5 ? v.t29_half : (v.r == 20 ? v.t29_20 : v.t29_other)))))))))));").answers("t29_half");
     run.probe("t30", "v.r = v.one ? (2 / ((v.x2 + v.x3 + 1) + (-v.x2 - v.x3))) : 0; v.r == 0 ? v.t30_0 : (v.r == 1 ? v.t30_1 : (v.r == 2 ? v.t30_2 : (v.r == 3 ? v.t30_3 : (v.r == 4 ? v.t30_4 : (v.r == 5 ? v.t30_5 : (v.r == 7 ? v.t30_7 : (v.r == 10 ? v.t30_10 : (v.r == -1 ? v.t30_m1 : (v.r == -2 ? v.t30_m2 : (v.r == 0.5 ? v.t30_half : (v.r == 20 ? v.t30_20 : v.t30_other)))))))))));").answers("t30_2");
     // Android's invalid-operation NaN is positive: kept at run time, made negative when folded.
+    #[cfg(feature = "platform-quirks")]
     run.differs_on(Platform::AndroidArm64, &["t01", "t02"]);
     run
 }

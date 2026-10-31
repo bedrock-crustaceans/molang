@@ -35,12 +35,13 @@
 //! The float behaviour is a [`Platform`], which the host passes in the compile options and the
 //! compiled expression records. Every platform rounds each multiply, add and divide on its own, in
 //! formula order; the platforms differ in the NaN an operation returns and in float → int
-//! conversion ([`Platform`] lists the differences). The transcendental `math.*` functions come from
-//! the host's C library, or with the `strict-math` feature from the `libm` crate, whose bits are the
+//! conversion ([`Platform`] lists the differences). The default is the host's own; the emulated
+//! ones need the `platform-quirks` feature. The transcendental `math.*` functions come from the
+//! host's C library, or with the `strict-math` feature from the `libm` crate, whose bits are the
 //! same on every host.
 //!
-//! The arithmetic and the standard functions choose the sign and payload of every NaN they return,
-//! so those are the same on every host too. On 32-bit x86 a value returned through the x87
+//! On an emulated platform the arithmetic and the standard functions choose the sign and payload of
+//! every NaN they return, so those are the same on every host too. On 32-bit x86 a value returned through the x87
 //! register may have a signalling NaN quietened; 32-bit x86 without SSE2 does not compile.
 //!
 //! Every instruction function takes the node's [`PostOp`] as its last argument and returns the
@@ -70,17 +71,29 @@ pub(crate) mod test_support {
     pub(crate) const NAN: f32 = f32::NAN;
     pub(crate) const INF: f32 = f32::INFINITY;
 
-    /// The Linux server, the default platform.
+    /// The host's own float behaviour, the default platform.
+    pub(crate) const NATIVE: Platform = Platform::Native;
+    #[cfg(feature = "platform-quirks")]
     pub(crate) const LINUX: Platform = Platform::BdsLinux;
+    #[cfg(feature = "platform-quirks")]
     pub(crate) const WINDOWS: Platform = Platform::BdsWindows;
+    #[cfg(feature = "platform-quirks")]
     pub(crate) const ANDROID: Platform = Platform::AndroidArm64;
     /// Every platform, for a test that runs once with each.
-    pub(crate) const PLATFORMS: [Platform; 3] = [LINUX, WINDOWS, ANDROID];
+    #[cfg(not(feature = "platform-quirks"))]
+    pub(crate) const PLATFORMS: [Platform; 1] = [NATIVE];
+    /// Every platform, for a test that runs once with each.
+    #[cfg(feature = "platform-quirks")]
+    pub(crate) const PLATFORMS: [Platform; 4] = [NATIVE, LINUX, WINDOWS, ANDROID];
+    /// Every emulated platform.
+    #[cfg(feature = "platform-quirks")]
+    pub(crate) const EMULATED: [Platform; 3] = [LINUX, WINDOWS, ANDROID];
 
-    /// `servers` on [`Platform::BdsLinux`] and [`Platform::BdsWindows`], `android` on
-    /// [`Platform::AndroidArm64`].
+    /// `servers` on `Platform::BdsLinux` and `Platform::BdsWindows`, `android` on
+    /// `Platform::AndroidArm64`.
+    #[cfg(feature = "platform-quirks")]
     pub(crate) fn servers_or_android<T>(p: Platform, servers: T, android: T) -> T {
-        match p.fpu() {
+        match p.fpu().expect("an emulated platform") {
             platform::Fpu::X86_64 => servers,
             platform::Fpu::Arm64 => android,
         }
@@ -110,7 +123,7 @@ pub(crate) mod test_support {
 
     /// The literal `1 / 3` as the optimiser folds it.
     pub(crate) fn third() -> f32 {
-        fold_const_div(LINUX, 1.0, 3.0)
+        fold_const_div(NATIVE, 1.0, 3.0)
     }
 
     /// A grid over and beyond `[0, 1]`, a fixed pseudo-random scatter, and the values around the

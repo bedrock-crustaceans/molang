@@ -222,7 +222,7 @@ mod folding {
     }
 
     fn options() -> CompileOptions {
-        CompileOptions::server(MolangVersion::LATEST)
+        CompileOptions::server(MolangVersion::LATEST).with_platform(P)
     }
 
     fn fold(source: &str) -> Option<f32> {
@@ -538,6 +538,8 @@ mod folding {
                 !meta.token.contains("random")
                     && !meta.token.contains("die_roll")
                     && meta.min_args > 0
+                    // It turns a NaN's sign, the host's without `platform-quirks`, into a number.
+                    && (cfg!(feature = "platform-quirks") || meta.token != "math.copy_sign")
             })
             .map(|meta| (meta.token, usize::from(meta.min_args)))
             .collect()
@@ -621,8 +623,11 @@ mod folding {
         E::Bin(op, Box::new(a), Box::new(b))
     }
 
+    /// Bitwise equality; without `platform-quirks` the NaN of an operation is the host's, so any
+    /// NaN matches any NaN.
     fn same(a: f32, b: f32) -> bool {
         a.to_bits() == b.to_bits()
+            || (!cfg!(feature = "platform-quirks") && a.is_nan() && b.is_nan())
     }
 
     /// The constant `e` folds to.
@@ -778,6 +783,7 @@ mod folding {
     /// - `math.sqrt(-1)` is the invalid-operation NaN, negative: folded, `copy_sign(1, …)` gives 1,
     ///   at run time −1;
     /// - `0e0 - math.sqrt(-1.2313328e37)` folds to a NaN of the other sign than the run.
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn a_negated_nan_keeps_its_sign_only_when_folded() {
         let negated_acos = E::Neg(Box::new(E::Call("math.acos", vec![lit("1.563555e27")])));

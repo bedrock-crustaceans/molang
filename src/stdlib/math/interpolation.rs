@@ -47,12 +47,13 @@ mod tests {
     use super::*;
     use crate::numeric::{PostOp, test_support::*};
 
-    const P: Platform = LINUX;
+    const P: Platform = NATIVE;
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn lerp_and_lerprotate_take_the_first_of_two_quiet_nans() {
         let (neg, pos) = (f32::from_bits(0xffc0_0000), f32::from_bits(0x7fc0_0000));
-        for p in PLATFORMS {
+        for p in EMULATED {
             for f in [lerp, lerprotate] {
                 for (a, b, t, want) in [
                     (neg, pos, 0.5, pos),
@@ -70,8 +71,8 @@ mod tests {
                 }
             }
         }
-        assert_eq!(lerp(P, 1.0, 3.0, 0.25, PostOp::IDENTITY), 1.5);
-        assert_eq!(lerprotate(P, 350.0, 10.0, 0.5, PostOp::IDENTITY), 360.0);
+        assert_eq!(lerp(LINUX, 1.0, 3.0, 0.25, PostOp::IDENTITY), 1.5);
+        assert_eq!(lerprotate(LINUX, 350.0, 10.0, 0.5, PostOp::IDENTITY), 360.0);
     }
 
     #[test]
@@ -218,16 +219,17 @@ mod tests {
         formula::wrap_angle(P, x)
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn wrap_angle_chooses_its_nans() {
         let negative = f32::from_bits(0xff80_0005);
-        assert_eq!(wrap_angle(negative).to_bits(), 0xffc0_0005);
+        assert_eq!(formula::wrap_angle(LINUX, negative).to_bits(), 0xffc0_0005);
         assert_eq!(
-            wrap_angle(f32::from_bits(0x7fc0_0006)).to_bits(),
+            formula::wrap_angle(LINUX, f32::from_bits(0x7fc0_0006)).to_bits(),
             0x7fc0_0006
         );
-        assert_eq!(wrap_angle(INF).to_bits(), 0xffc0_0000);
-        assert_eq!(wrap_angle(-INF).to_bits(), 0xffc0_0000);
+        assert_eq!(formula::wrap_angle(LINUX, INF).to_bits(), 0xffc0_0000);
+        assert_eq!(formula::wrap_angle(LINUX, -INF).to_bits(), 0xffc0_0000);
     }
 
     #[test]

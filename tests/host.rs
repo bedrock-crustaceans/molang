@@ -3154,12 +3154,17 @@ mod render_controller_arrays {
             texture("geometry.a"),
             texture("geometry.b"),
         ]));
-        for (platform, name) in [
-            (Platform::default(), "geometry.a"),
+        #[cfg(feature = "platform-quirks")]
+        let platforms = [
+            (Platform::BdsLinux, "geometry.a"),
             (Platform::BdsWindows, "geometry.a"),
             // Saturated to `i32::MAX`, odd.
             (Platform::AndroidArm64, "geometry.b"),
-        ] {
+            (Platform::Native, "geometry.b"),
+        ];
+        #[cfg(not(feature = "platform-quirks"))]
+        let platforms = [(Platform::Native, "geometry.b")];
+        for (platform, name) in platforms {
             let expr = client("array.any[1e10]", platform);
             assert_eq!(
                 expr.eval(&mut env.cx(&mut World, Subjects::none())),

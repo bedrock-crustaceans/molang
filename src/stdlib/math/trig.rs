@@ -4,22 +4,24 @@ use super::formula::{degrees, inverse_trig_argument};
 use super::{DEG_TO_RAD, transcendental};
 use crate::numeric::{Platform, PostOp, arith};
 
-/// `math.acos(x)` in degrees: `acos(1.0005)` = 0, `acos(1.0006)` = the positive NaN.
+/// `math.acos(x)` in degrees: `acos(1.0005)` = 0, `acos(1.0006)` = NaN (`0x7fc00000` on an
+/// emulated platform).
 #[inline]
 pub fn acos(platform: Platform, x: f32, post: PostOp) -> f32 {
     degrees(
         platform,
-        transcendental::acos(inverse_trig_argument(x)),
+        transcendental::acos(platform, inverse_trig_argument(x)),
         post,
     )
 }
 
-/// `math.asin(x)` in degrees: `asin(1.0004)` = 90, `asin(1.001)` = the positive NaN.
+/// `math.asin(x)` in degrees: `asin(1.0004)` = 90, `asin(1.001)` = NaN (`0x7fc00000` on an emulated
+/// platform).
 #[inline]
 pub fn asin(platform: Platform, x: f32, post: PostOp) -> f32 {
     degrees(
         platform,
-        transcendental::asin(inverse_trig_argument(x)),
+        transcendental::asin(platform, inverse_trig_argument(x)),
         post,
     )
 }
@@ -61,11 +63,12 @@ mod tests {
     use crate::numeric::{PostOp, test_support::*};
     use crate::stdlib::math::{DEG_TO_RAD, INVERSE_TRIG_TOLERANCE, RAD_TO_DEG, transcendental};
 
-    const P: Platform = LINUX;
+    const P: Platform = NATIVE;
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn a_nan_angle_comes_back_quietened() {
-        for p in PLATFORMS {
+        for p in EMULATED {
             for f in [sin, cos] {
                 assert_eq!(f(p, f32::from_bits(0xff80_0005), ID).to_bits(), 0xffc0_0005);
                 assert_eq!(f(p, f32::from_bits(0x7fc0_0006), ID).to_bits(), 0x7fc0_0006);
@@ -162,9 +165,9 @@ mod tests {
         ] {
             let x = 0.3_f32;
             let rad = if name == "asin" {
-                transcendental::asin(x)
+                transcendental::asin(P, x)
             } else {
-                transcendental::acos(x)
+                transcendental::acos(P, x)
             };
             assert_bits(f(P, x, post), (rad * RAD_TO_DEG) * post.scale + post.offset);
             assert_bits(f(P, x, ID), rad * RAD_TO_DEG);
@@ -172,8 +175,19 @@ mod tests {
     }
 
     #[test]
-    fn a_domain_error_is_the_positive_nan_on_every_platform() {
+    fn a_domain_error_is_nan_on_every_platform() {
         for p in PLATFORMS {
+            for x in [2.0, -2.0, 1.0006, INF, -INF, NAN] {
+                assert!(asin(p, x, ID).is_nan(), "{p:?} asin({x})");
+                assert!(acos(p, x, ID).is_nan(), "{p:?} acos({x})");
+            }
+        }
+    }
+
+    #[cfg(feature = "platform-quirks")]
+    #[test]
+    fn a_domain_error_is_the_positive_nan_on_every_platform() {
+        for p in EMULATED {
             for x in [2.0, -2.0, 1.0006, INF, -INF] {
                 assert_eq!(asin(p, x, ID).to_bits(), 0x7fc0_0000, "{p:?} asin({x})");
                 assert_eq!(acos(p, x, ID).to_bits(), 0x7fc0_0000, "{p:?} acos({x})");
@@ -181,13 +195,14 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn a_nan_operand_keeps_its_sign() {
         let negative_nan = f32::from_bits(0xffc0_0000);
-        assert_eq!(atan2(P, negative_nan, NAN, ID).to_bits(), 0xffc0_0000);
-        assert_eq!(atan2(P, NAN, negative_nan, ID).to_bits(), 0x7fc0_0000);
-        assert_eq!(atan2(P, 1.0, negative_nan, ID).to_bits(), 0xffc0_0000);
-        assert_eq!(asin(P, negative_nan, ID).to_bits(), 0xffc0_0000);
+        assert_eq!(atan2(LINUX, negative_nan, NAN, ID).to_bits(), 0xffc0_0000);
+        assert_eq!(atan2(LINUX, NAN, negative_nan, ID).to_bits(), 0x7fc0_0000);
+        assert_eq!(atan2(LINUX, 1.0, negative_nan, ID).to_bits(), 0xffc0_0000);
+        assert_eq!(asin(LINUX, negative_nan, ID).to_bits(), 0xffc0_0000);
     }
 
     #[test]

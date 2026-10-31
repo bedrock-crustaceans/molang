@@ -56,6 +56,7 @@ fn two(src: &str, a: &CompileOptions, b: &CompileOptions) -> (Arc<Compiled>, Arc
 }
 
 /// The platform is part of the key, even where two platforms fold a text alike.
+#[cfg(feature = "platform-quirks")]
 #[test]
 fn the_platform_is_part_of_the_key() {
     use molang::numeric::Platform;
@@ -98,6 +99,7 @@ fn hits_return_the_same_arc() {
             &src,
             &CompileOptions::for_source(molang::stdlib::queries(Side::Server).clone(), &src)
                 .expect("a source with a version")
+                .with_platform(common::P)
         )
     ));
     assert_eq!((cache.len(), cache.hits(), cache.misses()), (1, 2, 1));
@@ -117,7 +119,8 @@ fn same_text_at_different_versions_compiles_per_version() {
             cache.compile_source(
                 &src,
                 &CompileOptions::for_source(molang::stdlib::queries(Side::Server).clone(), &src)
-                    .expect("a source with a version"),
+                    .expect("a source with a version")
+                    .with_platform(common::P),
             )
         })
         .collect();
@@ -168,7 +171,8 @@ fn the_options_version_wins_when_the_source_version_is_ignored() {
     let c = cache.compile_source_ignoring_version(
         &old,
         &CompileOptions::for_source(molang::stdlib::queries(Side::Server).clone(), &old)
-            .expect("a source with a version"),
+            .expect("a source with a version")
+            .with_platform(common::P),
     );
     assert_eq!(constant(&c), Some(3.0));
     assert_eq!(cache.len(), 2);

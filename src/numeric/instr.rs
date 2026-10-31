@@ -136,7 +136,7 @@ mod tests {
     use crate::numeric::test_support::*;
     use proptest::prelude::*;
 
-    const P: Platform = LINUX;
+    const P: Platform = NATIVE;
 
     #[test]
     fn truthiness_is_a_float_compare_with_zero() {
@@ -322,10 +322,11 @@ mod tests {
         assert_eq!(add(P, INF, 1.0, ID), INF);
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn add_and_mul_keep_the_left_of_two_quiet_nans() {
         let (neg, pos) = (f32::from_bits(0xffc0_0000), f32::from_bits(0x7fc0_0000));
-        for p in PLATFORMS {
+        for p in EMULATED {
             for post in [ID, AFFINE] {
                 assert_bits(add(p, pos, neg, post), neg);
                 assert_bits(add(p, neg, pos, post), pos);
@@ -339,6 +340,7 @@ mod tests {
         assert_bits(mul(ANDROID, 0.0, INF, ID), pos);
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn a_signalling_nan_wins_on_android() {
         let (quiet, signalling) = (f32::from_bits(0xffc0_0001), f32::from_bits(0x7f80_0002));
@@ -569,12 +571,18 @@ mod tests {
         assert_eq!(fold_const_div(P, INF, 2.0), INF);
         assert_bits(fold_const_div(P, 1.0, INF), 0.0);
         assert_bits(fold_const_div(P, -1.0, INF), -0.0);
-        assert_eq!(fold_const_div(LINUX, INF, INF).to_bits(), 0xffc0_0000);
-        assert_eq!(fold_const_div(WINDOWS, INF, INF).to_bits(), 0xffc0_0000);
-        assert_eq!(fold_const_div(ANDROID, INF, INF).to_bits(), 0x7fc0_0000);
+        assert!(fold_const_div(P, INF, INF).is_nan());
         assert_bits(fold_const_div(P, 0.0, -4.0), -0.0);
         assert_bits(fold_const_div(P, 1.0, NAN), 0.0);
         assert_bits(fold_const_div(P, NAN, NAN), 0.0);
+    }
+
+    #[cfg(feature = "platform-quirks")]
+    #[test]
+    fn fold_const_div_of_an_invalid_division_is_the_default_nan() {
+        assert_eq!(fold_const_div(LINUX, INF, INF).to_bits(), 0xffc0_0000);
+        assert_eq!(fold_const_div(WINDOWS, INF, INF).to_bits(), 0xffc0_0000);
+        assert_eq!(fold_const_div(ANDROID, INF, INF).to_bits(), 0x7fc0_0000);
     }
 
     proptest! {
@@ -612,11 +620,6 @@ mod tests {
             }
             assert_eq!(array_index(p, 1.0e30, 1), Some(0));
         }
-        assert_eq!(array_index(LINUX, f32::INFINITY, 3), Some(0));
-        assert_eq!(
-            array_index(ANDROID, f32::INFINITY, 3),
-            Some((i32::MAX as usize) % 3)
-        );
     }
 
     #[test]
@@ -657,10 +660,28 @@ mod tests {
     }
 
     #[test]
+    fn array_index_beyond_the_i32_range_saturates_natively() {
+        for (index, len) in [(3.0e9, 7), (f32::MAX, 10), (INF, 3)] {
+            assert_eq!(
+                array_index(NATIVE, index, len),
+                Some((i32::MAX as usize) % len)
+            );
+        }
+        for p in PLATFORMS {
+            assert_eq!(
+                array_index(p, 2_147_483_520.0, 1000),
+                Some(2_147_483_520 % 1000)
+            );
+        }
+    }
+
+    #[cfg(feature = "platform-quirks")]
+    #[test]
     fn array_index_beyond_the_i32_range_is_zero_on_the_servers_and_saturates_on_android() {
         for p in [LINUX, WINDOWS] {
             assert_eq!(array_index(p, 3.0e9, 7), Some(0));
             assert_eq!(array_index(p, f32::MAX, 10), Some(0));
+            assert_eq!(array_index(p, INF, 3), Some(0));
         }
         assert_eq!(
             array_index(ANDROID, 3.0e9, 7),
@@ -670,12 +691,7 @@ mod tests {
             array_index(ANDROID, f32::MAX, 10),
             Some((i32::MAX as usize) % 10)
         );
-        for p in PLATFORMS {
-            assert_eq!(
-                array_index(p, 2_147_483_520.0, 1000),
-                Some(2_147_483_520 % 1000)
-            );
-        }
+        assert_eq!(array_index(ANDROID, INF, 3), Some((i32::MAX as usize) % 3));
     }
 
     #[test]
@@ -686,8 +702,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn array_index_is_always_in_range_for_a_non_empty_array(index in proptest::num::f32::ANY, len in 1_usize..1000, android in any::<bool>()) {
-            let p = if android { ANDROID } else { LINUX };
+        fn array_index_is_always_in_range_for_a_non_empty_array(index in proptest::num::f32::ANY, len in 1_usize..1000, p in proptest::sample::select(PLATFORMS.to_vec())) {
             let i = array_index(p, index, len).unwrap();
             prop_assert!(i < len);
         }

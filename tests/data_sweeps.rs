@@ -17,6 +17,7 @@ use std::sync::LazyLock;
 
 use common::measured::*;
 use common::{data_json, data_path};
+#[cfg(feature = "platform-quirks")]
 use molang::numeric::Platform;
 use serde_json::Value;
 
@@ -62,6 +63,7 @@ const LIBM_ROUNDS_LOW: [(u64, &str); 20] = [
 
 /// The probes each other platform answers differently from the servers: the NaN of an invalid
 /// operation, the NaN an operation of two NaNs keeps, and what a NaN converts or compares to.
+#[cfg(feature = "platform-quirks")]
 const OTHER_PLATFORMS_DIFFER: &[(u64, Platform, &[&str])] = &[
     (
         44,
@@ -332,6 +334,7 @@ fn sweep_run(run: u64) -> ServerRun {
             }
         }
     }
+    #[cfg(feature = "platform-quirks")]
     for (_, platform, ids) in OTHER_PLATFORMS_DIFFER.iter().filter(|(r, _, _)| *r == run) {
         server_run.differs_on(*platform, ids);
     }

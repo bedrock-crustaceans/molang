@@ -4,18 +4,22 @@ use molang::catalog::Side;
 use molang::compile::{CompileOptions, Compiled, Expr, compile};
 use molang::version::RawVersion;
 
+/// The client at `version`, on [`P`](super::P).
 pub fn client_at(version: i16) -> CompileOptions {
     CompileOptions::from_raw_version(
         molang::stdlib::queries(Side::Client).clone(),
         RawVersion(version),
     )
+    .with_platform(super::P)
 }
 
+/// The server at `version`, on [`P`](super::P).
 pub fn server_at(version: i16) -> CompileOptions {
     CompileOptions::from_raw_version(
         molang::stdlib::queries(Side::Server).clone(),
         RawVersion(version),
     )
+    .with_platform(super::P)
 }
 
 /// Compiles for the client.

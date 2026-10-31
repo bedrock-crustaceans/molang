@@ -414,11 +414,18 @@ mod compiler {
             (raw.version(), raw.raw_version()),
             (MolangVersion::LATEST, RawVersion(99))
         );
-        let windows = raw.with_platform(molang::numeric::Platform::BdsWindows);
         assert_eq!(
-            compile("1", &windows).expr().map(Expr::platform),
-            Some(molang::numeric::Platform::BdsWindows)
+            compile("1", &raw).expr().map(Expr::platform),
+            Some(molang::numeric::Platform::Native)
         );
+        #[cfg(feature = "platform-quirks")]
+        {
+            let windows = raw.with_platform(molang::numeric::Platform::BdsWindows);
+            assert_eq!(
+                compile("1", &windows).expr().map(Expr::platform),
+                Some(molang::numeric::Platform::BdsWindows)
+            );
+        }
     }
 
     /// Host math functions are declared as values and passed in the options.
@@ -594,17 +601,24 @@ mod vm {
         assert!(!v(f32::NAN).is_positive());
         assert!(v(1.0e-6).exceeds_epsilon());
         assert!(!v(0.4).rounds_to_nonzero(Platform::default()));
-        assert!(v(0.5).rounds_to_nonzero(Platform::AndroidArm64));
+        assert!(v(0.5).rounds_to_nonzero(Platform::Native));
         assert_eq!(v(-2.5).round_to_int(Platform::default()), -3);
-        assert_eq!(v(2.9).to_int(Platform::BdsWindows), 2);
+        assert_eq!(v(2.9).to_int(Platform::Native), 2);
         assert_eq!(
             v(1.0e10).to_property_int(0..=10, Platform::default()),
-            Some(0)
-        );
-        assert_eq!(
-            v(1.0e10).to_property_int(0..=10, Platform::AndroidArm64),
             Some(10)
         );
+        #[cfg(feature = "platform-quirks")]
+        {
+            assert_eq!(
+                v(1.0e10).to_property_int(0..=10, Platform::BdsLinux),
+                Some(0)
+            );
+            assert_eq!(
+                v(1.0e10).to_property_int(0..=10, Platform::AndroidArm64),
+                Some(10)
+            );
+        }
         assert!(Value::<NoHost>::string("a").is_nonzero());
     }
 
@@ -2991,12 +3005,16 @@ mod api_compiler {
     #[test]
     fn the_numeric_paths() {
         use molang::numeric::{self, Platform, PostOp, arith};
+        #[cfg(feature = "platform-quirks")]
         let platforms = [
+            Platform::Native,
             Platform::BdsLinux,
             Platform::BdsWindows,
             Platform::AndroidArm64,
         ];
-        assert_eq!(Platform::default(), Platform::BdsLinux);
+        #[cfg(not(feature = "platform-quirks"))]
+        let platforms = [Platform::Native];
+        assert_eq!(Platform::default(), Platform::Native);
         const fn assert_value<T: Copy + Eq + std::hash::Hash + Send + Sync + 'static>() {}
         assert_value::<Platform>();
         assert!(platforms.iter().all(|&p| arith::to_int(p, 2.9) == 2));

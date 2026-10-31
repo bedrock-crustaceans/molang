@@ -89,7 +89,7 @@ mod tests {
     use crate::rng::FixedRng;
     use crate::stdlib::math::formula::clamp_draw;
 
-    const P: Platform = LINUX;
+    const P: Platform = NATIVE;
     use proptest::prelude::*;
 
     #[test]
@@ -468,17 +468,18 @@ mod tests {
         assert_eq!(random_const_bounds(P, 4.0, NAN, ID), PostOp::new(0.0, 4.0));
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn random_const_bounds_chooses_its_nans() {
         let (q1, q2) = (f32::from_bits(0x7fc0_0001), f32::from_bits(0xffc0_0002));
         assert_eq!(
-            random_const_bounds(P, q1, 4.0, PostOp::new(q2, 0.0))
+            random_const_bounds(LINUX, q1, 4.0, PostOp::new(q2, 0.0))
                 .scale
                 .to_bits(),
             0x7fc0_0001
         );
         assert_eq!(
-            random_const_bounds(P, INF, INF, ID).scale.to_bits(),
+            random_const_bounds(LINUX, INF, INF, ID).scale.to_bits(),
             0xffc0_0000
         );
         assert_eq!(

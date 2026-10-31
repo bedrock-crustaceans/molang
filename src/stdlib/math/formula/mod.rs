@@ -278,10 +278,11 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn degrees_keeps_the_sign_and_payload_of_a_nan() {
         let nan = f32::from_bits(0xffc0_0001);
-        for p in PLATFORMS {
+        for p in EMULATED {
             assert_eq!(degrees(p, nan, PostOp::IDENTITY).to_bits(), 0xffc0_0001);
             assert_eq!(degrees(p, nan, AFFINE).to_bits(), 0xffc0_0001);
             assert_eq!(
@@ -298,13 +299,29 @@ mod tests {
     }
 
     #[test]
+    fn each_operation_gives_nan_where_invalid() {
+        for p in PLATFORMS {
+            assert!(interpolate(p, NAN, 1.0, 0.5).is_nan());
+            assert!(interpolate(p, 1.0, INF, 0.0).is_nan());
+            assert!(integer_reach(p, -INF).is_nan());
+            assert_eq!(integer_draw(p, -INF, 6.0, INF, 0.5), -INF);
+            assert_eq!(integer_roll(p, -INF, 1.0, 6.0, 6.0, 0.5), -INF);
+            assert!(roll(p, -INF, 1.0, INF, 0.5).is_nan());
+            assert!(hermite_blend(p, INF).is_nan());
+            assert!(inverse_lerp(p, 5.0, 5.0, 5.0).is_nan());
+            assert!(lerp(p, NAN, 1.0, 0.5).is_nan());
+        }
+    }
+
+    #[cfg(feature = "platform-quirks")]
+    #[test]
     fn each_operation_chooses_its_nan() {
         let (q1, q2, q3) = (
             f32::from_bits(0x7fc0_0001),
             f32::from_bits(0xffc0_0002),
             f32::from_bits(0x7fc0_0003),
         );
-        for p in PLATFORMS {
+        for p in EMULATED {
             // The left operand of each step first.
             assert_eq!(interpolate(p, q1, q2, q3).to_bits(), 0xffc0_0002);
             assert_eq!(interpolate(p, q1, 1.0, q3).to_bits(), 0x7fc0_0003);
@@ -339,6 +356,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn a_signalling_nan_wins_on_android_only() {
         let (quiet, signalling) = (f32::from_bits(0xffc0_0001), f32::from_bits(0x7f80_0002));
@@ -425,15 +443,16 @@ mod tests {
     #[test]
     fn every_platform_reads_the_same_sine_table() {
         for i in 0..=0xffff {
-            let linux = sin_table_entry(LINUX, i);
-            assert_bits(sin_table_entry(WINDOWS, i), linux);
-            assert_bits(sin_table_entry(ANDROID, i), linux);
+            let native = sin_table_entry(NATIVE, i);
+            for p in PLATFORMS {
+                assert_bits(sin_table_entry(p, i), native);
+            }
         }
     }
 
     #[test]
     fn sin_table_entry_at_the_quadrant_boundaries() {
-        let p = LINUX;
+        let p = NATIVE;
         assert_bits(sin_table_entry(p, 0), 0.0);
         close(sin_table_entry(p, 16_384), 1.0, 1e-6);
         close(sin_table_entry(p, 32_768), 0.0, 2e-5);
@@ -448,7 +467,7 @@ mod tests {
 
     #[test]
     fn sin_table_entry_masks_the_index_to_sixteen_bits() {
-        let p = LINUX;
+        let p = NATIVE;
         for index in [0_i32, 1, 5, 1000, 40_000, 65_535] {
             assert_bits(
                 sin_table_entry(p, index + 65_536),
@@ -471,7 +490,7 @@ mod tests {
 
     #[test]
     fn table_sin_truncates_the_scaled_angle() {
-        let p = LINUX;
+        let p = NATIVE;
         assert_bits(table_sin(p, 0.0), 0.0);
         let angle = 1.5 / SIN_INDEX_SCALE;
         assert_bits(table_sin(p, angle), sin_table_entry(p, 1));
@@ -483,6 +502,20 @@ mod tests {
     }
 
     #[test]
+    fn table_sin_beyond_the_int_range() {
+        assert_bits(table_sin(NATIVE, 1.0e6), sin_table_entry(NATIVE, 65_535));
+        assert_bits(table_sin(NATIVE, INF), sin_table_entry(NATIVE, 65_535));
+        assert_bits(table_cos(NATIVE, INF), sin_table_entry(NATIVE, 65_535));
+        assert_bits(table_cos(NATIVE, -INF), sin_table_entry(NATIVE, 0));
+        for p in PLATFORMS {
+            assert_bits(table_sin(p, -INF), sin_table_entry(p, 0));
+            assert_bits(table_sin(p, NAN), 0.0);
+            assert_bits(table_cos(p, NAN), 0.0);
+        }
+    }
+
+    #[cfg(feature = "platform-quirks")]
+    #[test]
     fn table_sin_beyond_the_int_range_is_entry_zero_on_the_servers_and_saturates_on_android() {
         for p in [LINUX, WINDOWS] {
             assert_bits(table_sin(p, 1.0e6), sin_table_entry(p, 0));
@@ -493,16 +526,11 @@ mod tests {
         assert_bits(table_sin(ANDROID, INF), sin_table_entry(ANDROID, 65_535));
         assert_bits(table_cos(ANDROID, INF), sin_table_entry(ANDROID, 65_535));
         assert_bits(table_cos(ANDROID, -INF), sin_table_entry(ANDROID, 0));
-        for p in PLATFORMS {
-            assert_bits(table_sin(p, -INF), sin_table_entry(p, 0));
-            assert_bits(table_sin(p, NAN), 0.0);
-            assert_bits(table_cos(p, NAN), 0.0);
-        }
     }
 
     #[test]
     fn table_cos_is_the_table_shifted_by_a_quarter_turn() {
-        let p = LINUX;
+        let p = NATIVE;
         assert_bits(table_cos(p, 0.0), sin_table_entry(p, 16_384));
         close(table_cos(p, 0.0), 1.0, 1e-6);
         close(table_cos(p, PI), -1.0, 1e-4);

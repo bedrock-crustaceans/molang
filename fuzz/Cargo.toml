@@ -17,6 +17,7 @@ features = ["vm", "fuzz", "stdlib"]
 
 [features]
 strict-math = ["molang/strict-math"]
+platform-quirks = ["molang/platform-quirks"]
 
 [dev-dependencies]
 proptest = { version = "1.11.0", default-features = false, features = ["std"] }

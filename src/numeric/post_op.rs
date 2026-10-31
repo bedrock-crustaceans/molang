@@ -114,7 +114,7 @@ mod tests {
     use crate::numeric::test_support::*;
     use crate::stdlib::math;
 
-    const P: Platform = LINUX;
+    const P: Platform = NATIVE;
 
     #[test]
     fn identity_post_op_returns_the_raw_value() {
@@ -219,13 +219,25 @@ mod tests {
     }
 
     #[test]
+    fn a_nan_raw_scale_or_offset_gives_nan_on_every_platform() {
+        for p in PLATFORMS {
+            assert!(PostOp::new(2.0, 1.0).apply(p, NAN).is_nan());
+            assert!(PostOp::new(NAN, 1.0).apply(p, 2.0).is_nan());
+            assert!(PostOp::new(2.0, NAN).apply(p, 2.0).is_nan());
+            assert!(PostOp::new(0.0, 1.0).apply(p, INF).is_nan());
+            assert!(PostOp::new(INF, -INF).truthy_value(p).is_nan());
+        }
+    }
+
+    #[cfg(feature = "platform-quirks")]
+    #[test]
     fn the_post_op_chooses_the_nan_of_raw_then_scale_then_offset() {
         let (q1, q2, q3) = (
             f32::from_bits(0x7fc0_0001),
             f32::from_bits(0xffc0_0002),
             f32::from_bits(0x7f80_0003),
         );
-        for p in PLATFORMS {
+        for p in EMULATED {
             assert_eq!(PostOp::new(q2, 1.0).apply(p, q1).to_bits(), 0x7fc0_0001);
             assert_eq!(PostOp::new(2.0, q1).apply(p, q2).to_bits(), 0xffc0_0002);
         }
@@ -260,6 +272,7 @@ mod tests {
         assert_eq!(PostOp::new(NAN, 1.0).falsy_value(), 1.0);
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn the_truthy_value_of_a_nan_post_op_is_the_platforms() {
         let signalling = f32::from_bits(0x7f80_0001);
@@ -413,12 +426,13 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn fold_negated_chooses_the_nan_of_the_scale_product() {
         let (q1, q2) = (f32::from_bits(0x7fc0_0001), f32::from_bits(0xffc0_0002));
         assert_eq!(
             PostOp::new(q1, 0.0)
-                .fold_negated(P, PostOp::new(q2, 0.0))
+                .fold_negated(LINUX, PostOp::new(q2, 0.0))
                 .scale
                 .to_bits(),
             0xffc0_0001

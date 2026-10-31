@@ -143,11 +143,17 @@ pub(crate) mod test_support {
     use molang::numeric::Platform;
 
     /// Every platform.
-    pub(crate) const PLATFORMS: [Platform; 3] = [
+    #[cfg(feature = "platform-quirks")]
+    pub(crate) const PLATFORMS: [Platform; 4] = [
+        Platform::Native,
         Platform::BdsLinux,
         Platform::BdsWindows,
         Platform::AndroidArm64,
     ];
+
+    /// Every platform: the host's alone without `platform-quirks`.
+    #[cfg(not(feature = "platform-quirks"))]
+    pub(crate) const PLATFORMS: [Platform; 1] = [Platform::Native];
 
     /// The options of `version` on `platform`.
     pub(crate) fn on(platform: Platform, version: i16) -> molang::compile::CompileOptions {

@@ -69,6 +69,7 @@ mod math_functions {
 
     /// Post-ops folded at compile time choose the NaN the same operations choose at run time: `∞ −
     /// ∞`, `∞·0`, two different NaNs, and the bounds of a literal `math.random`.
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn folded_post_ops_choose_the_nans_of_their_run_time_forms() {
         let (sqrt, asin) = (eval("math.sqrt(-1)"), eval("math.asin(2)"));
@@ -1448,13 +1449,15 @@ mod platforms {
     // Expected values are written with nine significant digits.
     #![allow(clippy::excessive_precision)]
 
+    #[cfg(feature = "platform-quirks")]
+    use crate::common::servers_or_android;
     use crate::common::{
-        PLATFORMS, assert_bits, compile_support::server_at, on, servers_or_android,
+        P, PLATFORMS, assert_bits, assert_server_bits, compile_support::server_at, on,
     };
     use molang::compile::compile;
     use molang::numeric::{Platform, PostOp};
     use molang::stdlib::math;
-    use molang::vm::{EvalLimits, NoHostEnv, Value, VariableName};
+    use molang::vm::{NoHostEnv, Value, VariableName};
 
     const NAN: f32 = f32::NAN;
     const ID: PostOp = PostOp::IDENTITY;
@@ -1665,14 +1668,14 @@ mod platforms {
                 crate::common::library::pinned(
                     0x42b4_aaaa,
                     0x42b4_aaab,
-                    math::acos(LINUX, 0.0, ID) + third,
+                    math::acos(P, 0.0, ID) + third,
                 ),
                 "math.acos(v.x) + (1/3)",
                 &[("x", 0.0)],
                 crate::common::library::pinned(
                     0x42b4_aaaa,
                     0x42b4_aaab,
-                    math::acos(LINUX, 0.0, ID) + third,
+                    math::acos(P, 0.0, ID) + third,
                 ),
             ),
             (
@@ -1680,14 +1683,14 @@ mod platforms {
                 crate::common::library::pinned(
                     0x41bc_13a6,
                     0x41bc_13a6,
-                    math::acos(LINUX, third, ID) * third,
+                    math::acos(P, third, ID) * third,
                 ),
                 "math.acos(v.x) * (1/3)",
                 &[("x", third)],
                 crate::common::library::pinned(
                     0x41bc_13a6,
                     0x41bc_13a6,
-                    math::acos(LINUX, third, ID) * third,
+                    math::acos(P, third, ID) * third,
                 ),
             ),
             (
@@ -1695,14 +1698,14 @@ mod platforms {
                 crate::common::library::pinned(
                     0x4257_6b8a,
                     0x4257_6b8a,
-                    math::atan2(LINUX, 1.0, -3.0, ID) * third,
+                    math::atan2(P, 1.0, -3.0, ID) * third,
                 ),
                 "math.atan2(v.x, -3) * (1/3)",
                 &[("x", 1.0)],
                 crate::common::library::pinned(
                     0x4257_6b8a,
                     0x4257_6b8a,
-                    math::atan2(LINUX, 1.0, -3.0, ID) * third,
+                    math::atan2(P, 1.0, -3.0, ID) * third,
                 ),
             ),
             // The run-time form adds its constant terms together first.
@@ -1765,6 +1768,7 @@ mod platforms {
             assert_bits(eval_vars(run, vars), run_time, run);
         }
         // The fold flips the sign of the invalid NaN, the run keeps it.
+        #[cfg(feature = "platform-quirks")]
         for platform in PLATFORMS {
             let nan = invalid(platform);
             let negated = f32::from_bits(nan.to_bits() ^ 0x8000_0000);
@@ -1796,10 +1800,12 @@ mod platforms {
             ("v.o * math.exp(1000) + 1", "v.o * v.inf + 1"),
             ("v.o * math.exp(1000)", "v.o * v.inf"),
         ] {
+            #[cfg(feature = "platform-quirks")]
             for platform in PLATFORMS {
                 let nan = invalid(platform);
                 assert_bits(eval_on(platform, folded, &vars), nan, folded);
             }
+            assert!(eval_on(P, folded, &vars).is_nan(), "{folded}");
             assert_bits(eval_vars(run, &vars), f32::INFINITY, run);
         }
         // An operand with an offset of 1 gets the offset ∞.
@@ -1867,8 +1873,9 @@ mod platforms {
             ),
         ] {
             assert_bits(folded_constant(folded), bits(constant), folded);
-            assert_bits(eval_vars(run, vars), bits(run_time), run);
+            assert_server_bits(eval_vars(run, vars), bits(run_time), run);
         }
+        #[cfg(feature = "platform-quirks")]
         for platform in PLATFORMS {
             // Two NaNs with a constant term on the left: the fold keeps the term's, the run the
             // other.
@@ -2055,13 +2062,13 @@ mod platforms {
         assert_eq!(eval_vars("math.sign(v.n)", &[("n", NAN)]), 1.0);
     }
 
+    #[cfg(feature = "platform-quirks")]
     /// The NaN of an invalid operation on numbers.
     fn invalid(platform: Platform) -> f32 {
         f32::from_bits(servers_or_android(platform, 0xffc0_0000, 0x7fc0_0000))
     }
 
-    const LINUX: Platform = Platform::BdsLinux;
-
+    #[cfg(feature = "platform-quirks")]
     /// `value` on each platform, in the order of [`PLATFORMS`].
     #[track_caller]
     fn each(f: impl Fn(Platform) -> f32) -> [u32; 3] {
@@ -2069,11 +2076,12 @@ mod platforms {
     }
 
     /// The NaN of an invalid operation, folded and at run time.
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn the_nan_of_an_invalid_operation_is_the_platforms() {
         const POS: u32 = 0x7fc0_0000;
         const NEG: u32 = 0xffc0_0000;
-        assert_eq!(PLATFORMS[0], LINUX);
+        assert_eq!(PLATFORMS[0], P);
         for (call, x, expected) in [
             ("math.ln", -1.0, [NEG, NEG, POS]),
             ("math.sqrt", -1.0, [NEG, NEG, POS]),
@@ -2105,6 +2113,7 @@ mod platforms {
     }
 
     /// Two NaN operands: the servers keep the left one, Android a signalling one first.
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn the_nan_an_operation_keeps_is_the_platforms() {
         let quiet = f32::from_bits(0x7fc0_0001);
@@ -2119,6 +2128,7 @@ mod platforms {
 
     /// A count of 2^31 or more is no rolls on the servers and 2^31 − 1 on Android, which the step
     /// budget ends.
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn a_die_count_beyond_the_int_range_is_the_platforms() {
         for platform in PLATFORMS {
@@ -2128,7 +2138,7 @@ mod platforms {
             env.variables_mut()
                 .set(VariableName::new("n"), Value::Float(3e9));
             let mut cx = env.cx();
-            cx.limits = EvalLimits::NONE.with_total_steps(Some(1_000));
+            cx.limits = molang::vm::EvalLimits::NONE.with_total_steps(Some(1_000));
             assert_eq!(expr.eval_f32(&mut cx), 0.0, "{platform:?}");
             let stopped = env.sink_mut().take().len() == 1;
             assert_eq!(stopped, platform == Platform::AndroidArm64, "{platform:?}");
@@ -2137,6 +2147,7 @@ mod platforms {
 
     /// On Windows ten easings add the start first, so of a NaN start and a NaN range they keep the
     /// start's NaN.
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn the_windows_easings_keep_the_starts_nan() {
         let start = f32::from_bits(0x7fc0_0001);
@@ -2148,7 +2159,7 @@ mod platforms {
             ("ease_in_quad", false),
         ] {
             let source = format!("math.{function}(v.s, v.e, v.t)");
-            let linux = eval_on(LINUX, &source, &vars);
+            let linux = eval_on(P, &source, &vars);
             let windows = eval_on(Platform::BdsWindows, &source, &vars);
             assert_eq!(
                 linux.to_bits() != windows.to_bits(),
@@ -3044,7 +3055,13 @@ mod math_library {
         assert_eq!(math::die_roll_count(P, 3.9), 3);
         assert_eq!(math::die_roll_count(P, -3.9), 0);
         assert_eq!(math::die_roll_count(P, NAN), 0);
-        assert_eq!(math::die_roll_count(P, 1.0e10), 0);
+        // The Linux server's `i32::MIN`, or the host's saturation.
+        let beyond = if cfg!(feature = "platform-quirks") {
+            0
+        } else {
+            i32::MAX as u32
+        };
+        assert_eq!(math::die_roll_count(P, 1.0e10), beyond);
     }
 
     #[test]
@@ -3114,7 +3131,9 @@ mod primitives {
 
     // Expected values are written with nine significant digits.
     #![allow(clippy::excessive_precision)]
-    use crate::common::{P, PLATFORMS, servers_or_android};
+    #[cfg(feature = "platform-quirks")]
+    use crate::common::servers_or_android;
+    use crate::common::{P, PLATFORMS};
     use molang::numeric::{self, PostOp, arith};
     use molang::stdlib::math;
 
@@ -3302,14 +3321,19 @@ mod primitives {
             assert_eq!(arith::to_int(p, -2.9), -2);
             assert_eq!(arith::to_int(p, 2_147_483_520.0), 2_147_483_520);
             assert_eq!(arith::to_int(p, -2_147_483_648.0), i32::MIN);
-            // The servers answer i32::MIN for NaN and out-of-range values; Android saturates and
-            // maps NaN to 0.
-            let (nan, high, low) =
-                servers_or_android(p, (i32::MIN, i32::MIN, i32::MIN), (0, i32::MAX, i32::MIN));
+            // The servers answer i32::MIN for NaN and out-of-range values; Android and the host
+            // saturate and map NaN to 0.
+            #[cfg(feature = "platform-quirks")]
+            let (nan, high, low, rolls) = servers_or_android(
+                p,
+                (i32::MIN, i32::MIN, i32::MIN, 0),
+                (0, i32::MAX, i32::MIN, i32::MAX as u32),
+            );
+            #[cfg(not(feature = "platform-quirks"))]
+            let (nan, high, low, rolls) = (0, i32::MAX, i32::MIN, i32::MAX as u32);
             assert_eq!(arith::to_int(p, NAN), nan, "{p:?}");
             assert_eq!(arith::to_int(p, 3.0e9), high, "{p:?}");
             assert_eq!(arith::to_int(p, -3.0e9), low, "{p:?}");
-            let rolls = servers_or_android(p, 0, i32::MAX as u32);
             assert_eq!(math::die_roll_count(p, 3.0e9), rolls, "{p:?}");
         }
     }
@@ -3336,7 +3360,13 @@ mod primitives {
             assert_eq!(numeric::array_index(P, index, 0), None);
         }
         assert_eq!(numeric::array_index(P, 1.0e30, 1), Some(0));
-        assert_eq!(numeric::array_index(P, f32::INFINITY, 3), Some(0));
+        // The Linux server's `i32::MIN`, or the host's saturation.
+        let beyond = if cfg!(feature = "platform-quirks") {
+            0
+        } else {
+            1
+        };
+        assert_eq!(numeric::array_index(P, f32::INFINITY, 3), Some(beyond));
     }
 
     #[test]
@@ -3351,6 +3381,7 @@ mod primitives {
     }
 }
 
+#[cfg(feature = "platform-quirks")]
 mod nan_signs {
     //! Which NaN comes out where two NaNs meet, and the NaN of `math.ln`. The sign is what
     //! `math.copy_sign` shows of a NaN.

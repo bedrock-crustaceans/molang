@@ -14,8 +14,8 @@ use super::value::ResourceRef;
 /// array's length ([`numeric::array_index`](crate::numeric::array_index)). The element is a
 /// [`Value::Resource`](super::Value::Resource).
 ///
-/// An x86-64 platform converts the index as the servers convert floats; only the arm64 client's
-/// conversion was observed (the crate's choice).
+/// With `platform-quirks` an x86-64 platform converts the index as the servers convert floats;
+/// only the arm64 client's conversion was observed (the crate's choice).
 ///
 /// The trait takes no [`Host`](super::Host) parameter: an element is a resource handle, in which
 /// no host type appears.

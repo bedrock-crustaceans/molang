@@ -368,10 +368,10 @@ mod tests {
     use crate::compile::{Deviations, sema::test_support::*};
     use crate::diag::Severity;
     use crate::hash::HashedStr;
-    use crate::numeric::test_support::{LINUX, PLATFORMS};
+    use crate::numeric::test_support::{NATIVE, PLATFORMS};
     use crate::stdlib::math;
 
-    const P: Platform = LINUX;
+    const P: Platform = NATIVE;
 
     fn run_after(node: &mut Node) -> (Pass, Vec<Logged>) {
         let opts = client(13);
@@ -778,20 +778,45 @@ mod tests {
 
     /// An all-constant `a + b` or `a * b` with two quiet NaNs keeps the left operand's, as at
     /// run time.
+    #[cfg(feature = "platform-quirks")]
     #[test]
     fn literal_arithmetic_with_two_nans_keeps_the_left_one() {
         let (neg, pos) = (f32::from_bits(0xffc0_0000), f32::from_bits(0x7fc0_0000));
         for op in [Op::Add, Op::Mul] {
-            assert_float_bits(&folded(parent(op, vec![float(neg), float(pos)])), neg);
-            assert_float_bits(&folded(parent(op, vec![float(pos), float(neg)])), pos);
-            assert_float_bits(&folded(parent(op, vec![float(2.0), float(pos)])), pos);
+            assert_float_bits(
+                &folded_on(
+                    crate::numeric::Platform::BdsLinux,
+                    parent(op, vec![float(neg), float(pos)]),
+                ),
+                neg,
+            );
+            assert_float_bits(
+                &folded_on(
+                    crate::numeric::Platform::BdsLinux,
+                    parent(op, vec![float(pos), float(neg)]),
+                ),
+                pos,
+            );
+            assert_float_bits(
+                &folded_on(
+                    crate::numeric::Platform::BdsLinux,
+                    parent(op, vec![float(2.0), float(pos)]),
+                ),
+                pos,
+            );
         }
         assert_float_bits(
-            &folded(parent(Op::Add, vec![float(1.5), float(2.25)])),
+            &folded_on(
+                crate::numeric::Platform::BdsLinux,
+                parent(Op::Add, vec![float(1.5), float(2.25)]),
+            ),
             3.75,
         );
         assert_float_bits(
-            &folded(parent(Op::Mul, vec![float(1.5), float(-2.0)])),
+            &folded_on(
+                crate::numeric::Platform::BdsLinux,
+                parent(Op::Mul, vec![float(1.5), float(-2.0)]),
+            ),
             -3.0,
         );
     }
