@@ -2145,6 +2145,45 @@ mod platforms {
         }
     }
 
+    /// `Native` beside the emulated platforms: its NaNs are the host's, so only their NaN-ness is
+    /// fixed, and its float → int conversions are Rust's saturating ones.
+    #[cfg(feature = "platform-quirks")]
+    #[test]
+    fn native_keeps_the_hosts_nans_and_rusts_conversions() {
+        let native = Platform::Native;
+        for source in [
+            "math.sqrt(-1)",
+            "math.ln(-1)",
+            "math.asin(2)",
+            "math.pow(v.n, 3)",
+            "v.i + v.j",
+        ] {
+            let vars = [("n", NAN), ("i", f32::INFINITY), ("j", f32::NEG_INFINITY)];
+            assert!(eval_on(native, source, &vars).is_nan(), "{source:?}");
+        }
+        assert!(folded_on(native, "math.sqrt(-1)").is_nan());
+        assert!(folded_on(native, "math.ln(-1) * 2").is_nan());
+        assert_eq!(molang::numeric::arith::to_int(native, NAN), 0);
+        assert_eq!(molang::numeric::arith::to_int(native, 3e9), i32::MAX);
+        assert_eq!(molang::numeric::arith::to_int(native, -3e9), i32::MIN);
+        assert_eq!(math::die_roll_count(native, 3e9), i32::MAX as u32);
+        assert_eq!(math::die_roll_count(native, NAN), 0);
+        assert_eq!(
+            molang::numeric::array_index(native, f32::INFINITY, 3),
+            Some(1)
+        );
+        // 2^31 − 1 rolls, which the step budget ends.
+        let compiled = compile("math.die_roll(v.n, 1, 2)", &on(native, server_at(13)));
+        let expr = compiled.expr().cloned().expect("an expression");
+        let mut env = NoHostEnv::new();
+        env.variables_mut()
+            .set(VariableName::new("n"), Value::Float(3e9));
+        let mut cx = env.cx();
+        cx.limits = molang::vm::EvalLimits::NONE.with_total_steps(Some(1_000));
+        assert_eq!(expr.eval_f32(&mut cx), 0.0);
+        assert_eq!(env.sink_mut().take().len(), 1);
+    }
+
     /// On Windows ten easings add the start first, so of a NaN start and a NaN range they keep the
     /// start's NaN.
     #[cfg(feature = "platform-quirks")]
