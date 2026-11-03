@@ -30,8 +30,8 @@
 //! - [`hash`]: the string hash a Molang string value is ([`HashedStr`]).
 //! - [`stdlib`] (`stdlib`): the standard `math.*` functions and queries ([`queries`], [`query`]).
 //! - [`compile`][compile-mod] (`compiler`): [`compile`], [`compile_source`], [`CompileOptions`],
-//!   [`Compiled`], [`Expr`], [`ProgramFlags`] and the limits [`MAX_DEPTH`], [`MAX_SOURCE_LEN`]
-//!   and [`MAX_DIAGNOSTICS`].
+//!   [`Compiled`], [`Expr`], [`ProgramFlags`], `check` with `CheckOptions` and the limits
+//!   [`MAX_DEPTH`], [`MAX_SOURCE_LEN`] and [`MAX_DIAGNOSTICS`].
 //! - [`diag`] (`compiler`): [`Diagnostic`], [`DiagCode`], [`Severity`] and [`LanguageMessage`].
 //! - [`numeric`], [`rng`] (`compiler`): the float semantics and the random sources.
 //! - [`vm`] (`vm`): evaluation, [`Value`], the host traits, variable storage and [`EvalLimits`].
@@ -46,6 +46,11 @@
 //!
 //! [`compile_source(&source, &field_options)`][`compile_source`] compiles a [`MolangSource`] at the
 //! source's version; [`compile(text, &options)`][`compile`] uses the options' version.
+//!
+//! `compile::check(&source, &check_options)` does the same and applies a failure policy
+//! (reject, keep logged or drop), the side filter of client-only notes and whether
+//! render-controller arrays and resources are accepted, for a loader that decides per field what a
+//! failed expression becomes.
 //!
 //! The catalogue's [`Side`] has no default. [`CompileOptions::server`] leaves a query the server
 //! catalogue lacks (`query.is_on_screen`) unresolved and lints a client-only query; resource-pack
