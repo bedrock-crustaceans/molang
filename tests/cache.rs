@@ -476,3 +476,34 @@ fn threads_with_different_keys_get_their_own_entries() {
         );
     }
 }
+
+mod check {
+    use super::*;
+    use molang::compile::{CheckDecision, CheckOptions, OnFailure, VersionFrom};
+
+    /// The policy is applied to the cached compile: checks that differ only in policy share one
+    /// entry.
+    #[test]
+    fn checks_differing_in_policy_share_an_entry() {
+        let cache = CompileCache::new();
+        let source = MolangSource::string("1 +", 13);
+        let options = CheckOptions::new(server_at(13));
+        let rejected = cache.check(&source, &options);
+        let kept = cache.check(&source, &options.clone().with_on_failure(OnFailure::Keep));
+        assert_eq!(rejected.decision(), CheckDecision::Rejected);
+        assert_eq!(kept.decision(), CheckDecision::Kept);
+        assert_eq!((cache.len(), cache.misses(), cache.hits()), (1, 1, 1));
+    }
+
+    /// Under `VersionFrom::Options` sources that differ only in version share an entry.
+    #[test]
+    fn version_from_options_shares_an_entry_across_source_versions() {
+        let cache = CompileCache::new();
+        let options = CheckOptions::new(server_at(13)).with_version_from(VersionFrom::Options);
+        for version in [2, 13] {
+            let checked = cache.check(&MolangSource::string("'a' + 1", version), &options);
+            assert_eq!(checked.decision(), CheckDecision::Rejected, "v{version}");
+        }
+        assert_eq!((cache.len(), cache.misses(), cache.hits()), (1, 1, 1));
+    }
+}

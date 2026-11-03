@@ -14,6 +14,7 @@ use codegen::LinkError;
 use std::sync::Arc;
 
 pub(crate) mod ast;
+mod check;
 mod codegen;
 mod cx;
 mod lex;
@@ -23,6 +24,9 @@ pub(crate) mod program;
 mod result;
 mod sema;
 
+pub use check::{
+    CheckDecision, CheckOptions, Checked, ClientOnlyNotes, OnFailure, VersionFrom, check,
+};
 use cx::{Cx, Failed, Pass};
 pub use options::{ArrayAccess, CompileOptions, Deviations};
 pub use program::ProgramFlags;

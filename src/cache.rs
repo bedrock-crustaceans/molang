@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use dashmap::DashMap;
 
-use crate::compile::{CompileOptions, Compiled, compile_at};
+use crate::compile::{CheckOptions, Checked, CompileOptions, Compiled, VersionFrom, compile_at};
 use crate::json::MolangSource;
 use crate::version::{MolangVersion, RawVersion};
 
@@ -122,6 +122,17 @@ impl CompileCache {
             src: Arc::from(src),
         };
         self.lookup(key)
+    }
+
+    /// The cached [`check`](crate::compile::check): the compile is cached, the policy applies
+    /// to it afresh, so checks that differ only in policy share an entry.
+    #[must_use = "the result carries the decision, the expression and the diagnostics"]
+    pub fn check(&self, src: &MolangSource, options: &CheckOptions) -> Checked {
+        let compiled = match options.version_from() {
+            VersionFrom::Source => self.compile_source(src, options.compile()),
+            VersionFrom::Options => self.compile_source_ignoring_version(src, options.compile()),
+        };
+        Checked::decide(compiled, options)
     }
 
     fn lookup(&self, key: CacheKey) -> Arc<Compiled> {
