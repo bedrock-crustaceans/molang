@@ -489,10 +489,7 @@ mod check {
         let source = MolangSource::string("1 +", 13);
         let options = CheckOptions::new(server_at(13));
         let rejected = cache.check(&source, &options);
-        let kept = cache.check(
-            &source,
-            &options.clone().with_on_failure(OnFailure::KeepLogged),
-        );
+        let kept = cache.check(&source, &options.clone().with_on_failure(OnFailure::Keep));
         assert_eq!(rejected.decision(), CheckDecision::Rejected);
         assert_eq!(kept.decision(), CheckDecision::Kept);
         assert_eq!((cache.len(), cache.misses(), cache.hits()), (1, 1, 1));

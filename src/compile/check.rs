@@ -15,7 +15,7 @@ pub enum OnFailure {
     Reject,
     /// [`CheckDecision::Kept`]: the expression of the failed compile (the constant 0 of a
     /// rejection, none for arrays or resources) with the diagnostics.
-    KeepLogged,
+    Keep,
     /// [`CheckDecision::Dropped`]: no expression; the diagnostics are still reported.
     Drop,
 }
@@ -24,7 +24,7 @@ pub enum OnFailure {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum CheckDecision {
-    /// The source is kept: it compiled, or it failed under [`OnFailure::KeepLogged`].
+    /// The source is kept: it compiled, or it failed under [`OnFailure::Keep`].
     Kept,
     /// It failed under [`OnFailure::Reject`].
     Rejected,
@@ -191,7 +191,7 @@ impl Checked {
             Some(CompileFailure::Rejected) => true,
         };
         let decision = match (failed, options.on_failure) {
-            (false, _) | (true, OnFailure::KeepLogged) => CheckDecision::Kept,
+            (false, _) | (true, OnFailure::Keep) => CheckDecision::Kept,
             (true, OnFailure::Reject) => CheckDecision::Rejected,
             (true, OnFailure::Drop) => CheckDecision::Dropped,
         };
@@ -213,7 +213,7 @@ impl Checked {
     }
 
     /// The expression of a kept source: the compiled one, or the constant 0 of a rejection kept
-    /// under [`OnFailure::KeepLogged`]; `None` for a rejected or dropped source and for one that
+    /// under [`OnFailure::Keep`]; `None` for a rejected or dropped source and for one that
     /// uses arrays or resources.
     pub fn expr(&self) -> Option<&Expr> {
         match self.decision {

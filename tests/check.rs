@@ -52,8 +52,8 @@ fn reject_returns_no_expression_and_the_diagnostics() {
 }
 
 #[test]
-fn keep_logged_returns_the_zero_expression_and_the_diagnostics() {
-    let checked = check(&rejected_source(), &server(OnFailure::KeepLogged));
+fn keep_returns_the_zero_expression_and_the_diagnostics() {
+    let checked = check(&rejected_source(), &server(OnFailure::Keep));
     assert_eq!(checked.decision(), CheckDecision::Kept);
     let expr = checked.expr().expect("a kept rejection has its expression");
     assert_eq!(expr.as_constant(), Some(0.0));
@@ -76,7 +76,7 @@ fn drop_returns_no_expression_and_reports_it_was_dropped() {
 #[test]
 fn a_success_is_kept_under_every_policy() {
     let source = MolangSource::string("1 + 2", 13);
-    for policy in [OnFailure::Reject, OnFailure::KeepLogged, OnFailure::Drop] {
+    for policy in [OnFailure::Reject, OnFailure::Keep, OnFailure::Drop] {
         let checked = check(&source, &server(policy));
         assert_eq!(checked.decision(), CheckDecision::Kept, "{policy:?}");
         assert_eq!(checked.expr().and_then(|e| e.as_constant()), Some(3.0));
