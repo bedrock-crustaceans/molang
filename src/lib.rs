@@ -118,7 +118,7 @@
 //! [`HashedStr`]: hash::HashedStr
 #![cfg_attr(
     feature = "compiler",
-    doc = "[compile-mod]: compile
+    doc = "[compile-mod]: mod@compile
 [`compile`]: compile::compile
 [`compile_source`]: compile::compile_source
 [`CompileOptions`]: compile::CompileOptions
