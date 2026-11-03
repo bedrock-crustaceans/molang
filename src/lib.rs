@@ -30,7 +30,7 @@
 //! - [`hash`]: the string hash a Molang string value is ([`HashedStr`]).
 //! - [`stdlib`] (`stdlib`): the standard `math.*` functions and queries ([`queries`], [`query`]).
 //! - [`compile`][compile-mod] (`compiler`): [`compile`], [`compile_source`], [`CompileOptions`],
-//!   [`Compiled`], [`Expr`], [`ProgramFlags`], `check` with `CheckOptions` and the limits
+//!   [`Compiled`], [`Expr`], [`ProgramFlags`], [`check`] with [`CheckOptions`] and the limits
 //!   [`MAX_DEPTH`], [`MAX_SOURCE_LEN`] and [`MAX_DIAGNOSTICS`].
 //! - [`diag`] (`compiler`): [`Diagnostic`], [`DiagCode`], [`Severity`] and [`LanguageMessage`].
 //! - [`numeric`], [`rng`] (`compiler`): the float semantics and the random sources.
@@ -47,8 +47,8 @@
 //! [`compile_source(&source, &field_options)`][`compile_source`] compiles a [`MolangSource`] at the
 //! source's version; [`compile(text, &options)`][`compile`] uses the options' version.
 //!
-//! `compile::check(&source, &check_options)` does the same and applies a failure policy
-//! (reject, keep logged or drop), the side filter of client-only notes and whether
+//! [`check(&source, &check_options)`][`check`] does the same and applies a failure policy
+//! (reject, keep or drop), the side filter of client-only notes and whether
 //! render-controller arrays and resources are accepted, for a loader that decides per field what a
 //! failed expression becomes.
 //!
@@ -126,6 +126,8 @@
     doc = "[compile-mod]: mod@compile
 [`compile`]: compile::compile
 [`compile_source`]: compile::compile_source
+[`check`]: compile::check
+[`CheckOptions`]: compile::CheckOptions
 [`CompileOptions`]: compile::CompileOptions
 [`compile::CompileOptions`]: compile::CompileOptions
 [`CompileOptions::with_math`]: compile::CompileOptions::with_math
@@ -151,6 +153,8 @@
     doc = "[compile-mod]: https://docs.rs/molang/1/molang/compile/index.html
 [`compile`]: https://docs.rs/molang/1/molang/compile/fn.compile.html
 [`compile_source`]: https://docs.rs/molang/1/molang/compile/fn.compile_source.html
+[`check`]: https://docs.rs/molang/1/molang/compile/fn.check.html
+[`CheckOptions`]: https://docs.rs/molang/1/molang/compile/struct.CheckOptions.html
 [`CompileOptions`]: https://docs.rs/molang/1/molang/compile/struct.CompileOptions.html
 [`compile::CompileOptions`]: https://docs.rs/molang/1/molang/compile/struct.CompileOptions.html
 [`CompileOptions::with_math`]: https://docs.rs/molang/1/molang/compile/struct.CompileOptions.html#method.with_math
