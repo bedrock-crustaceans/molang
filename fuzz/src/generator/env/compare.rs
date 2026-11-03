@@ -561,6 +561,7 @@ mod tests {
         #[test]
         fn a_float_that_differs_in_one_bit_is_never_the_same(bits in proptest::prelude::any::<u32>(), bit in 0u32..32) {
             let (a, b) = (f32::from_bits(bits), f32::from_bits(bits ^ (1 << bit)));
+            proptest::prop_assume!(NAN_BITS || !(a.is_nan() && b.is_nan()));
             proptest::prop_assert!(!same_value(&float(a), &float(b)));
         }
     }
