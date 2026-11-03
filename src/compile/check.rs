@@ -207,7 +207,9 @@ impl Checked {
         self.decision
     }
 
-    /// Whether the source is kept ([`CheckDecision::Kept`]).
+    /// Whether the source is kept ([`CheckDecision::Kept`]). A kept source need not have an
+    /// expression to evaluate: one that uses arrays or resources the options accept is kept with
+    /// [`Checked::expr`] `None`.
     pub const fn is_kept(&self) -> bool {
         matches!(self.decision, CheckDecision::Kept)
     }
